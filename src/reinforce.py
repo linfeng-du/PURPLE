@@ -1,5 +1,3 @@
-import random
-
 import torch
 
 
@@ -12,23 +10,20 @@ class Reinforce:
         min_sample_size = mask.sum(dim=1).min().item()
         sample_size = min(sample_size, min_sample_size)
 
-        logprobs = []
+        log_probs = []
         rewards = []
         for _ in range(num_samples):
-            sample_idxs, log_probs = self._sample_without_replacement(likelihoods, sample_size, epsilon)
+            sample_idxs, log_prob = self._sample_without_replacement(likelihoods, sample_size, epsilon)
+            reward = self.reward_fn(sample_idxs)
+            log_probs.append(log_prob)
+            rewards.append(reward)
 
-            # reward = self.reward_fn(sample_idxs)
+        log_probs = torch.stack(log_probs, dim=0)
+        rewards = torch.stack(rewards, dim=0)
+        baseline = torch.mean(rewards, dim=1, keepdims=True)
 
-            # logprobs.append(logprob)
-            # rewards.append(reward)
-
-        # baseline = torch.mean(rewards)
-
-        # losses = []
-        # for logprob, reward in zip(logprobs, rewards):
-            # losses.append(-logprob * ((reward - baseline) / baseline))
-
-        # return sum(losses) / len(losses)
+        loss = torch.mean(-(log_probs * ((rewards - baseline) / baseline)))
+        return loss
 
     @staticmethod
     def _sample_without_replacement(likelihoods, sample_size, epsilon):
@@ -57,5 +52,5 @@ class Reinforce:
             log_probs[:, i] = torch.log(sample_i_probs)
             avail_mask[torch.arange(B), sample_i_idxs] = 0
 
-        log_probs = log_probs.sum(dim=1)
-        return sample_idxs, log_probs
+        log_prob = log_probs.sum(dim=1)
+        return sample_idxs, log_prob
