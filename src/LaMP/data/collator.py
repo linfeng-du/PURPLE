@@ -1,16 +1,14 @@
 """A collator for batching examples from the Seq2SeqRetrieverTrainingDataset."""
 
-from itertools import chain
-
 import torch
 
 
 class CollatorForSeq2SeqRetrieverTraining:
 
-    def __init__(self, max_query_length, max_corpus_length, max_corpus_size, tokenizer):
-        self.max_query_length = max_query_length
-        self.max_corpus_length = max_corpus_length
+    def __init__(self, max_corpus_size, max_query_length, max_document_length, tokenizer):
         self.max_corpus_size = max_corpus_size
+        self.max_query_length = max_query_length
+        self.max_document_length = max_document_length
         self.tokenizer = tokenizer
 
     def __call__(self, examples):
@@ -35,8 +33,7 @@ class CollatorForSeq2SeqRetrieverTraining:
                 corpus.extend([''] * (self.max_corpus_size - len(corpus)))
             elif len(corpus) > self.max_corpus_size:
                 corpus[self.max_corpus_size:] = []
-
-        corpora = list(chain.from_iterable(corpora))
+                profiles[idx][self.max_corpus_size:] = []
 
         tokenized_queries = self.tokenizer(
             queries,
@@ -46,10 +43,10 @@ class CollatorForSeq2SeqRetrieverTraining:
             return_tensors='pt'
         )
         tokenized_corpora = self.tokenizer(
-            corpora,
+            [document for corpus in corpora for document in corpus],
             padding=True,
             truncation=True,
-            max_length=self.max_corpus_length,
+            max_length=self.max_document_length,
             return_tensors='pt'
         )
 
