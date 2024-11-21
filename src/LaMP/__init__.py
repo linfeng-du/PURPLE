@@ -1,6 +1,6 @@
 from .prompts import (
-    create_query_corpus_generator,
-    create_prompt_with_retrieval_generator
+    create_retrieval_prompt_generator,
+    create_query_corpus_generator
 )
 from .data.datasets import (
     load_all_labels,
