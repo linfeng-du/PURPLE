@@ -27,7 +27,7 @@ from .retrievers import create_retriever
 def create_retrieval_prompt_generator(task, retriever_name, num_retrieve, max_length, tokenizer, device=None):
     retriever = create_retriever(retriever_name, device=device)
     query_corpus_generator = create_query_corpus_generator(task)
-    prompt_generator = create_prompt_generator(task)
+    prompt_generator = _create_prompt_generator(task)
 
     def generate_prompt_with_retrieval(inp, profile, factor=0.6):
         profile = retriever(inp, profile, num_retrieve, query_corpus_generator)
@@ -60,7 +60,7 @@ def create_query_corpus_generator(task):
     return task_fns[task]
 
 
-def create_prompt_generator(task):
+def _create_prompt_generator(task):
     task_fns = {
         'LaMP-1': _generate_classification_citation_prompt,
         'LaMP-2': _generate_classification_movies_prompt,
