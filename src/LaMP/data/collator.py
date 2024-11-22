@@ -1,15 +1,39 @@
-"""A collator for batching examples from the Seq2SeqRetrieverTrainingDataset."""
+"""Collators for batching."""
 
 import torch
 
 
-class CollatorForSeq2SeqRetrieverTraining:
+class LaMPCollator:
 
-    def __init__(self, max_corpus_size, max_query_length, max_document_length, tokenizer):
+    def __init__(self, tokenizer, max_length):
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+
+    def __call__(self, examples):
+        sources = []
+        targets = []
+        for example in examples:
+            sources.append(example['source'])
+            targets.append(example['target'])
+
+        tokenized = self.tokenizer(
+            sources,
+            text_target=targets,
+            padding=True,
+            truncation=True,
+            max_length=self.max_length,
+            return_tensors='pt'
+        )
+        return tokenized
+
+
+class RetrieverTrainingCollator:
+
+    def __init__(self, tokenizer, max_corpus_size, max_query_length, max_document_length):
+        self.tokenizer = tokenizer
         self.max_corpus_size = max_corpus_size
         self.max_query_length = max_query_length
         self.max_document_length = max_document_length
-        self.tokenizer = tokenizer
 
     def __call__(self, examples):
         ids = []

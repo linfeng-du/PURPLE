@@ -1,5 +1,4 @@
-"""Task-specific functions for query, corpus, and prompt generation
-   and an interface for generating prompts with retrieval.
+"""Interface for generating prompts with retrieval.
 
 Potential Issues:
 - When the input query exceeds the length limit,
@@ -24,7 +23,7 @@ Potential Issues:
 from .retrievers import create_retriever
 
 
-def create_retrieval_prompt_generator(task, retriever_name, num_retrieve, max_length, tokenizer, device=None):
+def create_retrieval_prompt_generator(task, retriever_name, num_retrieve, tokenizer, max_length, device=None):
     retriever = create_retriever(retriever_name, device=device)
     query_corpus_generator = create_query_corpus_generator(task)
     prompt_generator = _create_prompt_generator(task)

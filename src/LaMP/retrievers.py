@@ -1,11 +1,4 @@
-"""Retrievers for the retrieval-augmented generation pipeline.
-
-Potential Issues:
-- The random retriever uses sampling with replacement,
-  so that the same document can be retrieved multiple times.
-"""
-
-import random
+"""Retrievers for the retrieval-augmented generation pipeline."""
 
 from rank_bm25 import BM25Okapi
 
@@ -23,7 +16,6 @@ def create_retriever(retriever_name, device=None):
 
     retriever_fns = {
         'first_k': _first_k_retriever,
-        'random': _random_retriever,
         'bm25': _bm25_retriever,
     }
     return retriever_fns[retriever_name]
@@ -32,11 +24,6 @@ def create_retriever(retriever_name, device=None):
 def _first_k_retriever(inp, profile, num_retrieve, *args):
     num_retrieve = min(num_retrieve, len(profile))
     return profile[:num_retrieve]
-
-
-def _random_retriever(inp, profile, num_retrieve, *args):
-    num_retrieve = min(num_retrieve, len(profile))
-    return random.choices(profile, k=num_retrieve)
 
 
 def _bm25_retriever(inp, profile, num_retrieve, query_corpus_generator):

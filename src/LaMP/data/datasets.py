@@ -1,10 +1,10 @@
-"""Dataset classes and preprocessors.
+"""Dataset classes and label loader.
 
-- GeneralSeq2SeqDataset:
-  A dataset class for retrieval-augmented generation that integrates retrieval for each example.
+- LaMPDataset:
+  Dataset for the LaMP benchmark. Integrates retrieval in prompt generation for each example.
 
-- Seq2SeqRetrieverTrainingDataset:
-  A dataset class for training the retriever, providing a query and corpus for each example.
+- RetrieverTrainingDataset:
+  Dataset for training the retriever. Provides a query and corpus for each example.
 """
 
 import json
@@ -12,7 +12,7 @@ import json
 from torch.utils.data import Dataset
 
 
-class GeneralSeq2SeqDataset(Dataset):
+class LaMPDataset(Dataset):
 
     def __init__(self, data, labels, prompt_generator):
         super().__init__()
@@ -65,7 +65,7 @@ class GeneralSeq2SeqDataset(Dataset):
         return len(self.data)
 
 
-class Seq2SeqRetrieverTrainingDataset(Dataset):
+class RetrieverTrainingDataset(Dataset):
 
     def __init__(self, data_path, label_path, query_corpus_generator):
         super().__init__()
@@ -99,11 +99,19 @@ class Seq2SeqRetrieverTrainingDataset(Dataset):
         return len(self.data)
 
 
-def create_preprocessor(tokenizer, max_length):
-    def preprocess_dataset(examples):
-        sources = [example for example in examples['source']]
-        targets = [example for example in examples['target']]
-        model_inputs = tokenizer(sources, text_target=targets, max_length=max_length, truncation=True)
-        return model_inputs
-
-    return preprocess_dataset
+def load_all_labels(task):
+    task_labels = {
+        'LaMP-1': ['[1]', '[2]'],
+        'LaMP-2': [
+            'sci-fi', 'based on a book', 'comedy', 'action',
+            'twist ending', 'dystopia', 'dark comedy', 'classic',
+            'psychology', 'fantasy', 'romance', 'thought-provoking',
+            'social commentary', 'violence', 'true story'
+        ],
+        'LaMP-3': ['1', '2', '3', '4', '5'],
+        'LaMP-4': [],
+        'LaMP-5': [],
+        'LaMP-6': [],
+        'LaMP-7': []
+    }
+    return task_labels[task]
