@@ -3,67 +3,125 @@ from argparse import Namespace
 from tqdm import tqdm
 
 from torch.utils.data import DataLoader
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, AutoModel, AutoModelForCausalLM
 
 from src.LaMP import (
-    create_query_corpus_generator,
-    Seq2SeqRetrieverTrainingDataset,
-    CollatorForSeq2SeqRetrieverTraining
+    LaMPDataset,
+    LaMPCollator,
+    create_retrieval_prompt_generator,
+    RetrieverTrainingDataset,
+    RetrieverTrainingCollator,
+    create_query_corpus_generator
 )
-from src.models import LikelihoodModel
-from src.reinforce import Reinforce
+from src.models import (
+    RetrieverModel,
+    Reinforce,
+    create_reward
+)
 
 
-def train_retriever(configs):
-    train_dataset = Seq2SeqRetrieverTrainingDataset(
-        f'./dataset/{configs.task}/train_questions.json',
-        f'./dataset/{configs.task}/train_outputs.json',
-        create_query_corpus_generator(configs.task)
-    )
-    collate_fn = CollatorForSeq2SeqRetrieverTraining(
-        configs.max_query_length,
-        configs.max_corpus_length,
-        configs.max_corpus_size,
-        AutoTokenizer.from_pretrained(configs.model_name)
-    )
+def train_retriever(cfg):
+    # Prepare retrieval data
     train_loader = DataLoader(
-        train_dataset,
-        configs.num_sampled_questions,
-        shuffle=False,
-        collate_fn=collate_fn
-    )
-    lik_model = LikelihoodModel(configs.model_name)
-    reinforce = Reinforce(None)
-    lik_model.to(configs.device)
-
-    for batch in tqdm(train_loader):
-        query = batch['query'].to(configs.device)
-        corpus = batch['corpus'].to(configs.device)
-        corpus_mask = batch['corpus_mask'].to(configs.device)
-        likelihoods = lik_model(query, corpus, corpus_mask)
-        reinforce.compute_loss(
-            likelihoods,
-            configs.num_sampled_retrievals,
-            configs.num_retrieve,
-            corpus_mask,
-            configs.epsilon
+        RetrieverTrainingDataset(
+            f'./dataset/{cfg.task}/train_questions.json',
+            f'./dataset/{cfg.task}/train_outputs.json',
+            create_query_corpus_generator(cfg.task)
+        ),
+        batch_size=cfg.ret_cfg.num_sampled_questions,
+        shuffle=True,
+        collate_fn=RetrieverTrainingCollator(
+            AutoTokenizer.from_pretrained(cfg.ret_cfg.retriever_model),
+            cfg.ret_cfg.max_corpus_size,
+            cfg.ret_cfg.max_query_length,
+            cfg.ret_cfg.max_document_length
         )
+    )
+
+    # Prepare generation
+    tokenizer = AutoTokenizer.from_pretrained(cfg.gen_cfg.generation_model)
+    tokenizer.padding_side = 'left'
+    tokenizer.pad_token = tokenizer.eos_token
+    prompt_generator = create_retrieval_prompt_generator(
+        cfg.task,
+        'first_k',
+        cfg.ret_cfg.num_retrieve,
+        tokenizer,
+        cfg.ret_cfg.max_prompt_length,
+    )
+
+    # Prepare models
+    ret_model = RetrieverModel(AutoModel.from_pretrained(cfg.ret_cfg.retriever_model))
+    gen_model = AutoModelForCausalLM.from_pretrained(cfg.gen_cfg.generation_model)
+    ret_model.to(cfg.device)
+    gen_model.to(cfg.device)
+
+    reinforce = Reinforce(cfg.ret_cfg.num_sampled_retrievals)
+    reward_fn = create_reward(cfg.task, tokenizer)
+
+    # Training loop
+    for batch in tqdm(train_loader):
+        query = batch['query'].to(cfg.device)
+        corpus = batch['corpus'].to(cfg.device)
+        corpus_mask = batch['corpus_mask'].to(cfg.device)
+
+        likelihoods = ret_model(query, corpus, corpus_mask)
+        sample_idxs, log_prob = reinforce.sample(
+            likelihoods,
+            corpus_mask,
+            cfg.ret_cfg.num_retrieve,
+            cfg.ret_cfg.epsilon,
+        )
+
+        # Prepare generation data
+        loader = DataLoader(
+            LaMPDataset.from_batch_sample_indices(
+                batch,
+                sample_idxs,
+                prompt_generator 
+            ),
+            batch_size=cfg.gen_cfg.batch_size,
+            collate_fn=LaMPCollator(tokenizer, cfg.ret_cfg.max_prompt_length)
+        )
+
+        reward = []
+        for batch in loader:
+            batch = batch.to(cfg.device)
+            outputs = gen_model.generate(
+                **batch,
+                max_new_tokens=cfg.gen_cfg.max_generation_length,
+                num_beams=cfg.gen_cfg.num_beams,
+                pad_token_id=tokenizer.eos_token_id
+            )
+            outputs = outputs[:, batch['input_ids'].size(dim=1):]
+            reward_fn(outputs, batch['labels'])
 
 
 if __name__ == '__main__':
-    configs = Namespace(
-        task='LaMP-1',
-        model_name='facebook/contriever',
+    ret_cfg = Namespace(
+        retriever_model='facebook/contriever',
 
+        max_corpus_size=50,
         max_query_length=8,
-        max_corpus_length=18,
-        max_corpus_size=32,
-
-        num_sampled_questions=32,
+        max_document_length=18,
+        num_sampled_questions=2,
         num_sampled_retrievals=20,
         num_retrieve=12,
         epsilon=0.1,
 
+        max_prompt_length=512
+    )
+    gen_cfg = Namespace(
+        generation_model='meta-llama/Llama-3.2-1B-Instruct',
+
+        batch_size=16,
+        max_generation_length=5,
+        num_beams=5
+    )
+    cfg = Namespace(
+        task='LaMP-1',
+        ret_cfg=ret_cfg,
+        gen_cfg=gen_cfg,
         device='cuda:0'
     )
-    train_retriever(configs)
+    train_retriever(cfg)
