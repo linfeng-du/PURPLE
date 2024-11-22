@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 
-class LikelihoodModel(nn.Module):
+class RetrieverModel(nn.Module):
 
     def __init__(self, encoder):
         super().__init__()
