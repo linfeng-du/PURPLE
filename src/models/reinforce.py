@@ -22,6 +22,12 @@ class Reinforce:
         return sample_idxs, log_prob
 
     @staticmethod
+    def compute_loss(log_prob, reward):
+        baseline = torch.mean(reward, dim=1, keepdim=True)
+        loss = torch.mean(-(log_prob * ((reward - baseline) / baseline)))
+        return loss
+
+    @staticmethod
     def _sample_without_replacement(likelihoods, sample_size, epsilon):
         sample_idxs = torch.full_like(likelihoods[:, :sample_size], fill_value=-1, dtype=torch.long)
         log_probs = torch.zeros_like(likelihoods[:, :sample_size])
@@ -35,7 +41,7 @@ class Reinforce:
 
             # Exploitation only
             likelihoods_masked = likelihoods * avail_mask
-            likelihood_probs = likelihoods_masked / likelihoods_masked.sum(dim=1, keepdims=True)
+            likelihood_probs = likelihoods_masked / likelihoods_masked.sum(dim=1, keepdim=True)
             likelihood_idxs = torch.multinomial(likelihood_probs, num_samples=1)
             likelihood_probs = likelihood_probs.gather(dim=1, index=likelihood_idxs)
 
