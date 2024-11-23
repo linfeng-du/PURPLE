@@ -65,7 +65,7 @@ class _ContrieverRetriever(nn.Module):
 
         token_embeddings = outputs.last_hidden_state
         mask = inputs['attention_mask'].unsqueeze(dim=-1)
-        token_embeddings = token_embeddings * mask
+        token_embeddings = token_embeddings.masked_fill(~mask.bool(), 0.)
         sentence_embeddings = token_embeddings.sum(dim=1) / mask.sum(dim=1)
         return sentence_embeddings
 

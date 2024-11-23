@@ -40,7 +40,7 @@ class Reinforce:
             uniform_probs = 1. / avail_mask.sum(dim=1, keepdim=True)
 
             # Exploitation only
-            likelihoods_masked = likelihoods * avail_mask
+            likelihoods_masked = likelihoods.masked_fill(~avail_mask, 0.)
             likelihood_probs = likelihoods_masked / likelihoods_masked.sum(dim=1, keepdim=True)
             likelihood_idxs = torch.multinomial(likelihood_probs, num_samples=1)
             likelihood_probs = likelihood_probs.gather(dim=1, index=likelihood_idxs)
