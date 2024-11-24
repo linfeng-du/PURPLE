@@ -81,7 +81,7 @@ def train_retriever(cfg):
             LaMPDataset.from_batch_sample_indices(
                 batch,
                 sample_idxs,
-                prompt_generator 
+                prompt_generator
             ),
             batch_size=cfg.gen_cfg.batch_size,
             collate_fn=LaMPCollator(tokenizer, cfg.ret_cfg.max_prompt_length)
@@ -106,7 +106,7 @@ def train_retriever(cfg):
         loss.backward()
         torch.nn.utils.clip_grad_norm_(ret_model.parameters(), 1)
         optimizer.step()
-        optimizer.zero_grad()        
+        optimizer.zero_grad()
 
 
 if __name__ == '__main__':

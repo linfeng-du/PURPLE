@@ -85,7 +85,7 @@ def create_generation_reward(tokenizer):
             prediction = [prediction.strip()]
             label = [[label.strip()]]
             rouge_results = rouge_metric.compute(predictions=prediction, references=label)
-            reward.append(rouge_results['rouge-1'])
+            reward.append(rouge_results['rouge1'])
 
         reward = torch.tensor(reward, dtype=torch.float, device=predictions.device)
         return reward
