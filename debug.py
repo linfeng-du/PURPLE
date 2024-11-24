@@ -2,6 +2,7 @@ from argparse import Namespace
 
 from tqdm import tqdm
 
+import torch
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, AutoModel, AutoModelForCausalLM
 
@@ -59,6 +60,8 @@ def train_retriever(cfg):
     reinforce = Reinforce(cfg.ret_cfg.num_sampled_retrievals)
     reward_fn = create_reward(cfg.task, tokenizer)
 
+    optimizer = torch.optim.Adam(ret_model.parameters(), lr=cfg.ret_cfg.lr)
+
     # Training loop
     for batch in tqdm(train_loader):
         query = batch['query'].to(cfg.device)
@@ -84,7 +87,7 @@ def train_retriever(cfg):
             collate_fn=LaMPCollator(tokenizer, cfg.ret_cfg.max_prompt_length)
         )
 
-        reward = []
+        all_reward = []
         for batch in loader:
             batch = batch.to(cfg.device)
             outputs = gen_model.generate(
@@ -94,7 +97,16 @@ def train_retriever(cfg):
                 pad_token_id=tokenizer.eos_token_id
             )
             outputs = outputs[:, batch['input_ids'].size(dim=1):]
-            reward_fn(outputs, batch['labels'])
+            reward = reward_fn(outputs, batch['labels'])
+            all_reward.append(reward)
+
+        reward = torch.cat(all_reward, dim=0).view_as(log_prob)
+
+        loss = reinforce.compute_loss(log_prob, reward)
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(ret_model.parameters(), 1)
+        optimizer.step()
+        optimizer.zero_grad()        
 
 
 if __name__ == '__main__':
@@ -104,10 +116,12 @@ if __name__ == '__main__':
         max_corpus_size=50,
         max_query_length=8,
         max_document_length=18,
+
         num_sampled_questions=2,
         num_sampled_retrievals=20,
         num_retrieve=12,
         epsilon=0.1,
+        lr=1e-5,
 
         max_prompt_length=512
     )
@@ -119,7 +133,7 @@ if __name__ == '__main__':
         num_beams=5
     )
     cfg = Namespace(
-        task='LaMP-1',
+        task='LaMP-7',
         ret_cfg=ret_cfg,
         gen_cfg=gen_cfg,
         device='cuda:0'

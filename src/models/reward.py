@@ -9,98 +9,85 @@ def create_reward(task, tokenizer):
     task_fn = {
         'LaMP-1': create_classification_reward(tokenizer, all_labels),
         'LaMP-2': create_classification_reward(tokenizer, all_labels),
-        # 'LaMP-3': create_mae_reward(tokenizer, all_labels),
-        # 'LaMP-4': create_rouge_1_reward(tokenizer, all_labels),
-        # 'LaMP-5': create_rouge_1_reward(tokenizer, all_labels),
-        # 'LaMP-6': create_rouge_1_reward(tokenizer, all_labels),
-        # 'LaMP-7': create_rouge_1_reward(tokenizer, all_labels)
+        'LaMP-3': create_regression_reward(tokenizer),
+        'LaMP-4': create_generation_reward(tokenizer),
+        'LaMP-5': create_generation_reward(tokenizer),
+        'LaMP-6': create_generation_reward(tokenizer),
+        'LaMP-7': create_generation_reward(tokenizer)
     }
     return task_fn[task]
 
 
 def create_classification_reward(tokenizer, all_labels):
-    def map_to_label_indices(outputs):
-        indices = []
-        outputs = tokenizer.batch_decode(outputs, skip_special_tokens=True)
-        print(outputs)
-        for x in outputs:
-            x = x.strip()
-            index = all_labels.index(x) if x in all_labels else -1
-            indices.append(index)
-
-        return indices
-
-    def compute_accuracy_reward(predictions, labels):
+    def compute_classification_reward(predictions, labels):
         predictions = map_to_label_indices(predictions)
         labels = map_to_label_indices(labels)
+        reward = (predictions == labels).float()
+        return reward
 
-    return compute_accuracy_reward
+    def map_to_label_indices(outputs):
+        decoded_outputs = tokenizer.batch_decode(outputs, skip_special_tokens=True)
+
+        indices = []
+        for output in decoded_outputs:
+            try:
+                index = all_labels.index(output.strip())
+            except ValueError:
+                index = -1
+
+            indices.append(index)
+
+        indices = torch.tensor(indices, dtype=torch.long, device=outputs.device)
+        return indices
+
+    return compute_classification_reward
 
 
-def create_metric_mae_rmse(tokenizer, all_labels):
-    mse_metric = evaluate.load('mse')
-    mae_metric = evaluate.load('mae')
+def create_regression_reward(tokenizer):
+    def compute_regression_reward(predictions, labels):
+        predictions = map_to_scores(predictions, labels)
+        labels = map_to_scores(labels, labels)
+        reward = torch.abs(predictions - labels)
+        return reward
 
-    def create_mapping(x, y):
-        try:
-            return float(x)
-        except:
-            print(x)
-            y = float(y)
-            if abs(1 - y) > abs(5 - y):
-                return 1.0
-            else:
-                return 5.0
-
-    def compute_metrics(eval_preds):
-        preds, labels = eval_preds
-        if isinstance(preds, tuple):
-            preds = preds[0]
-
-        decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
-        labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+    def map_to_scores(outputs, labels):
+        decoded_outputs = tokenizer.batch_decode(outputs, skip_special_tokens=True)
         decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
 
-        decoded_preds, decoded_labels = postprocess_text_classification(decoded_preds, decoded_labels)
-        decoded_preds = [create_mapping(x,y) for x,y in zip(decoded_preds, decoded_labels)]
-        decoded_labels = [create_mapping(x,x) for x in decoded_labels]
+        scores = []
+        for output, label in zip(decoded_outputs, decoded_labels):
+            try:
+                score = float(output.strip())
+            except ValueError:
+                label = float(label.strip())
+                if abs(1 - label) > abs(5 - label):
+                    score = 1.
+                else:
+                    score = 5.
 
-        result_mae = mae_metric.compute(predictions=decoded_preds, references=decoded_labels)
-        result_rmse = mse_metric.compute(predictions=decoded_preds, references=decoded_labels, squared = False)
-        result = {'mae' : result_mae['mae'], 'rmse' : result_rmse['mse']}
-        return result
+            scores.append(score)
 
-    return compute_metrics
+        scores = torch.tensor(scores, dtype=torch.float, device=outputs.device)
+        return scores
+
+    return compute_regression_reward
 
 
-def create_metric_bleu_rouge_meteor(tokenizer):
-    bleu_metric = evaluate.load('sacrebleu')
+def create_generation_reward(tokenizer):
     rouge_metric = evaluate.load('rouge')
-    meteor_metric = evaluate.load('meteor')
 
-    def compute_metrics(eval_preds):
-        preds, labels = eval_preds
-        if isinstance(preds, tuple):
-            preds = preds[0]
-
-        decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
-        labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+    def compute_generation_reward(predictions, labels):
+        decoded_predictions = tokenizer.batch_decode(predictions, skip_special_tokens=True)
         decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
-        decoded_preds, decoded_labels = postprocess_text_generation(decoded_preds, decoded_labels)
 
-        result_bleu = bleu_metric.compute(predictions=decoded_preds, references=decoded_labels)
-        result_rouge = rouge_metric.compute(predictions=decoded_preds, references=decoded_labels)
-        result_meteor = meteor_metric.compute(predictions=decoded_preds, references=decoded_labels)
-        result = {'bleu' : result_bleu['score'], 'rouge-1' : result_rouge['rouge1'], 'rouge-2' : result_rouge['rouge2'], 'rouge-L' : result_rouge['rougeL'], 'rouge-LSum' : result_rouge['rougeLsum'], 'meteor' : result_meteor['meteor']}
-        return result
+        reward = []
+        for prediction, label in zip(decoded_predictions, decoded_labels):
+            prediction = [prediction.strip()]
+            label = [[label.strip()]]
+            rouge_results = rouge_metric.compute(predictions=prediction, references=label)
+            reward.append(rouge_results['rouge-1'])
 
-    return compute_metrics
+        reward = torch.tensor(reward, dtype=torch.float, device=predictions.device)
+        return reward
 
-
-
-def postprocess_text_generation(preds, labels):
-    # geneartion
-    preds = [pred.strip() for pred in preds]
-    labels = [[label.strip()] for label in labels]
-
-    return preds, labels
+    return compute_generation_reward
