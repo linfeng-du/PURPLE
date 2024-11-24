@@ -30,8 +30,8 @@ class Reinforce:
     @staticmethod
     def _sample_without_replacement(likelihoods, sample_size, epsilon):
         sample_idxs = torch.full_like(likelihoods[:, :sample_size], fill_value=-1, dtype=torch.long)
-        log_probs = torch.zeros_like(likelihoods[:, :sample_size])
-        avail_mask = torch.ones_like(likelihoods, dtype=torch.bool)
+        log_probs = torch.zeros_like(likelihoods[:, :sample_size], dtype=torch.float)
+        avail_mask = torch.ones_like(likelihoods, dtype=torch.bool).masked_fill(likelihoods == 0., 0)
 
         B = likelihoods.size(0)
         for i in range(sample_size):

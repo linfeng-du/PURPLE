@@ -29,7 +29,7 @@ class RetrieverModel(nn.Module):
 
         likelihoods = self.decoder(query_corpus)
         likelihoods = likelihoods.squeeze(dim=-1)
-        likelihoods = likelihoods * corpus_mask
+        likelihoods = likelihoods.masked_fill(~corpus_mask, 0.)
         return likelihoods
 
     def _compute_sentence_embeddings(self, sentence_inputs):
