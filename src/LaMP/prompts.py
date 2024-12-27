@@ -1,47 +1,39 @@
-"""Interface for generating prompts with retrieval.
+from typing import Callable
 
-Potential Issues:
-- When the input query exceeds the length limit,
-  using `factor * max_length` may result in prompts that exceed `max_length`.
-
-- The prompt generator raises an OverflowError
-  when the per-profile quota is insufficient to include even the template strings.
-
-- The `max_length` argument in the prompt generation functions
-  refers to the maximum length of the promptified profiles, not the complete prompt.
-
-- The length calculation of template prompt strings includes start and end special tokens.
-  Ideally, these tokens should be excluded.
-
-- In the LaMP-1 prompt generation function,
-  the query's paper is appended after the papers in the profile.
-  This ordering makes the prompt unnatural.
-
-- Some profile prompt templates contain an additional trailing space.
-"""
+from transformers import PreTrainedTokenizerBase
 
 from .retrievers import create_retriever
 
 
-def create_retrieval_prompt_generator(task, retriever_name, num_retrieve, tokenizer, max_length, device=None):
-    retriever = create_retriever(retriever_name, device=device)
+def create_retrieval_prompt_generator(
+    task: str,
+    retriever: str,
+    n_retrieve: int,
+    max_length: int,
+    tokenizer: PreTrainedTokenizerBase,
+    device: str | None = None
+) -> Callable[[str, list[dict[str, str], float]], str]:
+    retriever = create_retriever(retriever, device=device)
     query_corpus_generator = create_query_corpus_generator(task)
     prompt_generator = _create_prompt_generator(task)
 
-    def generate_prompt_with_retrieval(inp, profile, factor=0.6):
-        profile = retriever(inp, profile, num_retrieve, query_corpus_generator)
+    def generate_prompt_with_retrieval(
+        input: str, profiles: list[dict[str, str]], factor: float = 0.6
+    ) -> str:
+        retrieved_profiles = retriever(input, profiles, n_retrieve, query_corpus_generator)
 
         while True:
             try:
-                reserved_len = min(len(tokenizer(inp)['input_ids']), int(factor * max_length))
-                max_length_ = max_length - reserved_len
-                prompt = prompt_generator(inp, profile, max_length_, tokenizer)
+                input_length = len(tokenizer.encode(input, truncation=True, max_length=max_length))
+                reserved_length = min(input_length, int(factor * max_length))
+                profile_max_length = max_length - reserved_length
+                prompt = prompt_generator(input, retrieved_profiles, profile_max_length, tokenizer)
                 return prompt
             except OverflowError:
                 factor -= 0.1
                 if factor < 0:
-                    print('not possbile')
-                    return inp
+                    print('Returning the original input as is')
+                    return input
 
     return generate_prompt_with_retrieval
 
@@ -72,217 +64,264 @@ def _create_prompt_generator(task):
     return task_fns[task]
 
 
-# ================================   LaMP 1: Personalized Citation Identification   ================================
-def _generate_classification_citation_query_corpus(inp, profile):
-    extracted = _extract_strings_between_quotes(inp)
-    query = f'{extracted[1]} {extracted[2]}'
-    corpus = [f'{p["title"]} {p["abstract"]}' for p in profile]
+# ========================   LaMP 1: Personalized Citation Identification   ========================
+def _generate_classification_citation_query_corpus(input, profiles):
+    _, reference_1, reference_2 = _extract_strings_between_quotes(input)
+    query = f'{reference_1} {reference_2}'
+    corpus = [f'{profile["title"]} {profile["abstract"]}' for profile in profiles]
     return query, corpus
 
 
-def _generate_classification_citation_prompt(inp, profile, max_length, tokenizer):
-    template_len = 2 * (len(profile) - 1)
-    p_max_len = (max_length - template_len) // len(profile)
+def _generate_classification_citation_prompt(input, profiles, max_length, tokenizer):
+    template_length = 2 * (len(profiles) - 1)
+    per_profile_max_length = (max_length - template_length) // len(profiles)
 
     prompts = []
-    saved_len = 0
-    for p in profile:
-        p_template_len = 2
-        p_max_len_ = p_max_len + saved_len - p_template_len
+    saved_length = 0
 
-        tokenized = tokenizer(p['title'], max_length=p_max_len_, truncation=True)
-        token_ids = tokenized['input_ids']
-        new_title = tokenizer.decode(token_ids, skip_special_tokens=True)
+    for profile in profiles:
+        profile_template_length = 2
+        profile_max_length = per_profile_max_length + saved_length - profile_template_length
+
+        title = profile['title']
+        input_ids = tokenizer.encode(
+            title,
+            add_special_tokens=False,
+            truncation=True,
+            max_length=profile_max_length
+        )
+        new_title = tokenizer.decode(input_ids, skip_special_tokens=True)
         prompt = f'"{new_title}"'
 
         prompts.append(prompt)
-        saved_len += p_max_len - p_template_len - len(token_ids)
+        saved_length += per_profile_max_length - profile_template_length - len(input_ids)
 
-    return _add_string_after_title(inp, ', and '.join(prompts))
+    if not prompts:
+        return input
+
+    comma_index = input.find(',')
+    return f'{input[:comma_index]}, and {", and ".join(prompts)},{input[comma_index + 1:]}'
 
 
-# ================================        LaMP 2: Personalized Movie Tagging        ================================
-def _generate_classification_movies_query_corpus(inp, profile):
-    query = _extract_string_after_keyword(inp, 'description:')
-    corpus = [p['description'] for p in profile]
+# ========================        LaMP 2: Personalized Movie Tagging        ========================
+def _generate_classification_movies_query_corpus(input, profiles):
+    query = _extract_string_after_keyword(input, 'description: ')
+    corpus = [profile['description'] for profile in profiles]
     return query, corpus
 
 
-def _generate_classification_movies_prompt(inp, profile, max_length, tokenizer):
-    template_len = 2 * (len(profile) - 1) + 1
-    p_max_len = (max_length - template_len) // len(profile)
+def _generate_classification_movies_prompt(input, profiles, max_length, tokenizer):
+    template_length = 2 * (len(profiles) - 1) + 1
+    per_profile_max_length = (max_length - template_length) // len(profiles)
 
     prompts = []
-    saved_len = 0
-    for p in profile:
-        p_template = f'the tag for the movie: " " is "{p["tag"]}" '
-        p_template_len = len(tokenizer(p_template)['input_ids'])
-        p_max_len_ = p_max_len + saved_len - p_template_len
+    saved_length = 0
 
-        tokenized = tokenizer(p['description'], max_length=p_max_len_, truncation=True)
-        token_ids = tokenized['input_ids']
-        new_text = tokenizer.decode(token_ids, skip_special_tokens=True)
-        prompt = f'the tag for the movie: "{new_text}" is "{p["tag"]}" '
+    for profile in profiles:
+        profile_template = f'the tag for the movie: " " is "{profile["tag"]}" '
+        profile_template_length = len(tokenizer.encode(profile_template, add_special_tokens=False))
+        profile_max_length = per_profile_max_length + saved_length - profile_template_length
+
+        input_ids = tokenizer.encode(
+            profile['description'],
+            add_special_tokens=False,
+            truncation=True,
+            max_length=profile_max_length
+        )
+        new_description = tokenizer.decode(input_ids, skip_special_tokens=True)
+        prompt = f'the tag for the movie: "{new_description}" is "{profile["tag"]}" '
 
         prompts.append(prompt)
-        saved_len += p_max_len - p_template_len - len(token_ids)
+        saved_length += per_profile_max_length - profile_template_length - len(input_ids)
 
-    return f'{", and ".join(prompts)}. {inp}'
+    return f'{", and ".join(prompts)}. {input}'
 
 
-# ================================       LaMP 3: Personalized Product Rating       ================================
-def _generate_classification_review_query_corpus(inp, profile):
-    query = _extract_string_after_keyword(inp, 'review:')
-    corpus = [p['text'] for p in profile]
+# ========================       LaMP 3: Personalized Product Rating       ========================
+def _generate_classification_review_query_corpus(input, profiles):
+    query = _extract_string_after_keyword(input, 'review: ')
+    corpus = [profile['text'] for profile in profiles]
     return query, corpus
 
 
-def _generate_classification_review_prompt(inp, profile, max_length, tokenizer):
-    template_len = 2 * (len(profile) - 1) + 1
-    p_max_len = (max_length - template_len) // len(profile)
+def _generate_classification_review_prompt(input, profiles, max_length, tokenizer):
+    template_length = 2 * (len(profiles) - 1) + 1
+    per_profile_max_length = (max_length - template_length) // len(profiles)
 
     prompts = []
-    saved_len = 0
-    for p in profile:
-        p_template = f'{p["score"]} is the score for " " '
-        p_template_len = len(tokenizer(p_template)['input_ids'])
-        p_max_len_ = p_max_len + saved_len - p_template_len
+    saved_length = 0
 
-        tokenized = tokenizer(p['text'], max_length=p_max_len_, truncation=True)
-        token_ids = tokenized['input_ids']
-        new_text = tokenizer.decode(token_ids, skip_special_tokens=True)
-        prompt = f'{p["score"]} is the score for "{new_text}" '
+    for profile in profiles:
+        profile_template = f'{profile["score"]} is the score for " " '
+        profile_template_length = len(tokenizer.encode(profile_template, add_special_tokens=False))
+        profile_max_length = per_profile_max_length + saved_length - profile_template_length
+
+        input_ids = tokenizer.encode(
+            profile['text'],
+            add_special_tokens=False,
+            truncation=True,
+            max_length=profile_max_length
+        )
+        new_text = tokenizer.decode(input_ids, skip_special_tokens=True)
+        prompt = f'{profile["score"]} is the score for "{new_text}" '
 
         prompts.append(prompt)
-        saved_len += p_max_len - p_template_len - len(token_ids)
+        saved_length += per_profile_max_length - profile_template_length - len(input_ids)
 
-    return f'{", and ".join(prompts)}. {inp}'
+    return f'{", and ".join(prompts)}. {input}'
 
 
-# ================================  LaMP 4: Personalized News Headline Generation  ================================
-def _generate_generation_news_query_corpus(inp, profile):
-    query = _extract_string_after_keyword(inp, 'article:')
-    corpus = [f'{p["title"]} {p["text"]}' for p in profile]
+# ========================  LaMP 4: Personalized News Headline Generation  ========================
+def _generate_generation_news_query_corpus(input, profiles):
+    query = _extract_string_after_keyword(input, 'article: ')
+    corpus = [f'{profile["title"]} {profile["text"]}' for profile in profiles]
     return query, corpus
 
 
-def _generate_generation_news_prompt(inp, profile, max_length, tokenizer):
-    template_len = 2 * (len(profile) - 1) + 1
-    p_max_len = (max_length - template_len) // len(profile)
+def _generate_generation_news_prompt(input, profiles, max_length, tokenizer):
+    template_length = 2 * (len(profiles) - 1) + 1
+    per_profile_max_length = (max_length - template_length) // len(profiles)
 
     prompts = []
-    saved_len = 0
-    for p in profile:
-        p_template = f'"{p["title"]}" is the title for " " '
-        p_template_len = len(tokenizer(p_template)['input_ids'])
-        p_max_len_ = p_max_len + saved_len - p_template_len
+    saved_length = 0
 
-        tokenized = tokenizer(p['text'], max_length=p_max_len_, truncation=True)
-        token_ids = tokenized['input_ids']
-        new_text = tokenizer.decode(token_ids, skip_special_tokens=True)
-        prompt = f'"{p["title"]}" is the title for "{new_text}" '
+    for profile in profiles:
+        profile_template = f'"{profile["title"]}" is the title for " " '
+        profile_template_length = len(tokenizer.encode(profile_template, add_special_tokens=False))
+        profile_max_length = per_profile_max_length + saved_length - profile_template_length
+
+        input_ids = tokenizer.encode(
+            profile['text'],
+            add_special_tokens=False,
+            truncation=True,
+            max_length=profile_max_length
+        )
+        new_text = tokenizer.decode(input_ids, skip_special_tokens=True)
+        prompt = f'"{profile["title"]}" is the title for "{new_text}" '
 
         prompts.append(prompt)
-        saved_len += p_max_len - p_template_len - len(token_ids)
+        saved_length += per_profile_max_length - profile_template_length - len(input_ids)
 
-    return f'{", and ".join(prompts)}. {inp}'
+    return f'{", and ".join(prompts)}. {input}'
 
 
-# ================================ LaMP 5: Personalized Scholarly Title Generation ================================
-def _generate_generation_paper_query_corpus(inp, profile):
-    query = _extract_string_after_keyword(inp, 'paper:')
-    corpus = [f'{p["title"]} {p["abstract"]}' for p in profile]
+# ======================== LaMP 5: Personalized Scholarly Title Generation ========================
+def _generate_generation_paper_query_corpus(input, profiles):
+    query = _extract_string_after_keyword(input, 'paper: ')
+    corpus = [f'{profile["title"]} {profile["abstract"]}' for profile in profiles]
     return query, corpus
 
 
-def _generate_generation_paper_prompt(inp, profile, max_length, tokenizer):
+def _generate_generation_paper_prompt(input, profiles, max_length, tokenizer):
     template = 'Following the given patterns'
-    template_len = 2 * (len(profile) - 1) + 1 + len(tokenizer(template)['input_ids'])
-    p_max_len = (max_length - template_len) // len(profile)
+    template_length = (
+        2 * (len(profiles) - 1) + 1
+        + len(tokenizer.encode(template, add_special_tokens=False))
+    )
+    per_profile_max_length = (max_length - template_length) // len(profiles)
 
     prompts = []
-    saved_len = 0
-    for p in profile:
-        p_template = f'"{p["title"]}" is a title " " '
-        p_template_len = len(tokenizer(p_template)['input_ids'])
-        p_max_len_ = p_max_len + saved_len - p_template_len
+    saved_length = 0
 
-        tokenized = tokenizer(p['abstract'], max_length=p_max_len_, truncation=True)
-        token_ids = tokenized['input_ids']
-        new_abstract = tokenizer.decode(token_ids, skip_special_tokens=True)
-        prompt = f'"{p["title"]}" is a title for "{new_abstract}" '
+    for profile in profiles:
+        profile_template = f'"{profile["title"]}" is a title " " '
+        profile_template_length = len(tokenizer.encode(profile_template, add_special_tokens=False))
+        profile_max_length = per_profile_max_length + saved_length - profile_template_length
+
+        input_ids = tokenizer.encode(
+            profile['abstract'],
+            add_special_tokens=False,
+            truncation=True,
+            max_length=profile_max_length
+        )
+        new_abstract = tokenizer.decode(input_ids, skip_special_tokens=True)
+        prompt = f'"{profile["title"]}" is a title for "{new_abstract}" '
 
         prompts.append(prompt)
-        saved_len += p_max_len - p_template_len - len(token_ids)
+        saved_length += per_profile_max_length - profile_template_length - len(input_ids)
 
-    return f'{", and ".join(prompts)}. Following the given patterns {inp}'
+    return f'{", and ".join(prompts)}. Following the given patterns {input}'
 
 
-# ================================  LaMP 6: Personalized Email Subject Generation  ================================
-def _generate_generation_avocado_query_corpus(inp, profile):
-    query = _extract_string_after_keyword(inp, ':')
-    corpus = [p['text'] for p in profile]
+# ========================  LaMP 6: Personalized Email Subject Generation  ========================
+def _generate_generation_avocado_query_corpus(input, profiles):
+    query = _extract_string_after_keyword(input, ': ')
+    corpus = [profile['text'] for profile in profiles]
     return query, corpus
 
 
-def _generate_generation_avocado_prompt(inp, profile, max_length, tokenizer):
-    template_len = 2 * (len(profile) - 1) + 1
-    p_max_len = (max_length - template_len) // len(profile)
+def _generate_generation_avocado_prompt(input, profiles, max_length, tokenizer):
+    template_length = 2 * (len(profiles) - 1) + 1
+    per_profile_max_length = (max_length - template_length) // len(profiles)
 
     prompts = []
-    saved_len = 0
-    for p in profile:
-        p_template = f'"{p["title"]}" is the title for " " '
-        p_template_len = len(tokenizer(p_template)['input_ids'])
-        p_max_len_ = p_max_len + saved_len - p_template_len
+    saved_length = 0
 
-        tokenized = tokenizer(p['text'], max_length=p_max_len_, truncation=True)
-        token_ids = tokenized['input_ids']
-        new_text = tokenizer.decode(token_ids, skip_special_tokens=True)
-        prompt = f'"{p["title"]}" is the title for "{new_text}" '
+    for profile in profiles:
+        profile_template = f'"{profile["title"]}" is the title for " " '
+        profile_template_length = len(tokenizer.encode(profile_template, add_special_tokens=False))
+        profile_max_length = per_profile_max_length + saved_length - profile_template_length
+
+        input_ids = tokenizer.encode(
+            profile['text'],
+            add_special_tokens=False,
+            truncation=True,
+            max_length=profile_max_length
+        )
+        new_text = tokenizer.decode(input_ids, skip_special_tokens=True)
+        prompt = f'"{profile["title"]}" is the title for "{new_text}" '
 
         prompts.append(prompt)
-        saved_len += p_max_len - p_template_len - len(token_ids)
+        saved_length += per_profile_max_length - profile_template_length - len(input_ids)
 
-    return f'{", and ".join(prompts)}. {inp}'
+    return f'{", and ".join(prompts)}. {input}'
 
 
-# ================================     LaMP 7: Personalized Tweet Paraphrasing     ================================
-def _generate_paraphrase_tweet_query_corpus(inp, profile):
-    query = _extract_string_after_keyword(inp, ':')
-    corpus = [p['text'] for p in profile]
+# ========================     LaMP 7: Personalized Tweet Paraphrasing     ========================
+def _generate_paraphrase_tweet_query_corpus(input, profiles):
+    query = _extract_string_after_keyword(input, ': ')
+    corpus = [profile['text'] for profile in profiles]
     return query, corpus
 
 
-def _generate_paraphrase_tweet_prompt(inp, profile, max_length, tokenizer):
+def _generate_paraphrase_tweet_prompt(input, profiles, max_length, tokenizer):
     template = 'are written by user. Following the given patterns'
-    template_len = 2 * (len(profile) - 1) + 1 + len(tokenizer(template)['input_ids'])
-    p_max_len = (max_length - template_len) // len(profile)
+    template_length = (
+        2 * (len(profiles) - 1) + 1
+        + len(tokenizer.encode(template, add_special_tokens=False))
+    )
+    per_profile_max_length = (max_length - template_length) // len(profiles)
 
     prompts = []
-    saved_len = 0
-    for p in profile:
-        p_template = '"" '
-        p_template_len = len(tokenizer(p_template)['input_ids'])
-        p_max_len_ = p_max_len + saved_len - p_template_len
+    saved_length = 0
 
-        tokenized = tokenizer(p['text'], max_length=p_max_len_, truncation=True)
-        token_ids = tokenized['input_ids']
-        new_text = tokenizer.decode(token_ids, skip_special_tokens=True)
+    for profile in profiles:
+        profile_template = '"" '
+        profile_template_length = len(tokenizer.encode(profile_template, add_special_tokens=False))
+        profile_max_length = per_profile_max_length + saved_length - profile_template_length
+
+        input_ids = tokenizer.encode(
+            profile['text'],
+            add_special_tokens=False,
+            truncation=True,
+            max_length=profile_max_length
+        )
+        new_text = tokenizer.decode(input_ids, skip_special_tokens=True)
         prompt = f'"{new_text}" '
 
         prompts.append(prompt)
-        saved_len += p_max_len - p_template_len - len(token_ids)
+        saved_length += per_profile_max_length - profile_template_length - len(input_ids)
 
-    return f'{", and ".join(prompts)} are written by a person. Following the given patterns {inp}'
+    return f'{", and ".join(prompts)} are written by a person. Following the given patterns {input}'
 
 
-# ================================                Utility Functions                ================================
+# ========================                Utility Functions                ========================
 def _extract_strings_between_quotes(input_string):
     extracted_strings = []
 
     inside_quotes = False
     current_string = ''
+
     for char in input_string:
         if char == '"' and not inside_quotes:
             inside_quotes = True
@@ -298,18 +337,9 @@ def _extract_strings_between_quotes(input_string):
 
 def _extract_string_after_keyword(input_string, keyword):
     keyword_index = input_string.find(keyword)
+
     if keyword_index == -1:
-        return None
+        raise ValueError(keyword)
 
-    extracted_string = input_string[keyword_index + len(keyword):].strip()
+    extracted_string = input_string[keyword_index + len(keyword):]
     return extracted_string
-
-
-def _add_string_after_title(input_string, string_to_add):
-    title_index = input_string.find('title')
-    if title_index == -1:
-        return input_string
-
-    string_to_add = ', and ' + string_to_add
-    output_string = input_string[:title_index+5] + string_to_add + input_string[title_index+5:]
-    return output_string
