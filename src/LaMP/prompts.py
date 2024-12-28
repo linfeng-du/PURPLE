@@ -27,12 +27,11 @@ def create_retrieval_prompt_generator(
                 input_length = len(tokenizer.encode(input, truncation=True, max_length=max_length))
                 reserved_length = min(input_length, int(factor * max_length))
                 profile_max_length = max_length - reserved_length
-                prompt = prompt_generator(input, retrieved_profiles, profile_max_length, tokenizer)
-                return prompt
+                return prompt_generator(input, retrieved_profiles, profile_max_length, tokenizer)
             except OverflowError:
                 factor -= 0.1
                 if factor < 0:
-                    print('Returning the original input as is')
+                    print('Returning the input as is')
                     return input
 
     return generate_prompt_with_retrieval
@@ -73,7 +72,7 @@ def _generate_classification_citation_query_corpus(input, profiles):
 
 
 def _generate_classification_citation_prompt(input, profiles, max_length, tokenizer):
-    template_length = 2 * (len(profiles) - 1)
+    template_length = 2 * len(profiles)
     per_profile_max_length = (max_length - template_length) // len(profiles)
 
     prompts = []
@@ -83,9 +82,8 @@ def _generate_classification_citation_prompt(input, profiles, max_length, tokeni
         profile_template_length = 2
         profile_max_length = per_profile_max_length + saved_length - profile_template_length
 
-        title = profile['title']
         input_ids = tokenizer.encode(
-            title,
+            profile['title'],
             add_special_tokens=False,
             truncation=True,
             max_length=profile_max_length
@@ -96,11 +94,8 @@ def _generate_classification_citation_prompt(input, profiles, max_length, tokeni
         prompts.append(prompt)
         saved_length += per_profile_max_length - profile_template_length - len(input_ids)
 
-    if not prompts:
-        return input
-
-    comma_index = input.find(',')
-    return f'{input[:comma_index]}, and {", and ".join(prompts)},{input[comma_index + 1:]}'
+    title_index = input.find('title')
+    return f'{input[:title_index + 5]}, and {", and ".join(prompts)}{input[title_index + 5:]}'
 
 
 # ========================        LaMP 2: Personalized Movie Tagging        ========================
@@ -224,7 +219,7 @@ def _generate_generation_paper_prompt(input, profiles, max_length, tokenizer):
     saved_length = 0
 
     for profile in profiles:
-        profile_template = f'"{profile["title"]}" is a title " " '
+        profile_template = f'"{profile["title"]}" is a title for " " '
         profile_template_length = len(tokenizer.encode(profile_template, add_special_tokens=False))
         profile_max_length = per_profile_max_length + saved_length - profile_template_length
 
@@ -285,7 +280,7 @@ def _generate_paraphrase_tweet_query_corpus(input, profiles):
 
 
 def _generate_paraphrase_tweet_prompt(input, profiles, max_length, tokenizer):
-    template = 'are written by user. Following the given patterns'
+    template = 'are written by a person. Following the given patterns'
     template_length = (
         2 * (len(profiles) - 1) + 1
         + len(tokenizer.encode(template, add_special_tokens=False))
@@ -296,8 +291,7 @@ def _generate_paraphrase_tweet_prompt(input, profiles, max_length, tokenizer):
     saved_length = 0
 
     for profile in profiles:
-        profile_template = '"" '
-        profile_template_length = len(tokenizer.encode(profile_template, add_special_tokens=False))
+        profile_template_length = 2
         profile_max_length = per_profile_max_length + saved_length - profile_template_length
 
         input_ids = tokenizer.encode(
@@ -317,10 +311,9 @@ def _generate_paraphrase_tweet_prompt(input, profiles, max_length, tokenizer):
 
 # ========================                Utility Functions                ========================
 def _extract_strings_between_quotes(input_string):
-    extracted_strings = []
-
     inside_quotes = False
     current_string = ''
+    extracted_strings = []
 
     for char in input_string:
         if char == '"' and not inside_quotes:
@@ -341,5 +334,4 @@ def _extract_string_after_keyword(input_string, keyword):
     if keyword_index == -1:
         raise ValueError(keyword)
 
-    extracted_string = input_string[keyword_index + len(keyword):]
-    return extracted_string
+    return input_string[keyword_index + len(keyword):]
