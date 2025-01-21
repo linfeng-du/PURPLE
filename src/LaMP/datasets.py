@@ -106,6 +106,7 @@ class RetrieverTrainingDataset(Dataset):
 
     def __init__(self, data_path, label_path, query_corpus_generator):
         super().__init__()
+
         with open(data_path, 'r') as file:
             self.data = json.load(file)
 
@@ -147,7 +148,7 @@ class RetrieverTrainingCollator:
         sources = []
         profiles = []
         queries = []
-        corpora = []
+        corpuses = []
         targets = []
 
         for example in examples:
@@ -155,18 +156,18 @@ class RetrieverTrainingCollator:
             sources.append(example['source'])
             profiles.append(example['profile'])
             queries.append(example['query'])
-            corpora.append(example['corpus'])
+            corpuses.append(example['corpus'])
             targets.append(example['target'])
 
-        corpora_mask = torch.ones(len(examples), self.max_corpus_size, dtype=torch.bool)
+        corpus_mask = torch.ones(len(examples), self.max_corpus_size, dtype=torch.bool)
 
-        for idx, corpus in enumerate(corpora):
+        for batch_index, corpus in enumerate(corpuses):
             if len(corpus) < self.max_corpus_size:
-                corpora_mask[idx, len(corpus):] = 0
+                corpus_mask[batch_index, len(corpus):] = 0
                 corpus.extend([''] * (self.max_corpus_size - len(corpus)))
             elif len(corpus) > self.max_corpus_size:
                 corpus[self.max_corpus_size:] = []
-                profiles[idx][self.max_corpus_size:] = []
+                profiles[batch_index][self.max_corpus_size:] = []
 
         tokenized_queries = self.tokenizer(
             queries,
@@ -176,7 +177,7 @@ class RetrieverTrainingCollator:
             return_tensors='pt'
         )
         tokenized_corpora = self.tokenizer(
-            [document for corpus in corpora for document in corpus],
+            [document for corpus in corpuses for document in corpus],
             padding=True,
             truncation=True,
             max_length=self.max_document_length,
@@ -189,6 +190,6 @@ class RetrieverTrainingCollator:
             'profile': profiles,
             'query': tokenized_queries,
             'corpus': tokenized_corpora,
-            'corpus_mask': corpora_mask,
+            'corpus_mask': corpus_mask,
             'target': targets,
         }
