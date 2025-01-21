@@ -159,11 +159,11 @@ class RetrieverTrainingCollator:
             corpuses.append(example['corpus'])
             targets.append(example['target'])
 
-        corpus_mask = torch.ones(len(examples), self.max_corpus_size, dtype=torch.bool)
+        profile_mask = torch.ones(len(examples), self.max_corpus_size, dtype=torch.bool)
 
         for batch_index, corpus in enumerate(corpuses):
             if len(corpus) < self.max_corpus_size:
-                corpus_mask[batch_index, len(corpus):] = 0
+                profile_mask[batch_index, len(corpus):] = 0
                 corpus.extend([''] * (self.max_corpus_size - len(corpus)))
             elif len(corpus) > self.max_corpus_size:
                 corpus[self.max_corpus_size:] = []
@@ -190,6 +190,6 @@ class RetrieverTrainingCollator:
             'profile': profiles,
             'query': tokenized_queries,
             'corpus': tokenized_corpora,
-            'corpus_mask': corpus_mask,
+            'profile_mask': profile_mask,
             'target': targets,
         }
