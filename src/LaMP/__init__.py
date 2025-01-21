@@ -2,12 +2,10 @@ from .prompts import (
     create_query_corpus_generator,
     create_retrieval_prompt_generator
 )
-from .data.datasets import (
-    LaMPDataset,
-    RetrieverTrainingDataset,
+from .datasets import (
     load_all_labels,
-)
-from .data.collator import (
+    LaMPDataset,
     LaMPCollator,
+    RetrieverTrainingDataset,
     RetrieverTrainingCollator
 )

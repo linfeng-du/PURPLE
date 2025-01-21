@@ -18,26 +18,31 @@ def create_retrieval_prompt_generator(
     prompt_generator = _create_prompt_generator(task)
 
     def generate_prompt_with_retrieval(
-        input: str, profiles: list[dict[str, str]], factor: float = 0.6
+        input_: str,
+        profiles: list[dict[str, str]],
+        factor: float = 0.6
     ) -> str:
-        retrieved_profiles = retriever(input, profiles, n_retrieve, query_corpus_generator)
+        retrieved_profiles = retriever(input_, profiles, n_retrieve, query_corpus_generator)
 
         while True:
             try:
-                input_length = len(tokenizer.encode(input, truncation=True, max_length=max_length))
+                input_length = len(tokenizer.encode(input_, truncation=True, max_length=max_length))
                 reserved_length = min(input_length, int(factor * max_length))
                 profile_max_length = max_length - reserved_length
-                return prompt_generator(input, retrieved_profiles, profile_max_length, tokenizer)
+                return prompt_generator(input_, retrieved_profiles, profile_max_length, tokenizer)
             except OverflowError:
                 factor -= 0.1
                 if factor < 0:
                     print('Returning the input as is')
-                    return input
+                    return input_
 
     return generate_prompt_with_retrieval
 
 
-def create_query_corpus_generator(task):
+def create_query_corpus_generator(task: str) -> Callable[
+    [str, list[dict[str, str]]],
+    tuple[str, list[str]]
+]:
     task_fns = {
         'LaMP-1': _generate_classification_citation_query_corpus,
         'LaMP-2': _generate_classification_movies_query_corpus,
@@ -64,14 +69,14 @@ def _create_prompt_generator(task):
 
 
 # ========================   LaMP 1: Personalized Citation Identification   ========================
-def _generate_classification_citation_query_corpus(input, profiles):
-    _, reference_1, reference_2 = _extract_strings_between_quotes(input)
+def _generate_classification_citation_query_corpus(input_, profiles):
+    reference_1, reference_2 = _extract_references(input_)
     query = f'{reference_1} {reference_2}'
     corpus = [f'{profile["title"]} {profile["abstract"]}' for profile in profiles]
     return query, corpus
 
 
-def _generate_classification_citation_prompt(input, profiles, max_length, tokenizer):
+def _generate_classification_citation_prompt(input_, profiles, max_length, tokenizer):
     template_length = 2 * len(profiles)
     per_profile_max_length = (max_length - template_length) // len(profiles)
 
@@ -94,18 +99,18 @@ def _generate_classification_citation_prompt(input, profiles, max_length, tokeni
         prompts.append(prompt)
         saved_length += per_profile_max_length - profile_template_length - len(input_ids)
 
-    title_index = input.find('title')
-    return f'{input[:title_index + 5]}, and {", and ".join(prompts)}{input[title_index + 5:]}'
+    title_index = input_.find('title')
+    return f'{input_[:title_index + 5]}, and {", and ".join(prompts)}{input_[title_index + 5:]}'
 
 
 # ========================        LaMP 2: Personalized Movie Tagging        ========================
-def _generate_classification_movies_query_corpus(input, profiles):
-    query = _extract_string_after_keyword(input, 'description: ')
+def _generate_classification_movies_query_corpus(input_, profiles):
+    query = _extract_string_after_keyword(input_, 'description: ')
     corpus = [profile['description'] for profile in profiles]
     return query, corpus
 
 
-def _generate_classification_movies_prompt(input, profiles, max_length, tokenizer):
+def _generate_classification_movies_prompt(input_, profiles, max_length, tokenizer):
     template_length = 2 * (len(profiles) - 1) + 1
     per_profile_max_length = (max_length - template_length) // len(profiles)
 
@@ -129,17 +134,17 @@ def _generate_classification_movies_prompt(input, profiles, max_length, tokenize
         prompts.append(prompt)
         saved_length += per_profile_max_length - profile_template_length - len(input_ids)
 
-    return f'{", and ".join(prompts)}. {input}'
+    return f'{", and ".join(prompts)}. {input_}'
 
 
 # ========================       LaMP 3: Personalized Product Rating       ========================
-def _generate_classification_review_query_corpus(input, profiles):
-    query = _extract_string_after_keyword(input, 'review: ')
+def _generate_classification_review_query_corpus(input_, profiles):
+    query = _extract_string_after_keyword(input_, 'review: ')
     corpus = [profile['text'] for profile in profiles]
     return query, corpus
 
 
-def _generate_classification_review_prompt(input, profiles, max_length, tokenizer):
+def _generate_classification_review_prompt(input_, profiles, max_length, tokenizer):
     template_length = 2 * (len(profiles) - 1) + 1
     per_profile_max_length = (max_length - template_length) // len(profiles)
 
@@ -163,17 +168,17 @@ def _generate_classification_review_prompt(input, profiles, max_length, tokenize
         prompts.append(prompt)
         saved_length += per_profile_max_length - profile_template_length - len(input_ids)
 
-    return f'{", and ".join(prompts)}. {input}'
+    return f'{", and ".join(prompts)}. {input_}'
 
 
 # ========================  LaMP 4: Personalized News Headline Generation  ========================
-def _generate_generation_news_query_corpus(input, profiles):
-    query = _extract_string_after_keyword(input, 'article: ')
+def _generate_generation_news_query_corpus(input_, profiles):
+    query = _extract_string_after_keyword(input_, 'article: ')
     corpus = [f'{profile["title"]} {profile["text"]}' for profile in profiles]
     return query, corpus
 
 
-def _generate_generation_news_prompt(input, profiles, max_length, tokenizer):
+def _generate_generation_news_prompt(input_, profiles, max_length, tokenizer):
     template_length = 2 * (len(profiles) - 1) + 1
     per_profile_max_length = (max_length - template_length) // len(profiles)
 
@@ -197,17 +202,17 @@ def _generate_generation_news_prompt(input, profiles, max_length, tokenizer):
         prompts.append(prompt)
         saved_length += per_profile_max_length - profile_template_length - len(input_ids)
 
-    return f'{", and ".join(prompts)}. {input}'
+    return f'{", and ".join(prompts)}. {input_}'
 
 
 # ======================== LaMP 5: Personalized Scholarly Title Generation ========================
-def _generate_generation_paper_query_corpus(input, profiles):
-    query = _extract_string_after_keyword(input, 'paper: ')
+def _generate_generation_paper_query_corpus(input_, profiles):
+    query = _extract_string_after_keyword(input_, 'paper: ')
     corpus = [f'{profile["title"]} {profile["abstract"]}' for profile in profiles]
     return query, corpus
 
 
-def _generate_generation_paper_prompt(input, profiles, max_length, tokenizer):
+def _generate_generation_paper_prompt(input_, profiles, max_length, tokenizer):
     template = 'Following the given patterns'
     template_length = (
         2 * (len(profiles) - 1) + 1
@@ -235,17 +240,17 @@ def _generate_generation_paper_prompt(input, profiles, max_length, tokenizer):
         prompts.append(prompt)
         saved_length += per_profile_max_length - profile_template_length - len(input_ids)
 
-    return f'{", and ".join(prompts)}. Following the given patterns {input}'
+    return f'{", and ".join(prompts)}. Following the given patterns {input_}'
 
 
 # ========================  LaMP 6: Personalized Email Subject Generation  ========================
-def _generate_generation_avocado_query_corpus(input, profiles):
-    query = _extract_string_after_keyword(input, ': ')
+def _generate_generation_avocado_query_corpus(input_, profiles):
+    query = _extract_string_after_keyword(input_, ': ')
     corpus = [profile['text'] for profile in profiles]
     return query, corpus
 
 
-def _generate_generation_avocado_prompt(input, profiles, max_length, tokenizer):
+def _generate_generation_avocado_prompt(input_, profiles, max_length, tokenizer):
     template_length = 2 * (len(profiles) - 1) + 1
     per_profile_max_length = (max_length - template_length) // len(profiles)
 
@@ -269,17 +274,17 @@ def _generate_generation_avocado_prompt(input, profiles, max_length, tokenizer):
         prompts.append(prompt)
         saved_length += per_profile_max_length - profile_template_length - len(input_ids)
 
-    return f'{", and ".join(prompts)}. {input}'
+    return f'{", and ".join(prompts)}. {input_}'
 
 
 # ========================     LaMP 7: Personalized Tweet Paraphrasing     ========================
-def _generate_paraphrase_tweet_query_corpus(input, profiles):
-    query = _extract_string_after_keyword(input, ': ')
+def _generate_paraphrase_tweet_query_corpus(input_, profiles):
+    query = _extract_string_after_keyword(input_, ': ')
     corpus = [profile['text'] for profile in profiles]
     return query, corpus
 
 
-def _generate_paraphrase_tweet_prompt(input, profiles, max_length, tokenizer):
+def _generate_paraphrase_tweet_prompt(input_, profiles, max_length, tokenizer):
     template = 'are written by a person. Following the given patterns'
     template_length = (
         2 * (len(profiles) - 1) + 1
@@ -306,26 +311,21 @@ def _generate_paraphrase_tweet_prompt(input, profiles, max_length, tokenizer):
         prompts.append(prompt)
         saved_length += per_profile_max_length - profile_template_length - len(input_ids)
 
-    return f'{", and ".join(prompts)} are written by a person. Following the given patterns {input}'
+    return f'{", and ".join(prompts)} are written by a person. Following the given patterns {input_}'
 
 
 # ========================                Utility Functions                ========================
-def _extract_strings_between_quotes(input_string):
-    inside_quotes = False
-    current_string = ''
-    extracted_strings = []
+def _extract_references(input_):
+    template_1 = 'Just answer with [1] or [2] without explanation. [1]: "'
+    template_2 = '" [2]: "'
 
-    for char in input_string:
-        if char == '"' and not inside_quotes:
-            inside_quotes = True
-        elif char == '"' and inside_quotes:
-            inside_quotes = False
-            extracted_strings.append(current_string)
-            current_string = ''
-        elif inside_quotes:
-            current_string += char
+    index_1 = input_.find(template_1)
+    index_2 = input_.find(template_2)
+    assert index_1 != -1 and index_2 != -1 and input_[-1] == '"'
 
-    return extracted_strings
+    reference_1 = input_[index_1 + len(template_1) : index_2]
+    reference_2 = input_[index_2 + len(template_2) : -1]
+    return reference_1, reference_2
 
 
 def _extract_string_after_keyword(input_string, keyword):
