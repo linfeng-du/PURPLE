@@ -3,56 +3,100 @@ import torch
 
 class Reinforce:
 
-    def __init__(self, num_samples):
-        self.num_samples = num_samples
+    def sample(self, likelihoods, mask, n_samples, sample_size, epsilon):
+        """Perform multiple rounds of sampling without replacement.
 
-    def sample(self, likelihoods, mask, sample_size, epsilon):
-        min_sample_size = mask.sum(dim=1).min().item()
-        sample_size = min(sample_size, min_sample_size)
+        Args:
+            likelihoods: torch.Tensor of shape (batch_size, n_items)
+                2D tensor where each row contains the likelihoods of items for an example.
+            mask: torch.Tensor of shape (batch_size, n_items)
+                2D mask indicating the validity of each item where 0 represents padding.
+            n_samples: int
+                Number of samples drawn from each example.
+            sample_size: int
+                See self._sample_without_replacement.
+            epsilon: float
+                See self._sample_without_replacement.
 
-        all_sample_idxs = []
-        all_log_prob = []
-        for _ in range(self.num_samples):
-            sample_idxs, log_prob = self._sample_without_replacement(likelihoods, sample_size, epsilon)
-            all_sample_idxs.append(sample_idxs)
-            all_log_prob.append(log_prob)
+        Returns:
+            indices: torch.Tensor of shape (batch_size, n_samples, sample_size)
+                Indices of sampled items.
+            log_probs: torch.Tensor of shape (batch_size, n_samples)
+                Log probability of each sample.
+        """
+        max_sample_size = mask.sum(dim=1).min().item()
+        sample_size = min(sample_size, max_sample_size)
 
-        sample_idxs = torch.stack(all_sample_idxs, dim=1)
-        log_prob = torch.stack(all_log_prob, dim=1)
-        return sample_idxs, log_prob
+        all_indices = []
+        all_log_probs = []
+
+        for _ in range(n_samples):
+            indices, log_prob = self._sample_without_replacement(likelihoods, sample_size, epsilon)
+            all_indices.append(indices)
+            all_log_probs.append(log_prob)
+
+        indices = torch.stack(all_indices, dim=1)
+        log_probs = torch.stack(all_log_probs, dim=1)
+        return indices, log_probs
 
     @staticmethod
-    def compute_loss(log_prob, reward):
-        baseline = torch.mean(reward, dim=1, keepdim=True)
-        loss = torch.mean(-(log_prob * ((reward - baseline) / baseline)))
+    def compute_loss(log_probs, rewards):
+        """Compute the REINFORCE loss with baseline.
+
+        Args:
+            log_probs: torch.Tensor of shape (batch_size, n_samples)
+                Log probability of each sample.
+            rewards: torch.Tensor of shape (batch_size, n_samples)
+                Reward of each sample.
+        """
+        baseline = torch.mean(rewards, dim=1, keepdim=True)
+        loss = torch.mean(-(log_probs * ((rewards - baseline) / baseline)))
         return loss
 
     @staticmethod
     def _sample_without_replacement(likelihoods, sample_size, epsilon):
-        sample_idxs = torch.full_like(likelihoods[:, :sample_size], fill_value=-1, dtype=torch.long)
+        """Perform sampling without replacement based on a batch of likelihoods.
+
+        Args:
+            likelihoods: torch.Tensor of shape (batch_size, n_items)
+                2D tensor where each row contains the likelihoods of items for an example.
+            sample_size: int
+                Number of items to sample from each example.
+            epsilon: float
+                For each item, sample uniformly with a probability of epsilon.
+
+        Returns:
+            indices: torch.Tensor of shape (batch_size, sample_size)
+                Indices of sampled items.
+            log_prob: torch.Tensor of shape (batch_size,)
+                Log probability of each sample.
+        """
+        batch_size = likelihoods.size(dim=0)
+
+        indices = torch.full_like(likelihoods[:, :sample_size], fill_value=-1, dtype=torch.long)
         log_probs = torch.zeros_like(likelihoods[:, :sample_size], dtype=torch.float)
         avail_mask = torch.ones_like(likelihoods, dtype=torch.bool).masked_fill(likelihoods == 0., 0)
 
-        B = likelihoods.size(0)
         for i in range(sample_size):
-            # Exploration only
-            uniform_idxs = torch.multinomial(avail_mask.float(), num_samples=1)
+            # Sample uniformly
+            uniform_indices = torch.multinomial(avail_mask.float(), num_samples=1)
             uniform_probs = 1. / avail_mask.sum(dim=1, keepdim=True)
 
-            # Exploitation only
-            likelihoods_masked = likelihoods.masked_fill(~avail_mask, 0.)
-            likelihood_probs = likelihoods_masked / likelihoods_masked.sum(dim=1, keepdim=True)
-            likelihood_idxs = torch.multinomial(likelihood_probs, num_samples=1)
-            likelihood_probs = likelihood_probs.gather(dim=1, index=likelihood_idxs)
+            # Sample based on likelihoods
+            avail_likelihoods = likelihoods.masked_fill(~avail_mask, 0.)
+            avail_probs = avail_likelihoods / avail_likelihoods.sum(dim=1, keepdim=True)
 
-            # Explore with p=epsilon
+            likelihood_indices = torch.multinomial(avail_probs, num_samples=1)
+            likelihood_probs = avail_probs.gather(dim=1, index=likelihood_indices)
+
+            # Sample uniformly with a probability of epsilon
             is_uniform = (torch.rand_like(likelihoods[:, 0]) < epsilon).unsqueeze(dim=1)
-            sample_i_idxs = torch.where(is_uniform, uniform_idxs, likelihood_idxs).squeeze(dim=1)
-            sample_i_probs = torch.where(is_uniform, uniform_probs, likelihood_probs).squeeze(dim=1)
+            indices_col_i = torch.where(is_uniform, uniform_indices, likelihood_indices)
+            probs_col_i = torch.where(is_uniform, uniform_probs, likelihood_probs)
 
-            sample_idxs[:, i] = sample_i_idxs
-            log_probs[:, i] = torch.log(sample_i_probs)
-            avail_mask[torch.arange(B), sample_i_idxs] = 0
+            indices[:, i] = indices_col_i.squeeze(dim=1)
+            log_probs[:, i] = torch.log(probs_col_i).squeeze(dim=1)
+            avail_mask[torch.arange(batch_size), indices_col_i] = 0
 
         log_prob = log_probs.sum(dim=1)
-        return sample_idxs, log_prob
+        return indices, log_prob
