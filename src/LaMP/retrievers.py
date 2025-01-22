@@ -7,8 +7,7 @@ from transformers import AutoTokenizer, AutoModel
 
 
 def create_retriever(retriever: str, device: str | None = None) -> Callable[
-    [str, list[dict[str, str]], int, Callable[[str, list[dict[str, str]]], tuple[str, list[str]]]],
-    list[str]
+    [str, list[dict[str, str]], int, Callable], list[str]
 ]:
     if retriever == 'contriever':
         contriever = _ContrieverRetriever()
@@ -71,6 +70,6 @@ class _ContrieverRetriever:
         token_embeddings = outputs.last_hidden_state
         mask = inputs['attention_mask'].unsqueeze(dim=-1)
 
-        token_embeddings = token_embeddings.masked_fill(~mask.bool(), 0.)
+        token_embeddings = token_embeddings.masked_fill(mask == 0, 0.)
         sentence_embeddings = token_embeddings.sum(dim=1) / mask.sum(dim=1)
         return sentence_embeddings

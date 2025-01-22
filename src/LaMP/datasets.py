@@ -40,7 +40,13 @@ class LaMPDataset(Dataset):
         return cls(data, labels, prompt_generator)
 
     @classmethod
-    def from_batch_profile_indices(cls, batch, batch_profile_indices, prompt_generator):
+    def from_batch_profile_indices(cls, batch_profile_indices, batch, prompt_generator):
+        """Create the dataset based on a batch of sampled profiles.
+
+        Args:
+            batch_profile_indices: Tensor of shape (batch_size, sample_size, n_retrieve)
+                Indices of a batch of sampled profiles.
+        """
         data = []
         labels = {}
 
@@ -62,7 +68,6 @@ class LaMPDataset(Dataset):
 
     def __getitem__(self, index):
         example = self.data[index]
-
         source = example['input']
 
         if self.prompt_generator is not None:
@@ -137,9 +142,9 @@ class RetrieverTrainingDataset(Dataset):
 
 class RetrieverTrainingCollator:
 
-    def __init__(self, tokenizer, max_corpus_size, max_query_length, max_document_length):
+    def __init__(self, tokenizer, max_n_profiles, max_query_length, max_document_length):
         self.tokenizer = tokenizer
-        self.max_corpus_size = max_corpus_size
+        self.max_n_profiles = max_n_profiles
         self.max_query_length = max_query_length
         self.max_document_length = max_document_length
 
@@ -159,7 +164,8 @@ class RetrieverTrainingCollator:
             corpuses.append(example['corpus'])
             targets.append(example['target'])
 
-        profile_mask = torch.ones(len(examples), self.max_corpus_size, dtype=torch.bool)
+        # Keep only `self.max_n_profiles` profiles for each example.
+        profile_mask = torch.ones(len(examples), self.max_n_profiles, dtype=torch.bool)
 
         for batch_index, corpus in enumerate(corpuses):
             if len(corpus) < self.max_corpus_size:

@@ -12,7 +12,7 @@ def create_retrieval_prompt_generator(
     max_length: int,
     tokenizer: PreTrainedTokenizerBase,
     device: str | None = None
-) -> Callable[[str, list[dict[str, str], float]], str]:
+) -> Callable[[str, list[dict[str, str]], float], str]:
     retriever = create_retriever(retriever, device=device)
     query_corpus_generator = create_query_corpus_generator(task)
     prompt_generator = _create_prompt_generator(task)
@@ -28,10 +28,11 @@ def create_retrieval_prompt_generator(
             try:
                 input_length = len(tokenizer.encode(input_, truncation=True, max_length=max_length))
                 reserved_length = min(input_length, int(factor * max_length))
-                profile_max_length = max_length - reserved_length
-                return prompt_generator(input_, retrieved_profiles, profile_max_length, tokenizer)
+                max_profile_length = max_length - reserved_length
+                return prompt_generator(input_, retrieved_profiles, max_profile_length, tokenizer)
             except OverflowError:
                 factor -= 0.1
+
                 if factor < 0:
                     print('Returning the input as is')
                     return input_
@@ -40,8 +41,7 @@ def create_retrieval_prompt_generator(
 
 
 def create_query_corpus_generator(task: str) -> Callable[
-    [str, list[dict[str, str]]],
-    tuple[str, list[str]]
+    [str, list[dict[str, str]]], tuple[str, list[str]]
 ]:
     task_fns = {
         'LaMP-1': _generate_classification_citation_query_corpus,
@@ -78,26 +78,26 @@ def _generate_classification_citation_query_corpus(input_, profiles):
 
 def _generate_classification_citation_prompt(input_, profiles, max_length, tokenizer):
     template_length = 2 * len(profiles)
-    per_profile_max_length = (max_length - template_length) // len(profiles)
+    max_length_per_profile = (max_length - template_length) // len(profiles)
 
     prompts = []
     saved_length = 0
 
     for profile in profiles:
         profile_template_length = 2
-        profile_max_length = per_profile_max_length + saved_length - profile_template_length
+        max_profile_length = max_length_per_profile + saved_length - profile_template_length
 
         input_ids = tokenizer.encode(
             profile['title'],
             add_special_tokens=False,
             truncation=True,
-            max_length=profile_max_length
+            max_length=max_profile_length
         )
         new_title = tokenizer.decode(input_ids, skip_special_tokens=True)
         prompt = f'"{new_title}"'
 
         prompts.append(prompt)
-        saved_length += per_profile_max_length - profile_template_length - len(input_ids)
+        saved_length += max_length_per_profile - profile_template_length - len(input_ids)
 
     title_index = input_.find('title')
     return f'{input_[:title_index + 5]}, and {", and ".join(prompts)}{input_[title_index + 5:]}'
@@ -112,7 +112,7 @@ def _generate_classification_movies_query_corpus(input_, profiles):
 
 def _generate_classification_movies_prompt(input_, profiles, max_length, tokenizer):
     template_length = 2 * (len(profiles) - 1) + 1
-    per_profile_max_length = (max_length - template_length) // len(profiles)
+    max_length_per_profile = (max_length - template_length) // len(profiles)
 
     prompts = []
     saved_length = 0
@@ -120,19 +120,19 @@ def _generate_classification_movies_prompt(input_, profiles, max_length, tokeniz
     for profile in profiles:
         profile_template = f'the tag for the movie: " " is "{profile["tag"]}" '
         profile_template_length = len(tokenizer.encode(profile_template, add_special_tokens=False))
-        profile_max_length = per_profile_max_length + saved_length - profile_template_length
+        max_profile_length = max_length_per_profile + saved_length - profile_template_length
 
         input_ids = tokenizer.encode(
             profile['description'],
             add_special_tokens=False,
             truncation=True,
-            max_length=profile_max_length
+            max_length=max_profile_length
         )
         new_description = tokenizer.decode(input_ids, skip_special_tokens=True)
         prompt = f'the tag for the movie: "{new_description}" is "{profile["tag"]}" '
 
         prompts.append(prompt)
-        saved_length += per_profile_max_length - profile_template_length - len(input_ids)
+        saved_length += max_length_per_profile - profile_template_length - len(input_ids)
 
     return f'{", and ".join(prompts)}. {input_}'
 
@@ -146,7 +146,7 @@ def _generate_classification_review_query_corpus(input_, profiles):
 
 def _generate_classification_review_prompt(input_, profiles, max_length, tokenizer):
     template_length = 2 * (len(profiles) - 1) + 1
-    per_profile_max_length = (max_length - template_length) // len(profiles)
+    max_length_per_profile = (max_length - template_length) // len(profiles)
 
     prompts = []
     saved_length = 0
@@ -154,19 +154,19 @@ def _generate_classification_review_prompt(input_, profiles, max_length, tokeniz
     for profile in profiles:
         profile_template = f'{profile["score"]} is the score for " " '
         profile_template_length = len(tokenizer.encode(profile_template, add_special_tokens=False))
-        profile_max_length = per_profile_max_length + saved_length - profile_template_length
+        max_profile_length = max_length_per_profile + saved_length - profile_template_length
 
         input_ids = tokenizer.encode(
             profile['text'],
             add_special_tokens=False,
             truncation=True,
-            max_length=profile_max_length
+            max_length=max_profile_length
         )
         new_text = tokenizer.decode(input_ids, skip_special_tokens=True)
         prompt = f'{profile["score"]} is the score for "{new_text}" '
 
         prompts.append(prompt)
-        saved_length += per_profile_max_length - profile_template_length - len(input_ids)
+        saved_length += max_length_per_profile - profile_template_length - len(input_ids)
 
     return f'{", and ".join(prompts)}. {input_}'
 
@@ -180,7 +180,7 @@ def _generate_generation_news_query_corpus(input_, profiles):
 
 def _generate_generation_news_prompt(input_, profiles, max_length, tokenizer):
     template_length = 2 * (len(profiles) - 1) + 1
-    per_profile_max_length = (max_length - template_length) // len(profiles)
+    max_length_per_profile = (max_length - template_length) // len(profiles)
 
     prompts = []
     saved_length = 0
@@ -188,19 +188,19 @@ def _generate_generation_news_prompt(input_, profiles, max_length, tokenizer):
     for profile in profiles:
         profile_template = f'"{profile["title"]}" is the title for " " '
         profile_template_length = len(tokenizer.encode(profile_template, add_special_tokens=False))
-        profile_max_length = per_profile_max_length + saved_length - profile_template_length
+        max_profile_length = max_length_per_profile + saved_length - profile_template_length
 
         input_ids = tokenizer.encode(
             profile['text'],
             add_special_tokens=False,
             truncation=True,
-            max_length=profile_max_length
+            max_length=max_profile_length
         )
         new_text = tokenizer.decode(input_ids, skip_special_tokens=True)
         prompt = f'"{profile["title"]}" is the title for "{new_text}" '
 
         prompts.append(prompt)
-        saved_length += per_profile_max_length - profile_template_length - len(input_ids)
+        saved_length += max_length_per_profile - profile_template_length - len(input_ids)
 
     return f'{", and ".join(prompts)}. {input_}'
 
@@ -218,7 +218,7 @@ def _generate_generation_paper_prompt(input_, profiles, max_length, tokenizer):
         2 * (len(profiles) - 1) + 1
         + len(tokenizer.encode(template, add_special_tokens=False))
     )
-    per_profile_max_length = (max_length - template_length) // len(profiles)
+    max_length_per_profile = (max_length - template_length) // len(profiles)
 
     prompts = []
     saved_length = 0
@@ -226,19 +226,19 @@ def _generate_generation_paper_prompt(input_, profiles, max_length, tokenizer):
     for profile in profiles:
         profile_template = f'"{profile["title"]}" is a title for " " '
         profile_template_length = len(tokenizer.encode(profile_template, add_special_tokens=False))
-        profile_max_length = per_profile_max_length + saved_length - profile_template_length
+        max_profile_length = max_length_per_profile + saved_length - profile_template_length
 
         input_ids = tokenizer.encode(
             profile['abstract'],
             add_special_tokens=False,
             truncation=True,
-            max_length=profile_max_length
+            max_length=max_profile_length
         )
         new_abstract = tokenizer.decode(input_ids, skip_special_tokens=True)
         prompt = f'"{profile["title"]}" is a title for "{new_abstract}" '
 
         prompts.append(prompt)
-        saved_length += per_profile_max_length - profile_template_length - len(input_ids)
+        saved_length += max_length_per_profile - profile_template_length - len(input_ids)
 
     return f'{", and ".join(prompts)}. Following the given patterns {input_}'
 
@@ -252,7 +252,7 @@ def _generate_generation_avocado_query_corpus(input_, profiles):
 
 def _generate_generation_avocado_prompt(input_, profiles, max_length, tokenizer):
     template_length = 2 * (len(profiles) - 1) + 1
-    per_profile_max_length = (max_length - template_length) // len(profiles)
+    max_length_per_profile = (max_length - template_length) // len(profiles)
 
     prompts = []
     saved_length = 0
@@ -260,19 +260,19 @@ def _generate_generation_avocado_prompt(input_, profiles, max_length, tokenizer)
     for profile in profiles:
         profile_template = f'"{profile["title"]}" is the title for " " '
         profile_template_length = len(tokenizer.encode(profile_template, add_special_tokens=False))
-        profile_max_length = per_profile_max_length + saved_length - profile_template_length
+        max_profile_length = max_length_per_profile + saved_length - profile_template_length
 
         input_ids = tokenizer.encode(
             profile['text'],
             add_special_tokens=False,
             truncation=True,
-            max_length=profile_max_length
+            max_length=max_profile_length
         )
         new_text = tokenizer.decode(input_ids, skip_special_tokens=True)
         prompt = f'"{profile["title"]}" is the title for "{new_text}" '
 
         prompts.append(prompt)
-        saved_length += per_profile_max_length - profile_template_length - len(input_ids)
+        saved_length += max_length_per_profile - profile_template_length - len(input_ids)
 
     return f'{", and ".join(prompts)}. {input_}'
 
@@ -290,26 +290,26 @@ def _generate_paraphrase_tweet_prompt(input_, profiles, max_length, tokenizer):
         2 * (len(profiles) - 1) + 1
         + len(tokenizer.encode(template, add_special_tokens=False))
     )
-    per_profile_max_length = (max_length - template_length) // len(profiles)
+    max_length_per_profile = (max_length - template_length) // len(profiles)
 
     prompts = []
     saved_length = 0
 
     for profile in profiles:
         profile_template_length = 2
-        profile_max_length = per_profile_max_length + saved_length - profile_template_length
+        max_profile_length = max_length_per_profile + saved_length - profile_template_length
 
         input_ids = tokenizer.encode(
             profile['text'],
             add_special_tokens=False,
             truncation=True,
-            max_length=profile_max_length
+            max_length=max_profile_length
         )
         new_text = tokenizer.decode(input_ids, skip_special_tokens=True)
         prompt = f'"{new_text}" '
 
         prompts.append(prompt)
-        saved_length += per_profile_max_length - profile_template_length - len(input_ids)
+        saved_length += max_length_per_profile - profile_template_length - len(input_ids)
 
     return f'{", and ".join(prompts)} are written by a person. Following the given patterns {input_}'
 
