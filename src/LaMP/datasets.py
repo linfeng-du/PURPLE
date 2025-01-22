@@ -164,7 +164,7 @@ class RetrieverTrainingCollator:
             corpuses.append(example['corpus'])
             targets.append(example['target'])
 
-        # Keep only `self.max_n_profiles` profiles for each example.
+        # Keep only `self.max_n_profiles` profiles for each example
         profile_mask = torch.ones(len(examples), self.max_n_profiles, dtype=torch.bool)
 
         for batch_index, corpus in enumerate(corpuses):
