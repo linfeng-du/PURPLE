@@ -3,7 +3,14 @@ import torch
 
 class Reinforce:
 
-    def sample(self, likelihoods, mask, n_samples, sample_size, epsilon):
+    def sample(
+        self,
+        likelihoods: torch.Tensor,
+        mask: torch.Tensor,
+        n_samples: int,
+        sample_size: int,
+        epsilon: float
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Perform multiple rounds of sampling without replacement.
 
         Args:
@@ -40,7 +47,7 @@ class Reinforce:
         return indices, log_probs
 
     @staticmethod
-    def compute_loss(log_probs, rewards):
+    def compute_loss(log_probs: torch.Tensor, rewards: torch.Tensor) -> torch.Tensor:
         """Compute the REINFORCE loss with baseline.
 
         Args:
@@ -48,13 +55,21 @@ class Reinforce:
                 Log probability of each sample.
             rewards: torch.Tensor of shape (batch_size, n_samples)
                 Reward of each sample.
+
+        Returns:
+            loss: torch.Tensor of shape ()
+                REINFORCE loss with a baseline.
         """
         baseline = torch.mean(rewards, dim=1, keepdim=True)
         loss = torch.mean(-(log_probs * ((rewards - baseline) / baseline)))
         return loss
 
     @staticmethod
-    def _sample_without_replacement(likelihoods, sample_size, epsilon):
+    def _sample_without_replacement(
+        likelihoods: torch.Tensor,
+        sample_size: int,
+        epsilon: float
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Perform sampling without replacement based on a batch of likelihoods.
 
         Args:
