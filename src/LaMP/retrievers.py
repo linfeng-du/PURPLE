@@ -68,8 +68,8 @@ class _ContrieverRetriever:
 
         outputs = self.contriever(**inputs)
         token_embeddings = outputs.last_hidden_state
-        mask = inputs['attention_mask'].unsqueeze(dim=-1)
+        attention_mask = inputs['attention_mask'].unsqueeze(dim=-1)
 
-        token_embeddings = token_embeddings.masked_fill(mask == 0, 0.)
-        sentence_embeddings = token_embeddings.sum(dim=1) / mask.sum(dim=1)
+        token_embeddings = token_embeddings.masked_fill(attention_mask == 0, 0.)
+        sentence_embeddings = token_embeddings.sum(dim=1) / attention_mask.sum(dim=1)
         return sentence_embeddings
