@@ -1,10 +1,12 @@
 import json
+from typing import Callable
 
 import torch
 from torch.utils.data import Dataset
+from transformers import PreTrainedTokenizerBase, BatchEncoding
 
 
-def load_all_labels(task):
+def load_all_labels(task: str) -> list[str]:
     task_labels = {
         'LaMP-1': ['[1]', '[2]'],
         'LaMP-2': [
@@ -24,13 +26,23 @@ def load_all_labels(task):
 
 class LaMPDataset(Dataset):
 
-    def __init__(self, data, labels, prompt_generator):
+    def __init__(
+        self,
+        data: list[dict[str, str | list[str]]],
+        labels: list[dict[str, str]],
+        prompt_generator: Callable | None = None
+    ) -> None:
         self.data = data
         self.labels = labels
         self.prompt_generator = prompt_generator
 
     @classmethod
-    def from_disk(cls, data_path, label_path, prompt_generator=None):
+    def from_disk(
+        cls,
+        data_path: str,
+        label_path: str,
+        prompt_generator: Callable | None = None
+    ) -> 'LaMPDataset':
         with open(data_path, 'r') as file:
             data = json.load(file)
 
@@ -40,7 +52,12 @@ class LaMPDataset(Dataset):
         return cls(data, labels, prompt_generator)
 
     @classmethod
-    def from_batch_profile_indices(cls, batch_profile_indices, batch, prompt_generator):
+    def from_batch_profile_indices(
+        cls,
+        batch_profile_indices: torch.Tensor,
+        batch: dict[str, list[str] | list[list[str]] | BatchEncoding | torch.Tensor],
+        prompt_generator: Callable | None = None
+    ) -> 'LaMPDataset':
         """Create the dataset based on a batch of sampled profiles.
 
         Args:
@@ -66,7 +83,7 @@ class LaMPDataset(Dataset):
 
         return cls(data, labels, prompt_generator)
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> dict[str, str]:
         example = self.data[index]
         source = example['input']
 
@@ -79,17 +96,17 @@ class LaMPDataset(Dataset):
             'target': self.labels[example['id']] 
         }
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.data)
 
 
 class LaMPCollator:
 
-    def __init__(self, tokenizer, max_length):
+    def __init__(self, tokenizer: PreTrainedTokenizerBase, max_length: int) -> None:
         self.tokenizer = tokenizer
         self.max_length = max_length
 
-    def __call__(self, examples):
+    def __call__(self, examples: list[dict[str, str]]) -> BatchEncoding:
         sources = []
         targets = []
 
@@ -109,7 +126,7 @@ class LaMPCollator:
 
 class RetrieverTrainingDataset(Dataset):
 
-    def __init__(self, data_path, label_path, query_corpus_generator):
+    def __init__(self, data_path: str, label_path: str, query_corpus_generator: Callable) -> None:
         super().__init__()
 
         with open(data_path, 'r') as file:
@@ -120,7 +137,7 @@ class RetrieverTrainingDataset(Dataset):
 
         self.query_corpus_generator = query_corpus_generator
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> dict[str, str | list[str]]:
         example = self.data[index]
 
         source = example['input']
@@ -136,19 +153,27 @@ class RetrieverTrainingDataset(Dataset):
             'target': self.labels[example['id']]
         }
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.data)
 
 
 class RetrieverTrainingCollator:
 
-    def __init__(self, tokenizer, max_n_profiles, max_query_length, max_document_length):
+    def __init__(
+        self,
+        tokenizer: PreTrainedTokenizerBase,
+        max_n_profiles: int,
+        max_query_length: int,
+        max_document_length: int
+    ) -> None:
         self.tokenizer = tokenizer
         self.max_n_profiles = max_n_profiles
         self.max_query_length = max_query_length
         self.max_document_length = max_document_length
 
-    def __call__(self, examples):
+    def __call__(self, examples: list[dict[str, str | list[str]]]) -> (
+        dict[str, list[str] | list[list[str]] | BatchEncoding | torch.Tensor]
+    ):
         ids = []
         sources = []
         profiles = []
@@ -175,14 +200,14 @@ class RetrieverTrainingCollator:
                 corpus[self.max_corpus_size:] = []
                 profiles[batch_index][self.max_corpus_size:] = []
 
-        tokenized_queries = self.tokenizer(
+        query_inputs = self.tokenizer(
             queries,
             padding=True,
             truncation=True,
             max_length=self.max_query_length,
             return_tensors='pt'
         )
-        tokenized_corpora = self.tokenizer(
+        corpus_inputs = self.tokenizer(
             [document for corpus in corpuses for document in corpus],
             padding=True,
             truncation=True,
@@ -194,8 +219,8 @@ class RetrieverTrainingCollator:
             'id': ids,
             'source': sources,
             'profile': profiles,
-            'query': tokenized_queries,
-            'corpus': tokenized_corpora,
+            'query_inputs': query_inputs,
+            'corpus_inputs': corpus_inputs,
             'profile_mask': profile_mask,
-            'target': targets,
+            'target': targets
         }
