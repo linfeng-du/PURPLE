@@ -11,25 +11,25 @@ class Reinforce:
         sample_size: int,
         epsilon: float
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Perform multiple rounds of sampling without replacement.
+        """Perform multiple rounds of sampling without replacement based on item likelihoods.
 
         Args:
             likelihoods: torch.Tensor of shape (batch_size, n_items)
-                2D tensor where each row contains the likelihoods of items for an example.
+                Likelihoods of items.
             mask: torch.Tensor of shape (batch_size, n_items)
-                2D mask indicating the validity of each item where 0 represents padding.
+                Mask indicating whether each item is valid, where 0 represents padding.
             n_samples: int
-                Number of samples drawn from each example.
+                Number of samples to draw.
             sample_size: int
-                See self._sample_without_replacement.
+                Number of items in each sample.
             epsilon: float
-                See self._sample_without_replacement.
+                Probability of sampling uniformly among all items.
 
         Returns:
             indices: torch.Tensor of shape (batch_size, n_samples, sample_size)
-                Indices of sampled items.
+                Indices of items in the samples.
             log_probs: torch.Tensor of shape (batch_size, n_samples)
-                Log probability of each sample.
+                Log probabilities of the samples.
         """
         max_sample_size = mask.sum(dim=1).min().item()
         sample_size = min(sample_size, max_sample_size)
@@ -48,17 +48,17 @@ class Reinforce:
 
     @staticmethod
     def compute_loss(log_probs: torch.Tensor, rewards: torch.Tensor) -> torch.Tensor:
-        """Compute the REINFORCE loss with baseline.
+        """Compute the REINFORCE loss with an average baseline.
 
         Args:
             log_probs: torch.Tensor of shape (batch_size, n_samples)
-                Log probability of each sample.
+                Log probabilities of the samples.
             rewards: torch.Tensor of shape (batch_size, n_samples)
-                Reward of each sample.
+                Rewards associated with the samples.
 
         Returns:
-            loss: torch.Tensor of shape ()
-                REINFORCE loss with a baseline.
+            loss: torch.Tensor
+                Scalar tensor representing the REINFORCE loss with the average baseline.
         """
         baseline = torch.mean(rewards, dim=1, keepdim=True)
         loss = torch.mean(-(log_probs * ((rewards - baseline) / baseline)))
@@ -70,21 +70,21 @@ class Reinforce:
         sample_size: int,
         epsilon: float
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Perform sampling without replacement based on a batch of likelihoods.
+        """Perform sampling without replacement based on item likelihoods.
 
         Args:
             likelihoods: torch.Tensor of shape (batch_size, n_items)
-                2D tensor where each row contains the likelihoods of items for an example.
+                Likelihoods of items.
             sample_size: int
-                Number of items to sample from each example.
+                Number of items in the sample.
             epsilon: float
-                For each item, sample uniformly with a probability of epsilon.
+                Probability of sampling uniformly among all items.
 
         Returns:
             indices: torch.Tensor of shape (batch_size, sample_size)
-                Indices of sampled items.
+                Indices of items in the sample.
             log_prob: torch.Tensor of shape (batch_size,)
-                Log probability of each sample.
+                Log probability of the sample.
         """
         batch_size = likelihoods.size(dim=0)
 
