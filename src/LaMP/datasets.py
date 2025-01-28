@@ -28,60 +28,20 @@ class LaMPDataset(Dataset):
 
     def __init__(
         self,
-        data: list[dict[str, str | list[str]]],
-        labels: list[dict[str, str]],
-        prompt_generator: Callable | None = None
-    ) -> None:
-        self.data = data
-        self.labels = labels
-        self.prompt_generator = prompt_generator
-
-    @classmethod
-    def from_disk(
-        cls,
         data_path: str,
         label_path: str,
-        prompt_generator: Callable | None = None
-    ) -> 'LaMPDataset':
+        prompt_generator: Callable[[str, list[dict[str, str]], float], str] | None = None
+    ) -> None:
         with open(data_path, 'r') as file:
             data = json.load(file)
 
         with open(label_path, 'r') as file:
-            labels = {label['id']: label['output'] for label in json.load(file)['golds']}
+            label_dict = json.load(file)
+            labels = {label['id']: label['output'] for label in label_dict['golds']}
 
-        return cls(data, labels, prompt_generator)
-
-    @classmethod
-    def from_batch_profile_indices(
-        cls,
-        batch_profile_indices: torch.Tensor,
-        batch: dict[str, list[str] | list[list[str]] | BatchEncoding | torch.Tensor],
-        prompt_generator: Callable | None = None
-    ) -> 'LaMPDataset':
-        """Create the dataset based on a batch of sampled profiles.
-
-        Args:
-            batch_profile_indices: Tensor of shape (batch_size, sample_size, n_retrieve)
-                Indices of a batch of sampled profiles.
-        """
-        data = []
-        labels = {}
-
-        for batch_index, sample_profile_indices in enumerate(batch_profile_indices):
-            data_id = batch['id'][batch_index]
-            labels[data_id] = batch['target'][batch_index]
-
-            for profile_indices in sample_profile_indices:
-                data.append({
-                    'id': data_id,
-                    'input': batch['source'][batch_index],
-                    'profile': [
-                        batch['profile'][batch_index][profile_index]
-                        for profile_index in profile_indices
-                    ]
-                })
-
-        return cls(data, labels, prompt_generator)
+        self.data = data
+        self.labels = labels
+        self.prompt_generator = prompt_generator
 
     def __getitem__(self, index: int) -> dict[str, str]:
         example = self.data[index]
@@ -114,14 +74,18 @@ class LaMPCollator:
             sources.append(example['source'])
             targets.append(example['target'])
 
-        return self.tokenizer(
+        source_inputs = self.tokenizer(
             sources,
-            text_target=targets,
             padding=True,
             truncation=True,
             max_length=self.max_length,
             return_tensors='pt'
         )
+
+        return {
+            'source_inputs': source_inputs,
+            'target': targets
+        }
 
 
 class RetrieverTrainingDataset(Dataset):
@@ -133,7 +97,8 @@ class RetrieverTrainingDataset(Dataset):
             self.data = json.load(file)
 
         with open(label_path, 'r') as file:
-            self.labels = {label['id']: label['output'] for label in json.load(file)['golds']}
+            label_dict = json.load(file)
+            self.labels = {label['id']: label['output'] for label in label_dict['golds']}
 
         self.query_corpus_generator = query_corpus_generator
 
