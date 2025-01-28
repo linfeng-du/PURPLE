@@ -40,9 +40,9 @@ def create_retrieval_prompt_generator(
     return generate_prompt_with_retrieval
 
 
-def create_query_corpus_generator(task: str) -> Callable[
-    [str, list[dict[str, str]]], tuple[str, list[str]]
-]:
+def create_query_corpus_generator(task: str) -> (
+    Callable[[str, list[dict[str, str]]], tuple[str, list[str]]]
+):
     task_fns = {
         'LaMP-1': _generate_classification_citation_query_corpus,
         'LaMP-2': _generate_classification_movies_query_corpus,

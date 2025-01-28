@@ -1,3 +1,4 @@
+import random
 from typing import Callable
 
 from rank_bm25 import BM25Okapi
@@ -6,9 +7,9 @@ import torch
 from transformers import AutoTokenizer, AutoModel
 
 
-def create_retriever(retriever: str, device: str | None = None) -> Callable[
-    [str, list[dict[str, str]], int, Callable], list[str]
-]:
+def create_retriever(retriever: str, device: str | None = None) -> (
+    Callable[[str, list[dict[str, str]], int, Callable], list[str]]
+):
     if retriever == 'contriever':
         contriever = _ContrieverRetriever()
         contriever.to(device)
@@ -16,6 +17,7 @@ def create_retriever(retriever: str, device: str | None = None) -> Callable[
 
     retriever_fns = {
         'first_k': _first_k_retriever,
+        'random': _random_retriever,
         'bm25': _bm25_retriever
     }
     return retriever_fns[retriever]
@@ -23,7 +25,14 @@ def create_retriever(retriever: str, device: str | None = None) -> Callable[
 
 def _first_k_retriever(input_, profiles, n_retrieve, query_corpus_generator):
     n_retrieve = min(n_retrieve, len(profiles))
-    return profiles[:n_retrieve]
+    retrieved_profiles = profiles[:n_retrieve]
+    return retrieved_profiles
+
+
+def _random_retriever(input_, profiles, n_retrieve, query_corpus_generator):
+    n_retrieve = min(n_retrieve, len(profiles))
+    retrieved_profiles = random.choices(profiles, k=n_retrieve)
+    return retrieved_profiles
 
 
 def _bm25_retriever(input_, profiles, n_retrieve, query_corpus_generator):
@@ -32,7 +41,10 @@ def _bm25_retriever(input_, profiles, n_retrieve, query_corpus_generator):
 
     tokenized_query = query.split()
     tokenized_corpus = [document.split() for document in corpus]
-    return BM25Okapi(tokenized_corpus).get_top_n(tokenized_query, profiles, n=n_retrieve)
+
+    bm25 = BM25Okapi(tokenized_corpus)
+    retrieved_profiles = bm25.get_top_n(tokenized_query, profiles, n=n_retrieve)
+    return retrieved_profiles
 
 
 class _ContrieverRetriever:
@@ -59,8 +71,10 @@ class _ContrieverRetriever:
             scores.append(batch_scores)
 
         scores = torch.cat(scores, dim=0)
+
         _, indices = torch.topk(scores, n_retrieve, dim=0)
-        return [profiles[index] for index in indices]
+        retrieved_profiles = [profiles[index] for index in indices]
+        return retrieved_profiles
 
     def _compute_sentence_embeddings(self, sentences):
         inputs = self.tokenizer(sentences, padding=True, truncation=True, return_tensors='pt')
