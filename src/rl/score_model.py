@@ -5,20 +5,20 @@ from transformers import BertModel, BatchEncoding
 
 class ProfileScoreModel(nn.Module):
 
-    def __init__(self, encoder: BertModel, hidden_size: int) -> None:
+    def __init__(self, bert_encoder: BertModel, hidden_size: int) -> None:
         """Initialize the ProfileScoreModel.
 
         Args:
-            encoder (BertModel): BERT-like encoder loaded from Hugging Face.
+            bert_encoder (BertModel): BERT-like encoder loaded from Hugging Face.
             hidden_size (int): Decoder hidden dimension size.
         """
         super().__init__()
-        decoder_input_size = 2 * encoder.config.hidden_size
+        decoder_input_size = 2 * bert_encoder.config.hidden_size
 
-        self.encoder = encoder
+        self.bert_encoder = bert_encoder
         self.norm = nn.LayerNorm(decoder_input_size)
 
-        self.decoder = nn.Sequential(
+        self.mlp_decoder = nn.Sequential(
             nn.Linear(decoder_input_size, hidden_size),
             nn.Tanh(),
             nn.Linear(hidden_size, 1),
@@ -51,7 +51,7 @@ class ProfileScoreModel(nn.Module):
         corpus_embeddings = corpus_embeddings.view(batch_size, n_profiles, -1)
         query_corpus = torch.cat((query_embedding, corpus_embeddings), dim=-1)
 
-        likelihoods = self.decoder(query_corpus)
+        likelihoods = self.mlp_decoder(query_corpus)
         likelihoods = likelihoods.squeeze(dim=-1).masked_fill(~profile_mask, 0.)
         return likelihoods
 
@@ -65,7 +65,7 @@ class ProfileScoreModel(nn.Module):
             sentence_embedding (torch.Tensor):
                 Averaged token embeddings. Shape (n_sentences, hidden_size)
         """
-        sentence_outputs = self.encoder(**sentence_inputs)
+        sentence_outputs = self.bert_encoder(**sentence_inputs)
 
         token_embeddings = sentence_outputs.last_hidden_state
         attention_mask = sentence_inputs['attention_mask'].unsqueeze(dim=-1)
