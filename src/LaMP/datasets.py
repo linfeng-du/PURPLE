@@ -6,24 +6,6 @@ from torch.utils.data import Dataset
 from transformers import PreTrainedTokenizerBase, BatchEncoding
 
 
-def load_all_labels(task: str) -> list[str]:
-    task_labels = {
-        'LaMP-1': ['[1]', '[2]'],
-        'LaMP-2': [
-            'sci-fi', 'based on a book', 'comedy', 'action',
-            'twist ending', 'dystopia', 'dark comedy', 'classic',
-            'psychology', 'fantasy', 'romance', 'thought-provoking',
-            'social commentary', 'violence', 'true story'
-        ],
-        'LaMP-3': ['1', '2', '3', '4', '5'],
-        'LaMP-4': [],
-        'LaMP-5': [],
-        'LaMP-6': [],
-        'LaMP-7': []
-    }
-    return task_labels[task]
-
-
 class LaMPDataset(Dataset):
 
     def __init__(
