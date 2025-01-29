@@ -163,7 +163,6 @@ class RetrieverTrainingCollator:
         )
 
         return {
-            'id': ids,
             'source': sources,
             'profile': profiles,
             'query_inputs': query_inputs,
