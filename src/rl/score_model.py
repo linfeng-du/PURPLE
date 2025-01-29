@@ -13,9 +13,9 @@ class ProfileScoreModel(nn.Module):
             hidden_size (int): Decoder hidden dimension size.
         """
         super().__init__()
-        decoder_input_size = 2 * bert_encoder.config.hidden_size
-
         self.bert_encoder = AutoModel.from_pretrained(bert_encoder)
+
+        decoder_input_size = 2 * self.bert_encoder.config.hidden_size
         self.norm = nn.LayerNorm(decoder_input_size)
 
         self.mlp_decoder = nn.Sequential(
