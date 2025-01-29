@@ -9,7 +9,7 @@ def create_retrieval_prompt_generator(
     task: str,
     retriever: str,
     n_retrieve: int,
-    max_length: int,
+    max_prompt_length: int,
     tokenizer: PreTrainedTokenizerBase,
     device: str | None = None
 ) -> Callable[[str, list[dict[str, str]], float], str]:
@@ -26,9 +26,13 @@ def create_retrieval_prompt_generator(
 
         while True:
             try:
-                input_length = len(tokenizer.encode(input_, truncation=True, max_length=max_length))
-                reserved_length = min(input_length, int(factor * max_length))
-                max_profile_length = max_length - reserved_length
+                input_length = len(tokenizer.encode(
+                    input_,
+                    truncation=True,
+                    max_length=max_prompt_length
+                ))
+                reserved_length = min(input_length, int(factor * max_prompt_length))
+                max_profile_length = max_prompt_length - reserved_length
                 return prompt_generator(input_, retrieved_profiles, max_profile_length, tokenizer)
             except OverflowError:
                 factor -= 0.1
