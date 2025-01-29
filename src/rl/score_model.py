@@ -1,21 +1,21 @@
 import torch
 import torch.nn as nn
-from transformers import BertModel, BatchEncoding
+from transformers import AutoModel, BatchEncoding
 
 
 class ProfileScoreModel(nn.Module):
 
-    def __init__(self, bert_encoder: BertModel, hidden_size: int) -> None:
+    def __init__(self, bert_encoder: str, hidden_size: int) -> None:
         """Initialize the ProfileScoreModel.
 
         Args:
-            bert_encoder (BertModel): BERT-like encoder loaded from Hugging Face.
+            bert_encoder (str): Hugging Face identifier for a BERT-like encoder.
             hidden_size (int): Decoder hidden dimension size.
         """
         super().__init__()
         decoder_input_size = 2 * bert_encoder.config.hidden_size
 
-        self.bert_encoder = bert_encoder
+        self.bert_encoder = AutoModel.from_pretrained(bert_encoder)
         self.norm = nn.LayerNorm(decoder_input_size)
 
         self.mlp_decoder = nn.Sequential(

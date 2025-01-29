@@ -4,7 +4,9 @@ import torch
 import evaluate
 
 
-def create_reward(task: str) -> Callable[[list[str], list[str], torch.device], torch.Tensor]:
+def create_reward_function(task: str) -> (
+    Callable[[list[str], list[str], torch.device], torch.Tensor]
+):
     """Create the reward function for the specified task.
 
     Args:
@@ -15,18 +17,18 @@ def create_reward(task: str) -> Callable[[list[str], list[str], torch.device], t
             The reward function corresponding to the task.
     """
     task_fn = {
-        'LaMP-1': classification_reward,
-        'LaMP-2': classification_reward,
-        'LaMP-3': regression_reward,
-        'LaMP-4': create_generation_reward(),
-        'LaMP-5': create_generation_reward(),
-        'LaMP-6': create_generation_reward(),
-        'LaMP-7': create_generation_reward()
+        'LaMP-1': classification_reward_function,
+        'LaMP-2': classification_reward_function,
+        'LaMP-3': regression_reward_function,
+        'LaMP-4': create_generation_reward_function(),
+        'LaMP-5': create_generation_reward_function(),
+        'LaMP-6': create_generation_reward_function(),
+        'LaMP-7': create_generation_reward_function()
     }
     return task_fn[task]
 
 
-def classification_reward(
+def classification_reward_function(
     predictions: list[str],
     targets: list[str],
     device: torch.device
@@ -52,7 +54,7 @@ def classification_reward(
     return reward
 
 
-def regression_reward(
+def regression_reward_function(
     predictions: list[str],
     targets: list[str],
     device: torch.device
@@ -88,7 +90,9 @@ def regression_reward(
     return reward
 
 
-def create_generation_reward() -> Callable[[list[str], list[str], torch.device], torch.Tensor]:
+def create_generation_reward_function() -> (
+    Callable[[list[str], list[str], torch.device], torch.Tensor]
+):
     """Wrapper function to initialize the ROUGE metric.
 
     Returns:
@@ -96,7 +100,7 @@ def create_generation_reward() -> Callable[[list[str], list[str], torch.device],
     """
     rouge_metric = evaluate.load('rouge')
 
-    def generation_reward(
+    def generation_reward_function(
         predictions: list[str],
         targets: list[str],
         device: torch.device
@@ -123,4 +127,4 @@ def create_generation_reward() -> Callable[[list[str], list[str], torch.device],
         reward = torch.tensor(rouge_scores, dtype=torch.float, device=device)
         return reward
 
-    return generation_reward
+    return generation_reward_function
