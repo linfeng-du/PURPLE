@@ -39,7 +39,7 @@ class ProfileScoreModel(nn.Module):
             profile_mask (torch.Tensor): Validity of profiles. Shape (batch_size, n_profiles)
 
         Returns:
-            likelihoods (torch.Tensor):
+            profile_likelihoods (torch.Tensor):
                 Profile Likelihoods given the query. Shape (batch_size, n_profiles)
         """
         batch_size, n_profiles = profile_mask.size()
@@ -51,9 +51,9 @@ class ProfileScoreModel(nn.Module):
         corpus_embeddings = corpus_embeddings.view(batch_size, n_profiles, -1)
         query_corpus = torch.cat((query_embedding, corpus_embeddings), dim=-1)
 
-        likelihoods = self.mlp_decoder(query_corpus)
-        likelihoods = likelihoods.squeeze(dim=-1).masked_fill(~profile_mask, 0.)
-        return likelihoods
+        profile_likelihoods = self.mlp_decoder(query_corpus)
+        profile_likelihoods = profile_likelihoods.squeeze(dim=-1).masked_fill(~profile_mask, 0.)
+        return profile_likelihoods
 
     def _compute_sentence_embedding(self, sentence_inputs):
         """Compute sentence embedding by mean pooling.
