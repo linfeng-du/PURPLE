@@ -1,12 +1,9 @@
 from typing import Callable
 
-import torch
 import evaluate
 
 
-def create_reward_function(task: str) -> (
-    Callable[[list[str], list[str], torch.device], torch.Tensor]
-):
+def create_reward_function(task: str) -> Callable[[list[str], list[str]], list[float]]:
     """Create the reward function for the specified task.
 
     Args:
@@ -28,49 +25,38 @@ def create_reward_function(task: str) -> (
     return task_fn[task]
 
 
-def classification_reward_function(
-    predictions: list[str],
-    targets: list[str],
-    device: torch.device
-) -> torch.Tensor:
-    """Compute the classification reward based on prediction and target sequences.
+def classification_reward_function(predictions: list[str], targets: list[str]) -> list[float]:
+    """Compute classification rewards based on prediction and target sequences.
 
     Args:
         predictions (list[str]): Prediction sequences.
         targets (list[str]): Target sequences.
-        device (torch.device): Device for the reward tensor.
 
     Returns:
-        reward (torch.Tensor):
-            Whether the prediction matches the target. Shape (batch_size,)
+        rewards (list[float]):
+            Rewards indicating whether each prediction matches its target.
     """
-    comparisons = []
+    rewards = []
 
     for prediction, target in zip(predictions, targets):
-        comparison = prediction.strip() == target.strip()
-        comparisons.append(comparison)
+        reward = float(prediction.strip() == target.strip())
+        rewards.append(reward)
 
-    reward = torch.tensor(comparisons, dtype=torch.float, device=device)
-    return reward
+    return rewards
 
 
-def regression_reward_function(
-    predictions: list[str],
-    targets: list[str],
-    device: torch.device
-) -> torch.Tensor:
-    """Compute the regression reward based on prediction and label sequences.
+def regression_reward_function(predictions: list[str], targets: list[str]) -> list[float]:
+    """Compute regression rewards based on prediction and target sequences.
 
     Args:
         predictions (list[str]): Prediction sequences.
         targets (list[str]): Target sequences.
-        device (torch.device): Device for the reward tensor.
 
     Returns:
-        reward (torch.Tensor):
-            The negative L1 distance between the prediction and the target. Shape (batch_size,)
+        reward (list[float]):
+            Rewards computed as the negative L1 distance between predictions and targets.
     """
-    negative_distances = []
+    rewards = []
 
     for prediction, target in zip(predictions, targets):
         target_value = float(target)
@@ -83,48 +69,40 @@ def regression_reward_function(
             else:
                 prediction_value = 5.
 
-        negative_distance = -abs(prediction_value - target_value)
-        negative_distances.append(negative_distance)
+        reward = -abs(prediction_value - target_value)
+        rewards.append(reward)
 
-    reward = torch.tensor(negative_distances, dtype=torch.float, device=device)
-    return reward
+    return rewards
 
 
-def create_generation_reward_function() -> (
-    Callable[[list[str], list[str], torch.device], torch.Tensor]
-):
+def create_generation_reward_function() -> Callable[[list[str], list[str]], list[float]]:
     """Wrapper function to initialize the ROUGE metric.
 
     Returns:
-        generation_reward (Callable): Function that computes the generation reward.
+        generation_reward_function (Callable[[list[str], list[str]], list[float]]):
+            Function that computes the generation reward.
     """
     rouge_metric = evaluate.load('rouge')
 
-    def generation_reward_function(
-        predictions: list[str],
-        targets: list[str],
-        device: torch.device
-    ) -> torch.Tensor:
-        """Compute the generation reward based on the ROUGE-1 score.
+    def generation_reward_function(predictions: list[str], targets: list[str]) -> list[float]:
+        """Compute the generation reward based on prediction and target sequences.
 
         Args:
             predictions (list[str]): Prediction sequences.
             targets (list[str]): Target sequences.
-            device (torch.device): Device for the reward tensor.
 
         Returns:
-            reward (torch.Tensor):
-                The ROUGE-1 score of the prediction. Shape (batch_size,)
+            rewards (list[float]):
+                Rewards computed as ROUGE-1 scores for prediction-target pairs.
         """
-        rouge_scores = []
+        rewards = []
 
         for prediction, target in zip(predictions, targets):
             prediction = [prediction.strip()]
             target = [[target.strip()]]
             rouge_results = rouge_metric.compute(predictions=prediction, references=target)
-            rouge_scores.append(rouge_results['rouge1'])
+            rewards.append(rouge_results['rouge1'])
 
-        reward = torch.tensor(rouge_scores, dtype=torch.float, device=device)
-        return reward
+        return rewards
 
     return generation_reward_function
