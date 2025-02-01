@@ -5,4 +5,5 @@ openai==1.60.2
 rank-bm25==0.2.2
 torch==2.5.1
 evaluate==0.4.3
+sacrebleu==2.5.1
 transformers==4.46.3
