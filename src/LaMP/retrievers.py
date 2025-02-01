@@ -16,17 +16,10 @@ def create_retriever(retriever: str, device: str | None = None) -> (
         return contriever
 
     retriever_fns = {
-        'first_k': _first_k_retriever,
         'random': _random_retriever,
         'bm25': _bm25_retriever
     }
     return retriever_fns[retriever]
-
-
-def _first_k_retriever(input_, profiles, n_retrieve, query_corpus_generator):
-    n_retrieve = min(n_retrieve, len(profiles))
-    retrieved_profiles = profiles[:n_retrieve]
-    return retrieved_profiles
 
 
 def _random_retriever(input_, profiles, n_retrieve, query_corpus_generator):
