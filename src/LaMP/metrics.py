@@ -45,17 +45,17 @@ def _create_classification_metric_function(all_labels: list[str]) -> (
         prediction_indices = [map_to_index(prediction) for prediction in predictions]
         target_indices = [map_to_index(target) for target in targets]
 
-        accuracy = accuracy_metric.compute(
+        accuracy_results = accuracy_metric.compute(
             predictions=prediction_indices,
             references=target_indices
         )
-        f1 = f1_metric.compute(
+        f1_results = f1_metric.compute(
             predictions=prediction_indices,
             references=target_indices,
             labels=list(range(len(all_labels))),
             average='macro'
         )
-        return {'accuracy': accuracy, 'f1': f1}
+        return {'accuracy': accuracy_results['accuracy'], 'f1': f1_results['f1']}
 
     def map_to_index(string: str) -> int:
         try:
@@ -82,16 +82,16 @@ def _create_regression_metric_function() -> (
         ]
         target_values = [map_to_value(target, target) for target in targets]
 
-        mae = mae_metric.compute(
+        mae_results = mae_metric.compute(
             predictions=prediction_values,
             references=target_values
         )
-        rmse = mse_metric.compute(
+        rmse_results = mse_metric.compute(
             predictions=prediction_values,
             references=target_values,
             squared=False
         )
-        return {'mae': mae, 'rmse': rmse}
+        return {'mae': mae_results['mae'], 'rmse': rmse_results['mse']}
 
     def map_to_value(string: str, target: str) -> float:
         try:
