@@ -13,16 +13,14 @@ def create_reward_function(task: str) -> Callable[[list[str], list[str]], list[f
         Callable[[list[str], list[str], torch.device], torch.Tensor]:
             The reward function corresponding to the task.
     """
-    task_fn = {
-        'LaMP-1': _classification_reward_function,
-        'LaMP-2': _classification_reward_function,
-        'LaMP-3': _regression_reward_function,
-        'LaMP-4': _create_generation_reward_function(),
-        'LaMP-5': _create_generation_reward_function(),
-        'LaMP-6': _create_generation_reward_function(),
-        'LaMP-7': _create_generation_reward_function()
-    }
-    return task_fn[task]
+    if task in {'LaMP-1', 'LaMP-2'}:
+        return _classification_reward_function
+    elif task in {'LaMP-3'}:
+        return _regression_reward_function
+    elif task in {'LaMP-4', 'LaMP-5', 'LaMP-6', 'LaMP-7'}:
+        return _create_generation_reward_function()
+    else:
+        raise ValueError(f'Unsupported task: {task}')
 
 
 def _classification_reward_function(predictions: list[str], targets: list[str]) -> list[float]:

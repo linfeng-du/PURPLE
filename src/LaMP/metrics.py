@@ -4,16 +4,14 @@ import evaluate
 
 
 def create_metric_function(task: str) -> Callable[[list[str], list[str]], list[float]]:
-    task_fn = {
-        'LaMP-1': _create_classification_metric_function(_load_all_labels(task)),
-        'LaMP-2': _create_classification_metric_function(_load_all_labels(task)),
-        'LaMP-3': _create_regression_metric_function(),
-        'LaMP-4': _create_generation_metric_function(),
-        'LaMP-5': _create_generation_metric_function(),
-        'LaMP-6': _create_generation_metric_function(),
-        'LaMP-7': _create_generation_metric_function()
-    }
-    return task_fn[task]
+    if task in {'LaMP-1', 'LaMP-2'}:
+        return _create_classification_metric_function(_load_all_labels(task))
+    elif task in {'LaMP-3'}:
+        return _create_regression_metric_function()
+    elif task in {'LaMP-4', 'LaMP-5', 'LaMP-6', 'LaMP-7'}:
+        return _create_generation_metric_function()
+    else:
+        raise ValueError(f'Unsupported task: {task}')
 
 
 def _load_all_labels(task: str) -> list[str]:
