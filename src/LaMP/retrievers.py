@@ -55,15 +55,9 @@ class _ContrieverRetriever:
         n_retrieve = min(n_retrieve, len(profiles))
         query, corpus = query_corpus_generator(input_, profiles)
 
-        scores = []
         query_embedding = self._compute_sentence_embeddings(query)
-
-        for batch_corpus in [corpus[i : i + 4] for i in range(0, len(corpus), 4)]:
-            batch_corpus_embeddings = self._compute_sentence_embeddings(batch_corpus)
-            batch_scores = (query_embedding @ batch_corpus_embeddings.T).squeeze(dim=0)
-            scores.append(batch_scores)
-
-        scores = torch.cat(scores, dim=0)
+        corpus_embeddings = self._compute_sentence_embeddings(corpus)
+        scores = (query_embedding @ corpus_embeddings.T).squeeze(dim=0)
 
         _, indices = torch.topk(scores, n_retrieve, dim=0)
         retrieved_profiles = [profiles[index] for index in indices]
