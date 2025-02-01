@@ -1,8 +1,7 @@
-tqdm
-omegaconf
-hydra-core
-tiktoken
-openai
+tqdm==4.67.0
+omegaconf==2.3.0
+hydra-core==1.3.2
+openai==1.60.2
 rank-bm25==0.2.2
 torch==2.5.1
 evaluate==0.4.3
