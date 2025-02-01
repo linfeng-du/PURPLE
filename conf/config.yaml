@@ -1,0 +1,14 @@
+experiment: ???
+run_dir: ./outputs/${experiment}/${now:%Y-%m-%d_%H-%M-%S_%f}
+
+hydra:
+  run:
+    dir: ${run_dir}
+
+seed: ???           # Seed that controls all sources of randomness
+task: ???           # LaMP task (LaMP-6 not supported)
+n_retrieve: ???     # Number of retrieved profiles per question
+
+generation:
+  model: gpt-4o
+  temperature: 0.
