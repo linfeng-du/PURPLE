@@ -42,34 +42,6 @@ class LaMPDataset(Dataset):
         return len(self.data)
 
 
-class LaMPCollator:
-
-    def __init__(self, tokenizer: PreTrainedTokenizerBase, max_length: int) -> None:
-        self.tokenizer = tokenizer
-        self.max_length = max_length
-
-    def __call__(self, examples: list[dict[str, str]]) -> BatchEncoding:
-        sources = []
-        targets = []
-
-        for example in examples:
-            sources.append(example['source'])
-            targets.append(example['target'])
-
-        source_inputs = self.tokenizer(
-            sources,
-            padding=True,
-            truncation=True,
-            max_length=self.max_length,
-            return_tensors='pt'
-        )
-
-        return {
-            'source_inputs': source_inputs,
-            'target': targets
-        }
-
-
 class RetrieverTrainingDataset(Dataset):
 
     def __init__(self, data_path: str, label_path: str, query_corpus_generator: Callable) -> None:
