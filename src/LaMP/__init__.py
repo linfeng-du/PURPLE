@@ -4,7 +4,7 @@ from .prompts import (
 )
 from .datasets import (
     LaMPDataset,
-    LaMPCollator,
     RetrieverTrainingDataset,
     RetrieverTrainingCollator
 )
+from .metrics import create_metric
