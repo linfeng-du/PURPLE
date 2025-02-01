@@ -7,4 +7,4 @@ from .datasets import (
     RetrieverTrainingDataset,
     RetrieverTrainingCollator
 )
-from .metrics import create_metric
+from .metrics import create_metric_function
