@@ -14,18 +14,18 @@ def create_reward_function(task: str) -> Callable[[list[str], list[str]], list[f
             The reward function corresponding to the task.
     """
     task_fn = {
-        'LaMP-1': classification_reward_function,
-        'LaMP-2': classification_reward_function,
-        'LaMP-3': regression_reward_function,
-        'LaMP-4': create_generation_reward_function(),
-        'LaMP-5': create_generation_reward_function(),
-        'LaMP-6': create_generation_reward_function(),
-        'LaMP-7': create_generation_reward_function()
+        'LaMP-1': _classification_reward_function,
+        'LaMP-2': _classification_reward_function,
+        'LaMP-3': _regression_reward_function,
+        'LaMP-4': _create_generation_reward_function(),
+        'LaMP-5': _create_generation_reward_function(),
+        'LaMP-6': _create_generation_reward_function(),
+        'LaMP-7': _create_generation_reward_function()
     }
     return task_fn[task]
 
 
-def classification_reward_function(predictions: list[str], targets: list[str]) -> list[float]:
+def _classification_reward_function(predictions: list[str], targets: list[str]) -> list[float]:
     """Compute classification rewards based on prediction and target sequences.
 
     Args:
@@ -45,7 +45,7 @@ def classification_reward_function(predictions: list[str], targets: list[str]) -
     return rewards
 
 
-def regression_reward_function(predictions: list[str], targets: list[str]) -> list[float]:
+def _regression_reward_function(predictions: list[str], targets: list[str]) -> list[float]:
     """Compute regression rewards based on prediction and target sequences.
 
     Args:
@@ -75,7 +75,7 @@ def regression_reward_function(predictions: list[str], targets: list[str]) -> li
     return rewards
 
 
-def create_generation_reward_function() -> Callable[[list[str], list[str]], list[float]]:
+def _create_generation_reward_function() -> Callable[[list[str], list[str]], list[float]]:
     """Wrapper function to initialize the ROUGE metric.
 
     Returns:
