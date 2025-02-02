@@ -10,16 +10,24 @@ from transformers import AutoTokenizer, AutoModel
 def create_retriever(retriever: str, device: str | None = None) -> (
     Callable[[str, list[dict[str, str]], int, Callable], list[str]]
 ):
-    if retriever == 'contriever':
+    if retriever == 'first_k':
+        return _first_k_retriever
+    elif retriever == 'random':
+        return _random_retriever
+    elif retriever == 'bm25':
+        return _bm25_retriever
+    elif retriever == 'contriever':
         contriever = _ContrieverRetriever()
         contriever.to(device)
         return contriever
+    else:
+        raise ValueError(f'Unsupported retriever: {retriever}')
 
-    retriever_fns = {
-        'random': _random_retriever,
-        'bm25': _bm25_retriever
-    }
-    return retriever_fns[retriever]
+
+def _first_k_retriever(input_, profiles, n_retrieve, query_corpus_generator):
+    n_retrieve = min(n_retrieve, len(profiles))
+    retrieved_profiles = profiles[:n_retrieve]
+    return retrieved_profiles
 
 
 def _random_retriever(input_, profiles, n_retrieve, query_corpus_generator):
