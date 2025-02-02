@@ -5,7 +5,7 @@ defaults:
 dataset_seed: 42      # Seed for splitting the train and validation set
 
 n_epochs: 2           # Number of training epochs
-batch_size: 2         # Number of questions in each batch during training
+batch_size: 1         # Number of questions in each batch during training
 lr: 1e-5              # Learning rate
 max_grad_norm: 1.     # Maximum gradient norm
 
@@ -23,7 +23,7 @@ score_model:
   hidden_size: 100                    # Decoder hidden size
 
 collator:
-  max_n_profiles: 50          # Maximum number of profiles per question
+  max_n_profiles: 100         # Maximum number of profiles per question
   max_query_length: 512       # Maximum tokenized length for queries
   max_document_length: 512    # Maximum tokenized length for documents
 

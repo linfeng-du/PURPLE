@@ -109,15 +109,18 @@ class RetrieverTrainingCollator:
             targets.append(example['target'])
 
         # Keep only `self.max_n_profiles` profiles for each example
-        profile_mask = torch.ones(len(examples), self.max_n_profiles, dtype=torch.bool)
+        max_n_profiles = max(len(profile) for profile in profiles)
+        max_n_profiles = min(max_n_profiles, self.max_n_profiles)
+
+        profile_mask = torch.ones(len(examples), max_n_profiles, dtype=torch.bool)
 
         for batch_index, corpus in enumerate(corpuses):
-            if len(corpus) < self.max_n_profiles:
+            if len(corpus) < max_n_profiles:
                 profile_mask[batch_index, len(corpus):] = 0
-                corpus.extend([''] * (self.max_n_profiles - len(corpus)))
-            elif len(corpus) > self.max_n_profiles:
-                corpus[self.max_n_profiles:] = []
-                profiles[batch_index][self.max_n_profiles:] = []
+                corpus.extend([''] * (max_n_profiles - len(corpus)))
+            elif len(corpus) > max_n_profiles:
+                corpus[max_n_profiles:] = []
+                profiles[batch_index][max_n_profiles:] = []
 
         query_inputs = self.tokenizer(
             queries,
