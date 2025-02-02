@@ -1,0 +1,11 @@
+defaults:
+  - _self_
+  - config
+
+retriever: ???    # Retriever to use (random, bm25, contriever)
+
+prompt_generator:
+  task: ${task}               # LaMP task (LaMP-6 not supported)
+  retriever: ${retriever}     # Retriever to use
+  n_retrieve: ${n_retrieve}   # Number of retrieved profiles per question
+  max_prompt_length: 2048     # Maximum tokenized length for prompts

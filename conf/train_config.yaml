@@ -1,0 +1,33 @@
+defaults:
+  - _self_
+  - config
+
+dataset_seed: 42      # Seed for splitting the train and validation set
+
+n_epochs: 2           # Number of training epochs
+batch_size: 1         # Number of questions in each batch during training
+lr: 1e-5              # Learning rate
+max_grad_norm: 1.     # Maximum gradient norm
+
+eval_every: 1000      # Evaluate after processing eval_every training examples
+eval_batch_size: 8    # Number of questions in each batch during evaluation
+
+prompt_generator:
+  task: ${task}
+  retriever: first_k          # Use all retrieved profiles to create prompts
+  n_retrieve: ${n_retrieve}   # Number of retrieved profiles per question
+  max_prompt_length: 2048     # Maximum tokenized length for prompts
+
+score_model:
+  bert_encoder: facebook/contriever   # BERT encoder loaded from Hugging Face
+  hidden_size: 100                    # Decoder hidden size
+
+collator:
+  max_n_profiles: 100         # Maximum number of profiles per question
+  max_query_length: 512       # Maximum tokenized length for queries
+  max_document_length: 512    # Maximum tokenized length for documents
+
+reinforce:
+  sample_size: ${n_retrieve}    # Number of retrieved profiles per question
+  n_samples: 20                 # Number of samples, each contains sample_size profiles
+  epsilon: 0.1                  # Exploration rate. Randomly sample with a probabilty of epsilon
