@@ -55,8 +55,8 @@ class Reinforce:
             loss (torch.Tensor):
                 Scalar tensor representing the REINFORCE loss with the average baseline. Shape: ()
         """
-        baseline = torch.mean(rewards, dim=1, keepdim=True)
-        loss = torch.mean(-(log_probs * ((rewards - baseline) / baseline)))
+        baseline = torch.mean(rewards)
+        loss = torch.mean(-(log_probs * ((rewards - baseline) / (baseline + 1e-9))))
         return loss
 
     @staticmethod
