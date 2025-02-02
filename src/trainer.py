@@ -98,6 +98,8 @@ class RetrieverTrainer:
                         model_path = os.path.join(self.config.run_dir, 'model.pt')
                         torch.save(self.score_model.state_dict(), model_path)
 
+                self.score_model.train()
+
                 sources = batch['source']
                 profiles = batch['profile']
                 query_inputs = batch['query_inputs'].to(self.device)
@@ -150,6 +152,8 @@ class RetrieverTrainer:
 
     @torch.no_grad()
     def validate(self) -> float:
+        self.score_model.eval()
+
         all_rewards = []
 
         for batch in tqdm(self.val_loader, desc='Validating'):
@@ -180,7 +184,10 @@ class RetrieverTrainer:
 
         return sum(all_rewards) / len(all_rewards)
 
+    @torch.no_grad()
     def test(self) -> dict[str, float]:
+        self.score_model.eval()
+
         all_predictions = []
         all_targets = []
 

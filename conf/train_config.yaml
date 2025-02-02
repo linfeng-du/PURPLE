@@ -10,7 +10,7 @@ lr: 1e-5              # Learning rate
 max_grad_norm: 1.     # Maximum gradient norm
 
 eval_every: 1000      # Evaluate after processing eval_every training examples
-eval_batch_size: 16   # Number of questions in each batch during evaluation
+eval_batch_size: 8    # Number of questions in each batch during evaluation
 
 prompt_generator:
   task: ${task}
