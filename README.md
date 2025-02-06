@@ -1,6 +1,9 @@
 ## LaMP Datasets
 Download the LaMP datasets [here](https://drive.google.com/file/d/1SgomdWGZo-c74IMoR23vcKXKXEqio350/view?usp=drive_link). The original ones have bugs in some data items and this version fixes them.
 
+## Adding OpenAI API Key
+Create API key at https://platform.openai.com/api-keys. Add it to an environment variable `OPENAI_API_KEY`.
+
 ## Running Experiments
 `scripts/` contains bash scripts for baselines and retriever training.
 Follow the commands to provide mandatory arguments if you want to run via python commands. Refer `conf/` for all these arguments.
