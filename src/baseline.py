@@ -10,7 +10,7 @@ import torch
 from transformers import AutoTokenizer
 
 from LaMP import LaMPDataset, create_retrieval_prompt_generator, create_metric_function
-from openai_api import request_completions
+from openai_api import initialize_openai_client
 
 
 logger = logging.getLogger(__name__)
@@ -51,9 +51,12 @@ def baseline(config: DictConfig):
         sources.append(example['source'])
         targets.append(example['target'])
 
-    predictions = request_completions(sources, **config.generation)
+    # Initialize OpenAI client
+    response_generator = initialize_openai_client(**config.generation)
 
+    predictions = response_generator(sources)
     test_results = metric_fn(predictions, targets)
+
     logger.info(f'Test set results:\n{json.dumps(test_results, indent=4)}')
 
 

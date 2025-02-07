@@ -5,10 +5,10 @@ hydra:
   run:
     dir: ${run_dir}
 
-seed: ???           # Seed that controls all sources of randomness
-task: ???           # LaMP task (LaMP-6 not supported)
-n_retrieve: ???     # Number of retrieved profiles per question
+defaults:
+  - _self_
+  - generation: ???
 
-generation:
-  model: gpt-4o
-  temperature: 0.
+seed: 0             # Seed that controls all sources of randomness
+task: ???           # LaMP task (LaMP-6 not supported)
+n_retrieve: 5       # Number of retrieved profiles per question

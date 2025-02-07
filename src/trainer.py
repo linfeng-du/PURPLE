@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+from typing import Callable
 
 from tqdm import tqdm
 from omegaconf import DictConfig
@@ -18,7 +19,6 @@ from LaMP import (
     create_retrieval_prompt_generator
 )
 from rl import ProfileScoreModel, Reinforce, create_reward_function
-from openai_api import request_completions
 
 
 logger = logging.getLogger(__name__)
@@ -30,10 +30,12 @@ class RetrieverTrainer:
         self,
         config: DictConfig,
         score_model: ProfileScoreModel,
+        response_generator: Callable[[list[str]], list[str]],
         device: torch.device
     ) -> None:
         self.config = config
         self.score_model = score_model
+        self.response_generator = response_generator
         self.device = device
 
         self.reinforce = Reinforce()
@@ -129,7 +131,7 @@ class RetrieverTrainer:
                         sample_prompts.append(sample_prompt)
                         sample_targets.append(sample_target)
 
-                sample_predictions = request_completions(sample_prompts, **self.config.generation)
+                sample_predictions = self.response_generator(sample_prompts)
 
                 rewards = self.reward_fn(sample_predictions, sample_targets)
                 rewards = torch.tensor(rewards, device=self.device).view_as(log_probs)

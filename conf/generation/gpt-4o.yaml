@@ -1,0 +1,5 @@
+api_key: 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
+base_url: https://api.openai.com/v1
+model: gpt-4o
+temperature: 0.
+

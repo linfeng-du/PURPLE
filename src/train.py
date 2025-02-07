@@ -5,6 +5,7 @@ import torch
 
 from rl import ProfileScoreModel
 from trainer import RetrieverTrainer
+from openai_api import initialize_openai_client
 
 
 @hydra.main(version_base=None, config_path='../conf', config_name='train_config')
@@ -29,8 +30,11 @@ def train(config: DictConfig):
     score_model = ProfileScoreModel(**config.score_model)
     score_model.to(device)
 
+    # Initialize OpenAI client
+    response_generator = initialize_openai_client(**config.generation)
+
     # Initialize trainer and start training
-    trainer = RetrieverTrainer(config, score_model, device)
+    trainer = RetrieverTrainer(config, score_model, response_generator, device)
     trainer.train()
 
 
