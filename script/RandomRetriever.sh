@@ -1,4 +1,21 @@
-for task in {LaMP-1,LaMP-2,LaMP-3,LaMP-4,LaMP-5,LaMP-7}; do
+#!/bin/bash
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --tasks)
+            tasks=$2
+            shift 2
+            ;;
+        *)
+            echo "Unknown argument: $1"
+            exit 1
+            ;;
+    esac
+done
+
+IFS=',' read -r -a task_array <<< "$tasks"
+
+for task in "${task_array[@]}"; do
     python src/baseline.py \
         experiment=RandomRetriever-5/$task \
         seed=42 \
