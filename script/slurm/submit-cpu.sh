@@ -8,7 +8,7 @@
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-    --retriever)
+        --retriever)
             retriever=$2
             shift 2
             ;;
