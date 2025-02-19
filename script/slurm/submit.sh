@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --time=10:0:0
+#SBATCH --time=36:0:0
 #SBATCH --gres=gpu:a100:1
 #SBATCH --partition=unkillable
 #SBATCH --mem=16G
