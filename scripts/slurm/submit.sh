@@ -25,4 +25,4 @@ done
 
 source /home/mila/h/haolun.wu/.bashrc
 source /home/mila/h/haolun.wu/projects/environment/BanditPR/bin/activate
-bash script/$retriever.sh --tasks $tasks
+bash scripts/$retriever.sh --tasks $tasks
