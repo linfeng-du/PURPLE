@@ -22,6 +22,7 @@ from rl import ProfileScoreModel, Reinforce, create_reward_function
 
 
 logger = logging.getLogger(__name__)
+logging.getLogger('httpx').setLevel(logging.WARNING)
 
 
 class RetrieverTrainer:
@@ -168,6 +169,8 @@ class RetrieverTrainer:
 
             profile_likelihoods = self.score_model(query_inputs, corpus_inputs, profile_mask)
             _, profile_indices = torch.topk(profile_likelihoods, self.config.n_retrieve, dim=-1)
+            print(profile_likelihoods)
+            print(profile_indices)
 
             prompts = []
 

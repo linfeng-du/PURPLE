@@ -14,6 +14,7 @@ from openai_api import initialize_openai_client
 
 
 logger = logging.getLogger(__name__)
+logging.getLogger('httpx').setLevel(logging.WARNING)
 
 
 @hydra.main(version_base=None, config_path='../conf', config_name='baseline_config')
