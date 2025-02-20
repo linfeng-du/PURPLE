@@ -168,7 +168,8 @@ class RetrieverTrainer:
             targets = batch['target']
 
             profile_likelihoods = self.score_model(query_inputs, corpus_inputs, profile_mask)
-            _, profile_indices = torch.topk(profile_likelihoods, self.config.n_retrieve, dim=-1)
+            n_retrieve = min(self.config.n_retrieve, profile_likelihoods.size(dim=1))
+            _, profile_indices = torch.topk(profile_likelihoods, n_retrieve, dim=-1)
 
             prompts = []
 
@@ -176,6 +177,7 @@ class RetrieverTrainer:
                 retrieved_profiles = [
                     profiles[batch_index][profile_index]
                     for profile_index in batch_profile_indices
+                    if profile_mask[batch_index][profile_index]
                 ]
                 prompt = self.prompt_generator(sources[batch_index], retrieved_profiles)
                 prompts.append(prompt)
@@ -203,7 +205,8 @@ class RetrieverTrainer:
             targets = batch['target']
 
             profile_likelihoods = self.score_model(query_inputs, corpus_inputs, profile_mask)
-            _, profile_indices = torch.topk(profile_likelihoods, self.config.n_retrieve, dim=-1)
+            n_retrieve = min(self.config.n_retrieve, profile_likelihoods.size(dim=1))
+            _, profile_indices = torch.topk(profile_likelihoods, n_retrieve, dim=-1)
 
             prompts = []
 
@@ -211,6 +214,7 @@ class RetrieverTrainer:
                 retrieved_profiles = [
                     profiles[batch_index][profile_index]
                     for profile_index in batch_profile_indices
+                    if profile_mask[batch_index][profile_index]
                 ]
                 prompt = self.prompt_generator(sources[batch_index], retrieved_profiles)
                 prompts.append(prompt)
