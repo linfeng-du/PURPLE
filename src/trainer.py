@@ -179,7 +179,7 @@ class RetrieverTrainer:
                 prompt = self.prompt_generator(sources[batch_index], retrieved_profiles)
                 prompts.append(prompt)
 
-            predictions = request_completions(prompts, **self.config.generation)
+            predictions = self.response_generator(prompts)
 
             rewards = self.reward_fn(predictions, targets)
             all_rewards.extend(rewards)
@@ -214,7 +214,7 @@ class RetrieverTrainer:
                 prompt = self.prompt_generator(sources[batch_index], retrieved_profiles)
                 prompts.append(prompt)
 
-            predictions = request_completions(prompts, **self.config.generation)
+            predictions = self.response_generator(prompts)
 
             all_predictions.extend(predictions)
             all_targets.extend(targets)
