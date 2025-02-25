@@ -59,7 +59,7 @@ class RetrieverTrainer:
             data_path=f'./dataset/{self.config.task}/train_questions.json',
             label_path=f'./dataset/{self.config.task}/train_outputs.json',
             query_corpus_generator=create_query_corpus_generator(self.config.task)
-        ) 
+        )
         train_dataset, val_dataset = random_split(
             train_val_dataset,
             lengths=[0.8, 0.2],
