@@ -77,6 +77,7 @@ class Reinforce:
             log_prob (torch.Tensor): Log probability of the sample. Shape (batch_size,)
         """
         batch_size = likelihoods.size(dim=0)
+        batch_indices = torch.arange(batch_size).view(-1, 1)
 
         indices = torch.full_like(likelihoods[:, :sample_size], fill_value=-1, dtype=torch.long)
         log_probs = torch.zeros_like(likelihoods[:, :sample_size], dtype=torch.float)
@@ -96,12 +97,12 @@ class Reinforce:
 
             # Sample uniformly with a probability of epsilon
             is_uniform = (torch.rand_like(likelihoods[:, 0]) < epsilon).unsqueeze(dim=1)
-            indices_col_i = torch.where(is_uniform, uniform_indices, likelihood_indices)
-            probs_col_i = torch.where(is_uniform, uniform_probs, likelihood_probs)
+            col_i_indices = torch.where(is_uniform, uniform_indices, likelihood_indices)
+            col_i_probs = torch.where(is_uniform, uniform_probs, likelihood_probs)
 
-            indices[:, i] = indices_col_i.squeeze(dim=1)
-            log_probs[:, i] = torch.log(probs_col_i).squeeze(dim=1)
-            avail_mask[torch.arange(batch_size), indices_col_i] = 0
+            indices[:, i] = col_i_indices.squeeze(dim=1)
+            log_probs[:, i] = torch.log(col_i_probs).squeeze(dim=1)
+            avail_mask[batch_indices, col_i_indices] = 0
 
         log_prob = log_probs.sum(dim=1)
         return indices, log_prob
