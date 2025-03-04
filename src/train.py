@@ -30,9 +30,6 @@ def train(config: DictConfig):
     score_model = ProfileScoreModel(**config.score_model)
     score_model.to(device)
 
-    for param in score_model.bert_encoder.parameters():
-        param.requires_grad = False
-
     # Initialize OpenAI client
     response_generator = initialize_openai_client(**config.generation)
 
