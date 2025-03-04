@@ -104,6 +104,7 @@ def _generate_classification_citation_prompt(input_, profiles, max_length, token
         saved_length += max_length_per_profile - profile_template_length - len(input_ids)
 
     title_index = input_.find('title')
+
     return f'{input_[:title_index + 5]}, and {", and ".join(prompts)}{input_[title_index + 5:]}'
 
 
