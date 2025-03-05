@@ -4,7 +4,7 @@ defaults:
 
 dataset_seed: 42      # Seed for splitting the train and validation set
 
-n_epochs: 1           # Number of training epochs
+n_epochs: 10          # Number of training epochs
 batch_size: 1         # Number of questions in each batch during training
 lr: 1e-5              # Learning rate
 max_grad_norm: 1.     # Maximum gradient norm
