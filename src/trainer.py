@@ -93,10 +93,13 @@ class RetrieverTrainer:
             for batch in tqdm(self.train_loader, desc=f'Epoch {epoch}'):
                 if example_cnt > 0 and example_cnt % self.config.eval_every == 0:
                     val_avg_reward = self.validate()
-                    logger.info(f'Average validation reward after {example_cnt} training examples: {val_avg_reward}')
+                    logger.info(
+                        f'Average validation reward after {example_cnt} '
+                        f'training examples: {val_avg_reward}'
+                    )
 
                     if val_avg_reward > best_val_avg_reward:
-                        logger.info(f'Updating best validation average reward to {val_avg_reward}...')
+                        logger.info(f'Best validation average reward: {val_avg_reward}')
                         best_val_avg_reward = val_avg_reward
                         model_path = os.path.join(self.config.run_dir, 'model.pt')
                         torch.save(self.score_model.state_dict(), model_path)
@@ -110,21 +113,23 @@ class RetrieverTrainer:
                 profile_mask = batch['profile_mask'].to(self.device)
                 targets = batch['target']
 
-                profile_likelihoods = self.score_model(query_inputs, corpus_inputs, profile_mask)
-                profile_indices, log_probs = self.reinforce.sample(
-                    profile_likelihoods,
-                    profile_mask,
+                candidate_likelihoods, candidate_mask, candidate_indices = (
+                    self.score_model(query_inputs, corpus_inputs, profile_mask)
+                )
+                retrieved_indices, log_probs = self.reinforce.sample(
+                    candidate_likelihoods,
+                    candidate_mask,
                     **self.config.reinforce
                 )
 
                 sample_prompts = []
                 sample_targets = []
 
-                for batch_index, batch_profile_indices in enumerate(profile_indices):
-                    for sample_profile_indices in batch_profile_indices:
+                for batch_index, batch_retrieved_indices in enumerate(retrieved_indices):
+                    for sample_retrieved_indices in batch_retrieved_indices:
                         sample_profiles = [
-                            profiles[batch_index][profile_index]
-                            for profile_index in sample_profile_indices
+                            profiles[batch_index][candidate_indices[batch_index][retrieved_index]]
+                            for retrieved_index in sample_retrieved_indices
                         ]
                         sample_prompt = self.prompt_generator(sources[batch_index], sample_profiles)
                         sample_target = targets[batch_index]
@@ -147,8 +152,10 @@ class RetrieverTrainer:
                 example_cnt += len(sources)
 
         model_path = os.path.join(self.config.run_dir, 'model.pt')
-        model_state = torch.load(model_path, map_location=self.device, weights_only=True)
-        self.score_model.load_state_dict(model_state)
+
+        if os.path.exists(model_path):
+            model_state = torch.load(model_path, map_location=self.device, weights_only=True)
+            self.score_model.load_state_dict(model_state)
 
         test_results = self.test()
         logger.info(f'Test set results:\n{json.dumps(test_results, indent=4)}')
@@ -167,17 +174,19 @@ class RetrieverTrainer:
             profile_mask = batch['profile_mask'].to(self.device)
             targets = batch['target']
 
-            profile_likelihoods = self.score_model(query_inputs, corpus_inputs, profile_mask)
-            n_retrieve = min(self.config.n_retrieve, profile_likelihoods.size(dim=1))
-            _, profile_indices = torch.topk(profile_likelihoods, n_retrieve, dim=-1)
+            candidate_likelihoods, candidate_mask, candidate_indices = (
+                self.score_model(query_inputs, corpus_inputs, profile_mask)
+            )
+            n_retrieve = min(self.config.n_retrieve, candidate_likelihoods.size(dim=1))
+            _, retrieved_indices = candidate_likelihoods.topk(n_retrieve, dim=-1)
 
             prompts = []
 
-            for batch_index, batch_profile_indices in enumerate(profile_indices):
+            for batch_index, batch_retrieved_indices in enumerate(retrieved_indices):
                 retrieved_profiles = [
-                    profiles[batch_index][profile_index]
-                    for profile_index in batch_profile_indices
-                    if profile_mask[batch_index][profile_index]
+                    profiles[batch_index][candidate_indices[batch_index][retrieved_index]]
+                    for retrieved_index in batch_retrieved_indices
+                    if candidate_mask[batch_index][retrieved_index]
                 ]
                 prompt = self.prompt_generator(sources[batch_index], retrieved_profiles)
                 prompts.append(prompt)
@@ -187,7 +196,8 @@ class RetrieverTrainer:
             rewards = self.reward_fn(predictions, targets)
             all_rewards.extend(rewards)
 
-        return sum(all_rewards) / len(all_rewards)
+        avg_reward = sum(all_rewards) / len(all_rewards)
+        return avg_reward
 
     @torch.no_grad()
     def test(self) -> dict[str, float]:
@@ -204,17 +214,19 @@ class RetrieverTrainer:
             profile_mask = batch['profile_mask'].to(self.device)
             targets = batch['target']
 
-            profile_likelihoods = self.score_model(query_inputs, corpus_inputs, profile_mask)
-            n_retrieve = min(self.config.n_retrieve, profile_likelihoods.size(dim=1))
-            _, profile_indices = torch.topk(profile_likelihoods, n_retrieve, dim=-1)
+            candidate_likelihoods, candidate_mask, candidate_indices = (
+                self.score_model(query_inputs, corpus_inputs, profile_mask)
+            )
+            n_retrieve = min(self.config.n_retrieve, candidate_likelihoods.size(dim=1))
+            _, retrieved_indices = candidate_likelihoods.topk(n_retrieve, dim=-1)
 
             prompts = []
 
-            for batch_index, batch_profile_indices in enumerate(profile_indices):
+            for batch_index, batch_retrieved_indices in enumerate(retrieved_indices):
                 retrieved_profiles = [
-                    profiles[batch_index][profile_index]
-                    for profile_index in batch_profile_indices
-                    if profile_mask[batch_index][profile_index]
+                    profiles[batch_index][candidate_indices[batch_index][retrieved_index]]
+                    for retrieved_index in batch_retrieved_indices
+                    if candidate_mask[batch_index][retrieved_index]
                 ]
                 prompt = self.prompt_generator(sources[batch_index], retrieved_profiles)
                 prompts.append(prompt)
