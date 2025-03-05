@@ -77,11 +77,13 @@ class Reinforce:
             log_prob (torch.Tensor): Log probability of the sample. Shape (batch_size,)
         """
         batch_size = likelihoods.size(dim=0)
-        batch_indices = torch.arange(batch_size).view(-1, 1)
+        batch_indices = torch.arange(batch_size).unsqueeze(dim=1)
 
         indices = torch.full_like(likelihoods[:, :sample_size], fill_value=-1, dtype=torch.long)
         log_probs = torch.zeros_like(likelihoods[:, :sample_size], dtype=torch.float)
-        avail_mask = torch.ones_like(likelihoods, dtype=torch.bool).masked_fill(likelihoods == 0., 0)
+
+        avail_mask = torch.ones_like(likelihoods, dtype=torch.bool)
+        avail_mask = avail_mask.masked_fill(likelihoods == 0., value=0)
 
         for i in range(sample_size):
             # Sample uniformly
