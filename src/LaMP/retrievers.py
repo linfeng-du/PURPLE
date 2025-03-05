@@ -45,6 +45,7 @@ def _bm25_retriever(input_, profiles, n_retrieve, query_corpus_generator):
 
     bm25 = BM25Okapi(tokenized_corpus)
     retrieved_profiles = bm25.get_top_n(tokenized_query, profiles, n=n_retrieve)
+
     return retrieved_profiles
 
 
@@ -67,8 +68,9 @@ class _ContrieverRetriever:
         corpus_embeddings = self._compute_sentence_embeddings(corpus)
         scores = (query_embedding @ corpus_embeddings.T).squeeze(dim=0)
 
-        _, indices = torch.topk(scores, n_retrieve, dim=-1)
+        _, indices = scores.topk(n_retrieve, dim=-1)
         retrieved_profiles = [profiles[index] for index in indices]
+
         return retrieved_profiles
 
     def _compute_sentence_embeddings(self, sentences):
@@ -79,6 +81,7 @@ class _ContrieverRetriever:
         token_embeddings = outputs.last_hidden_state
         attention_mask = inputs['attention_mask'].unsqueeze(dim=-1)
 
-        token_embeddings = token_embeddings.masked_fill(attention_mask == 0, 0.)
+        token_embeddings.masked_fill_(attention_mask == 0, value=0.)
         sentence_embeddings = token_embeddings.sum(dim=1) / attention_mask.sum(dim=1)
+
         return sentence_embeddings
