@@ -30,5 +30,5 @@ collator:
 
 reinforce:
   sample_size: ${n_retrieve}    # Number of retrieved profiles per question
-  n_samples: 20                 # Number of samples, each contains sample_size profiles
+  n_samples: 10                 # Number of samples, each contains sample_size profiles
   epsilon: 0.1                  # Exploration rate. Randomly sample with a probabilty of epsilon
