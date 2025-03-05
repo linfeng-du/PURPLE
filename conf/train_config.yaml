@@ -20,6 +20,7 @@ prompt_generator:
 
 score_model:
   bert_encoder: facebook/contriever   # BERT encoder loaded from Hugging Face
+  n_candidates: 20                    # Number of candidate profiles for re-ranking
   hidden_size: 100                    # Decoder hidden size
 
 collator:
