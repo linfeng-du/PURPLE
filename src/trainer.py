@@ -101,8 +101,8 @@ class RetrieverTrainer:
                     if val_avg_reward > best_val_avg_reward:
                         logger.info(f'Best validation average reward: {val_avg_reward}')
                         best_val_avg_reward = val_avg_reward
-                        model_path = os.path.join(self.config.run_dir, 'model.pt')
-                        torch.save(self.score_model.state_dict(), model_path)
+                        best_model_path = os.path.join(self.config.run_dir, 'model.pt')
+                        torch.save(self.score_model.state_dict(), best_model_path)
 
                 self.score_model.train()
 
@@ -154,14 +154,23 @@ class RetrieverTrainer:
 
                 example_cnt += len(sources)
 
-        model_path = os.path.join(self.config.run_dir, 'model.pt')
+            epoch_model_path = os.path.join(self.config.run_dir, f'model_epoch{epoch}.pt')
+            torch.save(self.score_model.state_dict(), epoch_model_path)
 
-        if os.path.exists(model_path):
-            model_state = torch.load(model_path, map_location=self.device, weights_only=True)
+            best_model_path = os.path.join(self.config.run_dir, 'model.pt')
+
+            if os.path.exists(best_model_path):
+                model_state = torch.load(best_model_path, map_location=self.device, weights_only=True)
+                self.score_model.load_state_dict(model_state)
+
+            test_results = self.test()
+            logger.info(
+                f'Test set results after epoch {epoch}:\n'
+                f'{json.dumps(test_results, indent=4)}'
+            )
+
+            model_state = torch.load(epoch_model_path, map_location=self.device, weights_only=True)
             self.score_model.load_state_dict(model_state)
-
-        test_results = self.test()
-        logger.info(f'Test set results:\n{json.dumps(test_results, indent=4)}')
 
     @torch.no_grad()
     def validate(self) -> float:
