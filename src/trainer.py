@@ -109,12 +109,15 @@ class RetrieverTrainer:
                 sources = batch['source']
                 profiles = batch['profile']
                 query_inputs = batch['query_inputs'].to(self.device)
-                corpus_inputs = batch['corpus_inputs'].to(self.device)
+                all_corpus_inputs = [
+                    corpus_inputs.to(self.device)
+                    for corpus_inputs in batch['all_corpus_inputs']
+                ]
                 profile_mask = batch['profile_mask'].to(self.device)
                 targets = batch['target']
 
                 candidate_likelihoods, candidate_mask, candidate_indices = (
-                    self.score_model(query_inputs, corpus_inputs, profile_mask)
+                    self.score_model(query_inputs, all_corpus_inputs, profile_mask)
                 )
                 retrieved_indices, log_probs = self.reinforce.sample(
                     candidate_likelihoods,
@@ -170,12 +173,15 @@ class RetrieverTrainer:
             sources = batch['source']
             profiles = batch['profile']
             query_inputs = batch['query_inputs'].to(self.device)
-            corpus_inputs = batch['corpus_inputs'].to(self.device)
+            all_corpus_inputs = [
+                corpus_inputs.to(self.device)
+                for corpus_inputs in batch['all_corpus_inputs']
+            ]
             profile_mask = batch['profile_mask'].to(self.device)
             targets = batch['target']
 
             candidate_likelihoods, candidate_mask, candidate_indices = (
-                self.score_model(query_inputs, corpus_inputs, profile_mask)
+                self.score_model(query_inputs, all_corpus_inputs, profile_mask)
             )
             n_retrieve = min(self.config.n_retrieve, candidate_likelihoods.size(dim=1))
             _, retrieved_indices = candidate_likelihoods.topk(n_retrieve, dim=-1)
@@ -210,12 +216,15 @@ class RetrieverTrainer:
             sources = batch['source']
             profiles = batch['profile']
             query_inputs = batch['query_inputs'].to(self.device)
-            corpus_inputs = batch['corpus_inputs'].to(self.device)
+            all_corpus_inputs = [
+                corpus_inputs.to(self.device)
+                for corpus_inputs in batch['all_corpus_inputs']
+            ]
             profile_mask = batch['profile_mask'].to(self.device)
             targets = batch['target']
 
             candidate_likelihoods, candidate_mask, candidate_indices = (
-                self.score_model(query_inputs, corpus_inputs, profile_mask)
+                self.score_model(query_inputs, all_corpus_inputs, profile_mask)
             )
             n_retrieve = min(self.config.n_retrieve, candidate_likelihoods.size(dim=1))
             _, retrieved_indices = candidate_likelihoods.topk(n_retrieve, dim=-1)

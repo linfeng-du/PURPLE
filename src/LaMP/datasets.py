@@ -110,7 +110,9 @@ class RetrieverTrainingCollator:
 
         # Keep only `self.max_n_profiles` profiles for each example
         max_n_profiles = max(len(profile) for profile in profiles)
-        max_n_profiles = min(max_n_profiles, self.max_n_profiles)
+
+        if self.max_n_profiles > 0:
+            max_n_profiles = min(max_n_profiles, self.max_n_profiles)
 
         profile_mask = torch.ones(len(examples), max_n_profiles, dtype=torch.bool)
 
@@ -129,19 +131,28 @@ class RetrieverTrainingCollator:
             max_length=self.max_query_length,
             return_tensors='pt'
         )
-        corpus_inputs = self.tokenizer(
-            [document for corpus in corpuses for document in corpus],
-            padding=True,
-            truncation=True,
-            max_length=self.max_document_length,
-            return_tensors='pt'
-        )
+
+        all_corpus_inputs = []
+        all_documents = [document for corpus in corpuses for document in corpus]
+
+        for documents in [
+            all_documents[index : index + 100]
+            for index in range(0, len(all_documents), 100)
+        ]:
+            corpus_inputs = self.tokenizer(
+                documents,
+                padding=True,
+                truncation=True,
+                max_length=self.max_document_length,
+                return_tensors='pt'
+            )
+            all_corpus_inputs.append(corpus_inputs)
 
         return {
             'source': sources,
             'profile': profiles,
             'query_inputs': query_inputs,
-            'corpus_inputs': corpus_inputs,
+            'all_corpus_inputs': all_corpus_inputs,
             'profile_mask': profile_mask,
             'target': targets
         }

@@ -33,7 +33,7 @@ class ProfileScoreModel(nn.Module):
     def forward(
         self,
         query_inputs: BatchEncoding,
-        corpus_inputs: BatchEncoding,
+        all_corpus_inputs: list[BatchEncoding],
         profile_mask: torch.Tensor
     ) -> torch.Tensor:
         """Compute candidate profile likelihoods conditioned on the given query.
@@ -53,7 +53,14 @@ class ProfileScoreModel(nn.Module):
 
         # Compute query and corpus embeddings
         query_embedding = self._compute_sentence_embedding(query_inputs)
-        corpus_embeddings = self._compute_sentence_embedding(corpus_inputs)
+
+        all_corpus_embeddings = []
+
+        for corpus_inputs in all_corpus_inputs:
+            corpus_embeddings = self._compute_sentence_embedding(corpus_inputs)
+            all_corpus_embeddings.append(corpus_embeddings)
+
+        corpus_embeddings = torch.cat(all_corpus_embeddings, dim=0)
 
         query_embedding = query_embedding.unsqueeze(dim=1)
         corpus_embeddings = corpus_embeddings.view(batch_size, n_profiles, -1)
