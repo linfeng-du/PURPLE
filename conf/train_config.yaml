@@ -6,7 +6,7 @@ dataset_seed: 42      # Seed for splitting the train and validation set
 
 n_epochs: 10          # Number of training epochs
 batch_size: 1         # Number of questions in each batch during training
-lr: 1e-5              # Learning rate
+lr: 1e-4              # Learning rate
 max_grad_norm: 1.     # Maximum gradient norm
 
 eval_every: 1000      # Evaluate after processing eval_every training examples
