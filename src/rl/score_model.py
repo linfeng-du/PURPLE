@@ -5,7 +5,13 @@ from transformers import AutoModel, BatchEncoding
 
 class ProfileScoreModel(nn.Module):
 
-    def __init__(self, bert_encoder: str, n_candidates: int, hidden_size: int) -> None:
+    def __init__(
+        self,
+        bert_encoder: str,
+        n_candidates: int,
+        n_heads: int,
+        hidden_size: int
+    ) -> None:
         """Initialize the ProfileScoreModel.
 
         Args:
@@ -16,12 +22,26 @@ class ProfileScoreModel(nn.Module):
         self.n_candidates = n_candidates
 
         self.bert_encoder = AutoModel.from_pretrained(bert_encoder)
+        encoder_hidden_size = self.bert_encoder.config.hidden_size
 
-        decoder_input_size = 2 * self.bert_encoder.config.hidden_size
-        self.norm = nn.LayerNorm(decoder_input_size)
+        self.mixer_mlp = nn.Sequential(
+            nn.Linear(2 * encoder_hidden_size, encoder_hidden_size),
+            nn.ReLU()
+        )
+        self.mixer_norm = nn.LayerNorm(encoder_hidden_size)
+
+        self.attn = nn.MultiheadAttention(encoder_hidden_size, n_heads, batch_first=True)
+        self.attn_norm = nn.LayerNorm(encoder_hidden_size)
+
+        self.ffn = nn.Sequential(
+            nn.Linear(encoder_hidden_size, 4 * encoder_hidden_size),
+            nn.ReLU(),
+            nn.Linear(4 * encoder_hidden_size, encoder_hidden_size)
+        )
+        self.ffn_norm = nn.LayerNorm(encoder_hidden_size)
 
         self.mlp_decoder = nn.Sequential(
-            nn.Linear(decoder_input_size, hidden_size),
+            nn.Linear(encoder_hidden_size, hidden_size),
             nn.Tanh(),
             nn.Linear(hidden_size, 1),
             nn.Sigmoid()
@@ -68,16 +88,30 @@ class ProfileScoreModel(nn.Module):
         # Select candidate profiles
         scores = (query_embedding @ corpus_embeddings.transpose(dim0=-1, dim1=-2)).squeeze(dim=1)
         _, candidate_indices = scores.topk(n_candidates, dim=-1)
+        candidate_mask = profile_mask.gather(dim=1, index=candidate_indices)
 
-        # Compute candidate profile likelihoods
+        # Mix query and candidate embeddings
         query_embedding = query_embedding.expand(-1, n_candidates, -1)
         candidate_embeddings = corpus_embeddings[batch_indices, candidate_indices, :]
-        query_candidate_embeddings = torch.cat((query_embedding, candidate_embeddings), dim=-1)
 
-        candidate_likelihoods = self.mlp_decoder(query_candidate_embeddings)
+        mixed_embeddings = torch.cat((query_embedding, candidate_embeddings), dim=-1)
+        mixed_embeddings = self.mixer_norm(self.mixer_mlp(mixed_embeddings))
+
+        # Model candidate profile dependencies
+        attn_out, _ = self.attn(
+            mixed_embeddings,
+            mixed_embeddings,
+            mixed_embeddings,
+            key_padding_mask=~candidate_mask
+        )
+        mixed_embeddings = self.attn_norm(mixed_embeddings + attn_out)
+
+        ffn_out = self.ffn(mixed_embeddings)
+        mixed_embeddings = self.ffn_norm(mixed_embeddings + ffn_out)
+
+        # Compute candidate profile likelihoods
+        candidate_likelihoods = self.mlp_decoder(mixed_embeddings)
         candidate_likelihoods = candidate_likelihoods.squeeze(dim=-1)
-
-        candidate_mask = profile_mask.gather(dim=1, index=candidate_indices)
         candidate_likelihoods = candidate_likelihoods.masked_fill(~candidate_mask, value=0.)
 
         return candidate_likelihoods, candidate_mask, candidate_indices

@@ -3,6 +3,7 @@ import json
 import logging
 from typing import Callable
 
+import wandb
 from tqdm import tqdm
 from omegaconf import DictConfig
 
@@ -38,6 +39,12 @@ class RetrieverTrainer:
         self.score_model = score_model
         self.response_generator = response_generator
         self.device = device
+
+        self.logger = wandb.init(
+            project='BanditPR',
+            dir='outputs',
+            name=f'{config.experiment}_{config.task}'
+        )
 
         self.reinforce = Reinforce()
         self.reward_fn = create_reward_function(self.config.task)
@@ -154,6 +161,8 @@ class RetrieverTrainer:
 
                 example_cnt += len(sources)
 
+                self.logger.log({'loss': loss.item()})
+
             epoch_model_path = os.path.join(self.config.run_dir, f'model_epoch{epoch}.pt')
             torch.save(self.score_model.state_dict(), epoch_model_path)
 
@@ -171,6 +180,8 @@ class RetrieverTrainer:
 
             model_state = torch.load(epoch_model_path, map_location=self.device, weights_only=True)
             self.score_model.load_state_dict(model_state)
+
+        self.logger.finish()
 
     @torch.no_grad()
     def validate(self) -> float:
