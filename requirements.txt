@@ -1,6 +1,7 @@
 meteor
 absl-py
 rouge_score
+together
 tqdm==4.67.0
 wandb==0.19.8
 omegaconf==2.3.0
@@ -13,3 +14,4 @@ evaluate==0.4.3
 torch==2.5.1
 transformers==4.46.3
 openai==1.60.2
+
