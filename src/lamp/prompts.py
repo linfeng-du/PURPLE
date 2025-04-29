@@ -11,7 +11,7 @@ from .data_types import Profile, PromptGenerator, QueryCorpusGenerator
 logger = logging.getLogger(__name__)
 
 
-def create_retrieval_augmented_prompt_generator(
+def create_prompt_generator(
     task: str,
     retriever: str,
     num_retrieve: int,
