@@ -111,8 +111,7 @@ class RetrieverTrainingCollator:
 
         for index, corpus in enumerate(corpuses):
             if len(corpus) < max_num_profiles:
-                profile_mask[index, len(corpus):] = False
-                corpus.extend([''] * (max_num_profiles - len(corpus)))
+                profile_mask[index, len(corpus):] = 0
             elif len(corpus) > max_num_profiles:
                 corpus[max_num_profiles:] = []
                 profiles[index][max_num_profiles:] = []
