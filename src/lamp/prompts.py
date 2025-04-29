@@ -15,7 +15,7 @@ def create_prompt_generator(
     task: str,
     retriever: str,
     num_retrieve: int,
-    max_prompt_length: int,
+    max_length: int,
     tokenizer: PreTrainedTokenizerBase,
     device: str | None = None
 ) -> PromptGenerator:
@@ -25,12 +25,12 @@ def create_prompt_generator(
 
     def retrieval_augmented_prompt_generator(input_: str, profiles: list[Profile], factor: float = 0.6) -> str:
         retrieved_profiles = retriever(input_, profiles, num_retrieve, query_corpus_generator)
-        input_length = len(tokenizer.encode(input_, truncation=True, max_length=max_prompt_length))
+        input_length = len(tokenizer.encode(input_, truncation=True, max_length=max_length))
 
         while True:
             try:
-                reserved_length = min(input_length, int(factor * max_prompt_length))
-                max_profile_length = max_prompt_length - reserved_length
+                reserved_length = min(input_length, int(factor * max_length))
+                max_profile_length = max_length - reserved_length
                 prompt = prompt_generator(input_, retrieved_profiles, max_profile_length, tokenizer)
                 return prompt
             except OverflowError:
