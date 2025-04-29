@@ -88,7 +88,7 @@ class _ContrieverRetriever:
         num_retrieve = _validate_num_retrieve(num_retrieve, profiles)
         query, corpus = query_corpus_generator(input_, profiles)
 
-        query_embedding = self._compute_sentence_embeddings(query)
+        query_embedding = self._compute_sentence_embeddings([query])
         corpus_embeddings = self._compute_sentence_embeddings(corpus)
         scores = (query_embedding @ corpus_embeddings.T).squeeze(dim=0)
 
@@ -96,7 +96,7 @@ class _ContrieverRetriever:
         retrieved_profiles = [profiles[index] for index in indices]
         return retrieved_profiles
 
-    def _compute_sentence_embeddings(self, sentences):
+    def _compute_sentence_embeddings(self, sentences: list[str]) -> torch.Tensor:
         inputs = self.tokenizer(sentences, padding=True, truncation=True, return_tensors='pt')
         inputs = inputs.to(self.contriever.device)
 
