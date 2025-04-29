@@ -1,4 +1,4 @@
-__pycache__/
-
+logs/
+models/
 dataset/
-outputs/
+__pycache__/
