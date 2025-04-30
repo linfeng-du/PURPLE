@@ -111,7 +111,10 @@ class _ContrieverRetriever:
 
 def _validate_num_retrieve(num_retrieve: int, profiles: list[Profile]) -> int:
     if num_retrieve > len(profiles):
-        logger.warning(f'num_retrieve ({num_retrieve}) is greater than the number of profiles ({len(profiles)})')
+        logger.warning(
+            f'num_retrieve ({num_retrieve}) is greater than '
+            f'the number of profiles ({len(profiles)})'
+        )
         num_retrieve = len(profiles)
 
     return num_retrieve
