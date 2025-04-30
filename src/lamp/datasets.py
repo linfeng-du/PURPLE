@@ -4,9 +4,9 @@ import torch
 from torch.utils.data import Dataset
 from transformers import PreTrainedTokenizerBase
 
+from .prompts import _create_query_corpus_generator
 from .data_types import (
     PromptGenerator,
-    QueryCorpusGenerator,
     LaMPExample,
     RetrieverTrainingExample,
     BatchedRetrieverTrainingExamples
@@ -47,7 +47,7 @@ class LaMPDataset(Dataset):
 
 class RetrieverTrainingDataset(Dataset):
 
-    def __init__(self, task: str, split: str, query_corpus_generator: QueryCorpusGenerator) -> None:
+    def __init__(self, task: str, split: str) -> None:
         with open(f'./dataset/{task}/{split}_questions.json', 'r') as file:
             self.examples = json.load(file)
 
@@ -55,7 +55,7 @@ class RetrieverTrainingDataset(Dataset):
             outputs = json.load(file)
             self.targets = {gold['id']: gold['output'] for gold in outputs['golds']}
 
-        self.query_corpus_generator = query_corpus_generator
+        self.query_corpus_generator = _create_query_corpus_generator(task)
 
     def __getitem__(self, index: int) -> RetrieverTrainingExample:
         example = self.examples[index]

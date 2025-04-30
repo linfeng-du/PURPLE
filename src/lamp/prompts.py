@@ -20,7 +20,7 @@ def create_prompt_generator(
     device: str | None = None
 ) -> PromptGenerator:
     retriever = create_retriever(retriever, device=device)
-    query_corpus_generator = create_query_corpus_generator(task)
+    query_corpus_generator = _create_query_corpus_generator(task)
     prompt_generator = _create_prompt_generator(task)
 
     def retrieval_augmented_prompt_generator(input_: str, profiles: list[Profile], factor: float = 0.6) -> str:
@@ -43,7 +43,7 @@ def create_prompt_generator(
     return retrieval_augmented_prompt_generator
 
 
-def create_query_corpus_generator(task: str) -> QueryCorpusGenerator:
+def _create_query_corpus_generator(task: str) -> QueryCorpusGenerator:
     task_fns = {
         'LaMP-1': _generate_query_corpus_classification_citation,
         'LaMP-2': _generate_query_corpus_classification_movies,
