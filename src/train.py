@@ -1,40 +1,49 @@
-import hydra
-from omegaconf import DictConfig, OmegaConf
+import random
 
+import numpy as np
 import torch
+from transformers import AutoTokenizer
 
-from rl import ProfileScoreModel
+import hydra
+from omegaconf import OmegaConf, DictConfig
+
+from bandit_pr import ScoreModel
+from llm import LLM
+from lamp import RetrieverTrainingDataset, RetrieverTrainingCollator
 from trainer import RetrieverTrainer
-from openai_api import initialize_openai_client
 
 
-@hydra.main(version_base=None, config_path='../conf', config_name='train_config')
+@hydra.main(config_path='../conf', config_name='bandit_pr', version_base=None)
 def train(config: DictConfig):
-    # Check config validity
+    # Checks config validity
     missing_keys = OmegaConf.missing_keys(config)
 
     if missing_keys:
         raise ValueError(f'Missing keys in config:\n{missing_keys}')
 
     if config.eval_every % config.batch_size != 0:
-        raise ValueError(f'eval_every must be divisble by batch_size')
+        raise ValueError(f'eval_every ({config.eval_every}) not divisble by batch_size ({config.batch_size})')
 
-    # Seed everything for reproducibility
+    # Seeds everything for reproducibility
+    random.seed(config.seed)
+    np.random.seed(config.seed)
     torch.manual_seed(config.seed)
     torch.cuda.manual_seed_all(config.seed)
 
-    # Detect device
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # Prepares models
+    score_model = ScoreModel(**config.score_model)
+    llm = LLM(**config.llm)
 
-    # Prepare score model for retriever training
-    score_model = ProfileScoreModel(**config.score_model)
-    score_model.to(device)
+    # Prepares dataset and metric
+    train_dataset = RetrieverTrainingDataset(config.task, split='train')
+    test_dataset = RetrieverTrainingDataset(config.task, split='dev')
+    collate_fn = RetrieverTrainingCollator(
+        tokenizer=AutoTokenizer.from_pretrained(config.score_model.encoder_model),
+        **config.collator
+    )
 
-    # Initialize OpenAI client
-    response_generator = initialize_openai_client(**config.generation)
-
-    # Initialize trainer and start training
-    trainer = RetrieverTrainer(config, score_model, response_generator, device)
+    # Initializes trainer and starts training
+    trainer = RetrieverTrainer(config, score_model, llm, train_dataset, test_dataset, collate_fn)
     trainer.train()
 
 
