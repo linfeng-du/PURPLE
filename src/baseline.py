@@ -2,49 +2,45 @@ import json
 import random
 import logging
 
-import hydra
-from omegaconf import DictConfig, OmegaConf
-from tqdm import tqdm
+import numpy as np
 
 import torch
 from transformers import AutoTokenizer
 
-from LaMP import LaMPDataset, create_retrieval_prompt_generator, create_metric_function
-from openai_api import initialize_openai_client
+import hydra
+from omegaconf import OmegaConf, DictConfig
+from tqdm import tqdm
+
+from llm import LLM
+from lamp import LaMPDataset, create_prompt_generator, create_metric
 
 
 logger = logging.getLogger(__name__)
-logging.getLogger('httpx').setLevel(logging.WARNING)
 
 
-@hydra.main(version_base=None, config_path='../conf', config_name='baseline_config')
+@hydra.main(config_path='../conf', config_name='baseline', version_base=None)
 def baseline(config: DictConfig):
-    # Check config validity
+    # Checks for missing keys
     missing_keys = OmegaConf.missing_keys(config)
 
     if missing_keys:
         raise ValueError(f'Missing keys in config:\n{missing_keys}')
 
-    # Seed everything for reproducibility
+    # Seeds everything for reproducibility
     random.seed(config.seed)
+    np.random.seed(config.seed)
+    torch.manual_seed(config.seed)
+    torch.cuda.manual_seed(config.seed)
 
-    # Detect device
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-    # The tokenizer is used solely to control the tokenized length of prompts
-    prompt_generator = create_retrieval_prompt_generator(
-        tokenizer=AutoTokenizer.from_pretrained('gpt2'),
-        device=device,
+    # Prepares dataset
+    prompt_generator = create_prompt_generator(
+        tokenizer=AutoTokenizer.from_pretrained('meta-llama/Meta-Llama-3-8B-Instruct'),
+        device=('cuda' if torch.cuda.is_available() else 'cpu'),
         **config.prompt_generator
     )
+    test_dataset = LaMPDataset(config.task, split='dev', prompt_generator=prompt_generator)
 
-    test_dataset = LaMPDataset(
-        data_path=f'./dataset/{config.task}/dev_questions.json',
-        label_path=f'./dataset/{config.task}/dev_outputs.json',
-        prompt_generator=prompt_generator
-    )
-    metric_fn = create_metric_function(config.task)
-
+    # Collects sources and targets
     sources = []
     targets = []
 
@@ -52,13 +48,14 @@ def baseline(config: DictConfig):
         sources.append(example['source'])
         targets.append(example['target'])
 
-    # Initialize OpenAI client
-    response_generator = initialize_openai_client(**config.generation)
+    # Generates predictions
+    llm = LLM(verbose=True, **config.llm)
+    predictions = llm.generate(sources)
 
-    predictions = response_generator(sources)
+    # Computes metrics
+    metric_fn = create_metric(config.task)
     test_results = metric_fn(predictions, targets)
-
-    logger.info(f'Test set results:\n{json.dumps(test_results, indent=4)}')
+    logger.info(f'Test set results:\n{json.dumps(test_results, indent=2)}')
 
 
 if __name__ == '__main__':
