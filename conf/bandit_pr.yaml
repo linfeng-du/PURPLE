@@ -1,0 +1,30 @@
+defaults:
+  - base
+  - _self_
+
+collator:
+  max_num_profiles: -1  # Maximum number of profiles to use per question (-1 to use all)
+  max_query_length: 512
+  max_document_length: 512
+
+score_model:
+  encoder_model: facebook/contriever
+  num_candidates: 20  # Number of candidate profiles for re-ranking
+  num_heads: 12
+  decoder_hidden_size: 100
+
+reinforce:
+  sample_size: ${num_retrieve}
+  num_samples: 10   # Number of samples, each contains sample_size profiles
+  epsilon: 0.1      # Exploration rate
+
+retriever: first_k  # Uses all retrieved profiles to create prompts
+
+num_epochs: 10
+batch_size: 1
+gradient_accumulation_steps: 1
+max_grad_norm: 1.0
+lr: 1e-4
+
+eval_every: 1000
+eval_batch_size: 8
