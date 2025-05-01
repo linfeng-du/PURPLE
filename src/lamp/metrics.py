@@ -5,7 +5,7 @@ import evaluate
 
 def create_metric(task: str) -> Callable[[list[str], list[str]], dict[str, float]]:
     if task in {'LaMP-1', 'LaMP-2'}:
-        labels = _load_labels(task)
+        labels = get_labels(task)
         classification_metric = _create_classification_metric(labels)
         return classification_metric
     elif task in {'LaMP-3'}:
@@ -18,20 +18,18 @@ def create_metric(task: str) -> Callable[[list[str], list[str]], dict[str, float
         raise ValueError(f'Invalid task: {task}')
 
 
-def _load_labels(task: str) -> list[str]:
-    task_labels = {
-        'LaMP-1': ['[1]', '[2]'],
-        'LaMP-2': [
+def get_labels(task: str) -> list[str]:
+    if task == 'LaMP-1':
+        return ['[1]', '[2]']
+    elif task == 'LaMP-2':
+        return [
             'sci-fi', 'based on a book', 'comedy', 'action', 'twist ending', 'dystopia', 'dark comedy', 'classic',
             'psychology', 'fantasy', 'romance', 'thought-provoking', 'social commentary', 'violence', 'true story'
-        ],
-        'LaMP-3': [],
-        'LaMP-4': [],
-        'LaMP-5': [],
-        'LaMP-6': [],
-        'LaMP-7': []
-    }
-    return task_labels[task]
+        ]
+    elif task == 'LaMP-3':
+        return ['1', '2', '3', '4', '5']
+    else:
+        raise ValueError(f'Not a classification or regression task: {task}')
 
 
 def _create_classification_metric(labels: list[str]) -> Callable[[list[str], list[str]], dict[str, float]]:
