@@ -86,7 +86,7 @@ class LLM:
         else:
             raise ValueError(f'Invalid provider: {self.provider}')
 
-    def generate(self, prompts: list[str]) -> list[str]:
+    def __call__(self, prompts: list[str]) -> list[str]:
         if self.provider == 'local':
             return self._generate_local(prompts)
         else:
