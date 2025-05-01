@@ -36,6 +36,7 @@ class RetrieverTrainer:
 
         self.wandb = wandb.init(project='BanditPR', dir='logs', name=f'{config.experiment}_{config.task}')
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.score_model.to(self.device)
 
         self.train_loader = DataLoader(
             train_dataset,

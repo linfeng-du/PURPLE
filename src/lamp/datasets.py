@@ -146,5 +146,5 @@ class RetrieverTrainingCollator:
             query_inputs=query_inputs,
             corpus_inputs=corpus_inputs,
             profile_mask=profile_mask,
-            targets=targets
+            target=targets
         )
