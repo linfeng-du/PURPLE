@@ -15,6 +15,7 @@ from lamp import LaMPDataset, create_prompt_generator, create_metric
 
 
 logger = logging.getLogger(__name__)
+logging.getLogger('httpx').setLevel(logging.WARNING)
 
 
 @hydra.main(config_path='../conf', config_name='baseline', version_base=None)
@@ -49,7 +50,7 @@ def baseline(config: DictConfig):
 
     # Generates predictions
     llm = LLM(verbose=True, **config.llm)
-    predictions = llm.generate(sources)
+    predictions = llm(sources)
 
     # Computes metrics
     metric_fn = create_metric(config.task)
