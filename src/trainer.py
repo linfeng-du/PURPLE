@@ -47,12 +47,17 @@ class RetrieverTrainer:
         )
         self.test_loader = DataLoader(test_dataset, batch_size=self.config.eval_batch_size, collate_fn=collate_fn)
 
+        tokenizer = (
+            AutoTokenizer.from_pretrained(self.config.llm.model)
+            if self.config.llm.provider == 'local'
+            else AutoTokenizer.from_pretrained('gpt2')
+        )
         self.prompt_generator = create_prompt_generator(
             self.config.task,
             'first_k',
             self.config.num_retrieve,
             self.config.prompt_generator.max_length,
-            AutoTokenizer.from_pretrained('meta-llama/Meta-Llama-3-8B-Instruct')
+            tokenizer
         )
         self.reward_fn = create_reward(self.config.task)
         self.metric_fn = create_metric(self.config.task)

@@ -20,31 +20,31 @@ Message: TypeAlias = list[dict[str, str]]
 SYSTEM_PROMPTS = {
     'LaMP-1': (
         f'You are a personalized citation identification chatbot '
-        f'who only responds with one of the following: {get_labels("LaMP-1")} based on the given examples.'
+        f'who responds with one of the following: {get_labels("LaMP-1")} based on the given examples.'
     ),
     'LaMP-2': (
         f'You are a personalized movie tagging chatbot '
-        f'who only responds with one of the following: {get_labels("LaMP-2")} based on the given examples.'
+        f'who responds with one of the following: {get_labels("LaMP-2")} based on the given examples.'
     ),
     'LaMP-3': (
         f'You are a personalized product rating chatbot '
-        f'who only responds with one of the following: {get_labels("LaMP-3")} based on the given examples.'
+        f'who responds with one of the following: {get_labels("LaMP-3")} based on the given examples.'
     ),
     'LaMP-4': (
         f'You are a personalized news headline generation chatbot '
-        f'who generates a news headline in a style similar to the given examples'
+        f'who generates a news headline in a style similar to the given examples without any additional text'
     ),
     'LaMP-5': (
         f'You are a personalized scholarly title generation chatbot '
-        f'who generates a scholarly title in a style similar to the given examples'
+        f'who generates a scholarly title in a style similar to the given examples without any additional text'
     ),
     'LaMP-6': (
         f'You are a personalized email subject generation chatbot '
-        f'who generates an email subject in a style similar to the given examples'
+        f'who generates an email subject in a style similar to the given examples without any additional text'
     ),
     'LaMP-7': (
         f'You are a personalized tweet paraphrasing chatbot '
-        f'who paraphrases a tweet in a style similar to the given examples'
+        f'who paraphrases a tweet in a style similar to the given examples without any additional text'
     )
 }
 
@@ -64,18 +64,13 @@ class LLM:
                 model=model,
                 device=(torch.cuda.device_count() - 1),
                 torch_dtype=torch.bfloat16,
-                batch_size=8
+                trust_remote_code=True
             )
             self.pipeline.tokenizer.padding_side = 'left'
 
             if self.pipeline.tokenizer.pad_token is None:
                 self.pipeline.tokenizer.pad_token = self.pipeline.tokenizer.eos_token
                 self.pipeline.model.generation_config.pad_token_id = self.pipeline.tokenizer.eos_token_id
-
-            self.terminators = [
-                self.pipeline.tokenizer.eos_token_id,
-                self.pipeline.tokenizer.convert_tokens_to_ids('<|eot_id|>')
-            ]
         elif self.provider == 'openai':
             self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'), base_url='https://api.openai.com/v1')
         else:
@@ -92,11 +87,12 @@ class LLM:
         dataset = _ChatDataset([self._create_message(prompt) for prompt in prompts])
 
         for output in tqdm(
-            self.pipeline(dataset, eos_token_id=self.terminators, **self.generate_kwargs),
+            self.pipeline(dataset, **self.generate_kwargs),
             total=len(dataset),
             disable=(not self.verbose)
         ):
             response = output[0]['generated_text'][-1]['content']
+            print(response)
             responses.append(response)
 
         return responses

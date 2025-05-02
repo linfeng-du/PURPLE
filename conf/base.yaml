@@ -1,5 +1,5 @@
 defaults:
-  - llm: llama-3-8b-instruct
+  - llm: ???
   - _self_
 
 experiment: debug

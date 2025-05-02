@@ -33,13 +33,19 @@ def baseline(config: DictConfig):
     torch.cuda.manual_seed(config.seed)
 
     # Prepares dataset
+    tokenizer = (
+        AutoTokenizer.from_pretrained(config.llm.model)
+        if config.llm.provider == 'local'
+        else AutoTokenizer.from_pretrained('gpt2')
+    )
+    device = ('cuda' if torch.cuda.is_available() else 'cpu')
     prompt_generator = create_prompt_generator(
         config.task,
         config.retriever,
         config.num_retrieve,
         config.prompt_generator.max_length,
-        AutoTokenizer.from_pretrained('meta-llama/Meta-Llama-3-8B-Instruct'),
-        ('cuda' if torch.cuda.is_available() else 'cpu')
+        tokenizer,
+        device
     )
     test_dataset = LaMPDataset(config.task, 'dev', prompt_generator)
 
