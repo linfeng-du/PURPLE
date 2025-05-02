@@ -2,7 +2,7 @@ defaults:
   - llm: ???
   - _self_
 
-experiment: ???
+experiment: debug
 run_dir: ./logs/${experiment}/${now:%Y-%m-%d_%H-%M-%S_%f}
 
 hydra:
