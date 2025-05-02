@@ -40,8 +40,8 @@ def train(config: DictConfig):
     llm = LLM(config.task, **config.llm)
 
     # Prepares dataset and metric
-    train_dataset = RetrieverTrainingDataset(config.task, split='train')
-    test_dataset = RetrieverTrainingDataset(config.task, split='dev')
+    train_dataset = RetrieverTrainingDataset(config.task, 'train')
+    test_dataset = RetrieverTrainingDataset(config.task, 'dev')
     collate_fn = RetrieverTrainingCollator(
         tokenizer=AutoTokenizer.from_pretrained(config.score_model.encoder_model),
         **config.collator

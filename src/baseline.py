@@ -10,8 +10,8 @@ import hydra
 from omegaconf import OmegaConf, DictConfig
 from tqdm import tqdm
 
-from llm import LLM
 from lamp import LaMPDataset, create_prompt_generator, create_metric
+from llm import LLM
 
 
 logger = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ def baseline(config: DictConfig):
         AutoTokenizer.from_pretrained('meta-llama/Meta-Llama-3-8B-Instruct'),
         ('cuda' if torch.cuda.is_available() else 'cpu')
     )
-    test_dataset = LaMPDataset(config.task, split='dev', prompt_generator=prompt_generator)
+    test_dataset = LaMPDataset(config.task, 'dev', prompt_generator)
 
     # Collects sources and targets
     sources = []

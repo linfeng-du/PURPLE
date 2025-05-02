@@ -15,7 +15,7 @@ from .data_types import (
 
 class LaMPDataset(Dataset):
 
-    def __init__(self, task: str, split: str, prompt_generator: PromptGenerator | None = None) -> None:
+    def __init__(self, task: str, split: str, prompt_generator: PromptGenerator | None) -> None:
         with open(f'./dataset/{task}/{split}_questions.json', 'r') as file:
             self.examples= json.load(file)
 

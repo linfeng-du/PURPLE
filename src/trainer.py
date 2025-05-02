@@ -34,7 +34,7 @@ class RetrieverTrainer:
         self.score_model = score_model
         self.llm = llm
 
-        self.wandb = wandb.init(project='BanditPR', dir='logs', name=f'{config.experiment}_{config.task}')
+        self.wandb = wandb.init(project='BanditPR', dir='logs', name=f'{config.experiment}')
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.score_model.to(self.device)
 
@@ -52,8 +52,7 @@ class RetrieverTrainer:
             'first_k',
             self.config.num_retrieve,
             self.config.prompt_generator.max_length,
-            AutoTokenizer.from_pretrained('meta-llama/Meta-Llama-3-8B-Instruct'),
-            self.device
+            AutoTokenizer.from_pretrained('meta-llama/Meta-Llama-3-8B-Instruct')
         )
         self.reward_fn = create_reward(self.config.task)
         self.metric_fn = create_metric(self.config.task)
@@ -80,7 +79,7 @@ class RetrieverTrainer:
                     if eval_metrics['reward'] > best_eval_reward:
                         logger.info(f'Best evaluation reward achieved: {eval_metrics["reward"]}')
                         best_eval_reward = eval_metrics['reward']
-                        self.score_model.save_pretrained('score_model')
+                        self.score_model.save_pretrained(f'{self.config.experiment}')
 
                 candidate_likelihoods, candidate_mask, candidate_indices = self.score_model(
                     batch['query_inputs'].to(self.device),
