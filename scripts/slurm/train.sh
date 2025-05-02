@@ -1,4 +1,9 @@
 #!/bin/bash
+#SBATCH --time=48:0:0
+#SBATCH --gres=gpu:v100l:2
+#SBATCH --mem=64G
+#SBATCH --output=./logs/slurm/train/output_%j.txt
+#SBATCH --error=./logs/slurm/train/error_%j.txt
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -8,10 +13,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         --llm)
             llm=$2
-            shift 2
-            ;;
-        --retriever)
-            retriever=$2
             shift 2
             ;;
         --num_retrieve)
@@ -25,9 +26,8 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-python src/baseline.py \
-    experiment=$llm/$retriever-$num_retrieve/$task \
+python src/train.py \
+    experiment=$llm/bandit_pr-$num_retrieve/$task \
     task=$task \
     llm=$llm \
-    retriever=$retriever \
     num_retrieve=$num_retrieve
