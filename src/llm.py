@@ -64,7 +64,7 @@ class LLM:
                 model=model,
                 device=(torch.cuda.device_count() - 1),
                 torch_dtype=torch.bfloat16,
-                batch_size=128
+                batch_size=8
             )
             self.pipeline.tokenizer.padding_side = 'left'
 
@@ -122,7 +122,11 @@ class LLM:
         return responses
 
     def _create_message(self, prompt: str) -> Message:
-        return [{'role': 'system', 'content': SYSTEM_PROMPTS[self.task]}, {'role': 'user', 'content': prompt}]
+        message = [
+            {'role': 'system', 'content': SYSTEM_PROMPTS[self.task]},
+            {'role': 'user', 'content': prompt}
+        ]
+        return message
 
 
 class _ChatDataset(Dataset):
