@@ -1,4 +1,5 @@
 import random
+import logging
 
 import numpy as np
 import torch
@@ -13,6 +14,9 @@ from lamp import RetrieverTrainingDataset, RetrieverTrainingCollator
 from trainer import RetrieverTrainer
 
 
+logger = logging.getLogger(__name__)
+
+
 @hydra.main(config_path='../conf', config_name='bandit_pr', version_base=None)
 def train(config: DictConfig):
     # Checks config validity
@@ -22,7 +26,8 @@ def train(config: DictConfig):
         raise ValueError(f'Missing keys in config:\n{missing_keys}')
 
     if config.eval_every % config.batch_size != 0:
-        raise ValueError(f'eval_every ({config.eval_every}) not divisble by batch_size ({config.batch_size})')
+        config.eval_every = config.eval_every - config.eval_every % config.batch_size
+        logger.warning(f'eval_every changed to {config.eval_every} to be divisible by batch size')
 
     # Seeds everything for reproducibility
     random.seed(config.seed)

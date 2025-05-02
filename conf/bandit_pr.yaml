@@ -17,9 +17,8 @@ score_model:
 
 reinforce:
   sample_size: ${num_retrieve}
-  num_samples: 10   # Number of samples, each contains `sample_size` profiles
+  num_samples: 20   # Number of samples, each contains `sample_size` profiles
   epsilon: 0.1      # Exploration rate
-
 
 num_epochs: 10
 batch_size: 1
