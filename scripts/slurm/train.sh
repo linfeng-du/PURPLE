@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --time=48:0:0
-#SBATCH --gres=gpu:v100l:2
+#SBATCH --gres=gpu:v100l:1
 #SBATCH --mem=64G
 #SBATCH --output=./logs/slurm/train/output_%j.txt
 #SBATCH --error=./logs/slurm/train/error_%j.txt
