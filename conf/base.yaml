@@ -26,6 +26,6 @@ llm:
     temperature: 0.6
     top_p: 0.9
 
-seed: 0
+seed: 42
 task: ???
-num_retrieve: 5
+num_retrieve: ???
