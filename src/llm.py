@@ -17,10 +17,6 @@ logger = logging.getLogger(__name__)
 Message: TypeAlias = list[dict[str, str]]
 
 
-API_PROVIDER_ARGS = {
-    'openai': ('OPENAI_API_KEY', 'https://api.openai.com/v1'),
-    'together': ('TOGETHER_API_KEY', 'https://api.together.xyz/v1')
-}
 SYSTEM_PROMPTS = {
     'LaMP-1': (
         f'You are a personalized citation identification chatbot '
@@ -80,9 +76,8 @@ class LLM:
                 self.pipeline.tokenizer.eos_token_id,
                 self.pipeline.tokenizer.convert_tokens_to_ids('<|eot_id|>')
             ]
-        elif self.provider in API_PROVIDER_ARGS:
-            api_key, base_url = API_PROVIDER_ARGS[self.provider]
-            self.client = OpenAI(api_key=os.getenv(api_key), base_url=base_url)
+        elif self.provider == 'openai':
+            self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'), base_url='https://api.openai.com/v1')
         else:
             raise ValueError(f'Invalid provider: {self.provider}')
 

@@ -34,9 +34,12 @@ def baseline(config: DictConfig):
 
     # Prepares dataset
     prompt_generator = create_prompt_generator(
-        tokenizer=AutoTokenizer.from_pretrained('meta-llama/Meta-Llama-3-8B-Instruct'),
-        device=('cuda' if torch.cuda.is_available() else 'cpu'),
-        **config.prompt_generator
+        config.task,
+        config.retriever,
+        config.num_retrieve,
+        config.prompt_generator.max_length,
+        AutoTokenizer.from_pretrained('meta-llama/Meta-Llama-3-8B-Instruct'),
+        ('cuda' if torch.cuda.is_available() else 'cpu')
     )
     test_dataset = LaMPDataset(config.task, split='dev', prompt_generator=prompt_generator)
 
@@ -49,13 +52,13 @@ def baseline(config: DictConfig):
         targets.append(example['target'])
 
     # Generates predictions
-    llm = LLM(verbose=True, **config.llm)
+    llm = LLM(config.task, verbose=True, **config.llm)
     predictions = llm(sources)
 
     # Computes metrics
     metric_fn = create_metric(config.task)
     test_results = metric_fn(predictions, targets)
-    logger.info(f'Test set results:\n{json.dumps(test_results, indent=2)}')
+    logger.info(f'Evaluation results:\n{json.dumps(test_results, indent=2)}')
 
 
 if __name__ == '__main__':

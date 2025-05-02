@@ -2,8 +2,6 @@ defaults:
   - base
   - _self_
 
-retriever: first_k  # Fixes `prompt_generator.retriever`
-
 collator:
   max_num_profiles: -1  # Maximum number of profiles to use per question (-1 to use all)
   max_query_length: 512
@@ -16,7 +14,6 @@ score_model:
   decoder_hidden_size: 100
 
 reinforce:
-  sample_size: ${num_retrieve}
   num_samples: 20   # Number of samples, each contains `sample_size` profiles
   epsilon: 0.1      # Exploration rate
 

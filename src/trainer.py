@@ -48,8 +48,12 @@ class RetrieverTrainer:
         self.test_loader = DataLoader(test_dataset, batch_size=self.config.eval_batch_size, collate_fn=collate_fn)
 
         self.prompt_generator = create_prompt_generator(
-            tokenizer=AutoTokenizer.from_pretrained('meta-llama/Meta-Llama-3-8B-Instruct'),
-            **self.config.prompt_generator
+            self.config.task,
+            'first_k',
+            self.config.num_retrieve,
+            self.config.prompt_generator.max_length,
+            AutoTokenizer.from_pretrained('meta-llama/Meta-Llama-3-8B-Instruct'),
+            self.device
         )
         self.reward_fn = create_reward(self.config.task)
         self.metric_fn = create_metric(self.config.task)
@@ -86,7 +90,9 @@ class RetrieverTrainer:
                 retrieved_indices, log_probs = reinforce.sample(
                     candidate_likelihoods,
                     candidate_mask,
-                    **self.config.reinforce
+                    self.config.reinforce.num_samples,
+                    self.config.num_retrieve,
+                    self.config.reinforce.epsilon
                 )
 
                 prompts = []

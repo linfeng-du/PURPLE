@@ -37,7 +37,7 @@ def train(config: DictConfig):
 
     # Prepares models
     score_model = ScoreModel(**config.score_model)
-    llm = LLM(**config.llm)
+    llm = LLM(config.task, **config.llm)
 
     # Prepares dataset and metric
     train_dataset = RetrieverTrainingDataset(config.task, split='train')
