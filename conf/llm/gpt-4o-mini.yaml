@@ -1,6 +1,5 @@
 model: gpt-4o-mini
 provider: openai
 generate_kwargs:
-  num_beams: 1
   temperature: 0.7
   top_p: 0.8
