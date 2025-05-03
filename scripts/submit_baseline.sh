@@ -1,5 +1,4 @@
 #!/bin/bash
-num_retrieve=5
 
 for llm in llama-3-8b-instruct phi-4-mini-instruct; do
     for task in LaMP-1 LaMP-2 LaMP-3 LaMP-4 LaMP-5 LaMP-7; do
@@ -8,7 +7,7 @@ for llm in llama-3-8b-instruct phi-4-mini-instruct; do
                 --task $task \
                 --llm $llm \
                 --retriever $retriever \
-                --num_retrieve $num_retrieve
+                --num_retrieve 5
         done
     done
 done
