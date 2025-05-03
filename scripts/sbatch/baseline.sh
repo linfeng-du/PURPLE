@@ -1,9 +1,4 @@
 #!/bin/bash
-#SBATCH --time=3:0:0
-#SBATCH --gres=gpu:v100l:1
-#SBATCH --mem=64G
-#SBATCH --output=./logs/slurm/baseline/output_%j.txt
-#SBATCH --error=./logs/slurm/baseline/error_%j.txt
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
