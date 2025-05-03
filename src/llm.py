@@ -92,7 +92,6 @@ class LLM:
             disable=(not self.verbose)
         ):
             response = output[0]['generated_text'][-1]['content']
-            print(response)
             responses.append(response)
 
         return responses
