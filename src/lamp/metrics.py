@@ -82,25 +82,14 @@ def _create_regression_metric() -> Callable[[list[str], list[str]], dict[str, fl
 
 
 def _create_generation_metric() -> Callable[[list[str], list[str]], dict[str, float]]:
-    bleu_metric = evaluate.load('sacrebleu')
     rouge_metric = evaluate.load('rouge')
-    meteor_metric = evaluate.load('meteor')
 
     def generation_metric(predictions: list[str], targets: list[str]) -> dict[str, float]:
-        stripped_predictions = [prediction.strip() for prediction in predictions]
-        stripped_targets = [[target.strip()] for target in targets]
-
-        compute_kwargs = {'predictions': stripped_predictions, 'references': stripped_targets}
-        bleu_results = bleu_metric.compute(**compute_kwargs)
-        rouge_results = rouge_metric.compute(**compute_kwargs)
-        meteor_results = meteor_metric.compute(**compute_kwargs)
-        return {
-            'bleu': bleu_results['score'],
-            'rouge-1': rouge_results['rouge1'],
-            'rouge-2': rouge_results['rouge2'],
-            'rouge-L': rouge_results['rougeL'],
-            'rouge-LSum': rouge_results['rougeLsum'],
-            'meteor': meteor_results['meteor']
-        }
+        rouge_results = rouge_metric.compute(
+            predictions=[prediction.strip() for prediction in predictions],
+            references=[[target.strip()] for target in targets],
+            rouge_types=['rouge1', 'rougeL']
+        )
+        return {'rouge-1': rouge_results['rouge1'], 'rouge-L': rouge_results['rougeL']}
 
     return generation_metric
