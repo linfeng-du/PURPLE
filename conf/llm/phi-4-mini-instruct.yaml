@@ -1,4 +1,5 @@
 model: microsoft/Phi-4-mini-instruct
+model_type: decoder-only
 provider: local
 generate_kwargs:
   max_new_tokens: 256

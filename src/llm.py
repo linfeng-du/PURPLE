@@ -3,12 +3,10 @@ import logging
 from typing import TypeAlias
 
 import torch
-from torch.utils.data import Dataset
 from transformers import pipeline
-from transformers.pipelines.text_generation import Chat
 from openai import OpenAI, OpenAIError
 
-from tqdm.auto import tqdm
+from tqdm import tqdm
 
 from lamp import get_labels
 
@@ -51,7 +49,14 @@ SYSTEM_PROMPTS = {
 
 class LLM:
 
-    def __init__(self, task: str, model: str, provider: str, generate_kwargs: dict, verbose: bool = False):
+    def __init__(
+        self,
+        task: str,
+        model: str,
+        provider: str,
+        generate_kwargs: dict,
+        verbose: bool = False
+    ):
         self.task = task
         self.model = model
         self.provider = provider
@@ -61,7 +66,7 @@ class LLM:
         if self.provider == 'local':
             self.pipeline = pipeline(
                 task='text-generation',
-                model=model,
+                model=self.model,
                 device=(torch.cuda.device_count() - 1),
                 torch_dtype=torch.bfloat16,
                 trust_remote_code=True
@@ -84,13 +89,9 @@ class LLM:
 
     def _generate_local(self, prompts: list[str]) -> list[str]:
         responses = []
-        dataset = _ChatDataset([self._create_message(prompt) for prompt in prompts])
 
-        for output in tqdm(
-            self.pipeline(dataset, **self.generate_kwargs),
-            total=len(dataset),
-            disable=(not self.verbose)
-        ):
+        for prompt in tqdm(prompts, desc='Generating responses', disable=(not self.verbose)):
+            output = self.pipeline(self._create_message(prompt), **self.generate_kwargs)
             response = output[0]['generated_text'][-1]['content']
             responses.append(response)
 
@@ -122,15 +123,3 @@ class LLM:
             {'role': 'user', 'content': prompt}
         ]
         return message
-
-
-class _ChatDataset(Dataset):
-
-    def __init__(self, messages: list[Message]) -> None:
-        self.chats = [Chat(message) for message in messages]
-
-    def __len__(self) -> int:
-        return len(self.chats)
-
-    def __getitem__(self, index: int) -> Chat:
-        return self.chats[index]
