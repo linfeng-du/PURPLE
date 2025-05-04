@@ -1,5 +1,4 @@
 model: meta-llama/Meta-Llama-3-8B-Instruct
-model_type: decoder-only
 provider: local
 generate_kwargs:
   max_new_tokens: 256
