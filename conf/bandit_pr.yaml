@@ -17,6 +17,8 @@ reinforce:
   num_samples: 20   # Number of samples, each contains `sample_size` profiles
   epsilon: 0.1      # Exploration rate
 
+from_pretrained: null
+
 num_epochs: 10
 batch_size: 1
 gradient_accumulation_steps: 1

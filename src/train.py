@@ -37,6 +37,10 @@ def train(config: DictConfig):
 
     # Prepares models
     score_model = ScoreModel(**config.score_model)
+
+    if config.from_pretrained is not None:
+        score_model.from_pretrained(config.from_pretrained)
+
     llm = LLM(config.task, **config.llm)
 
     # Prepares dataset and metric
