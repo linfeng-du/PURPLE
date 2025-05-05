@@ -76,6 +76,7 @@ class RetrieverTrainer:
                 if (example_cnt > 0) and (example_cnt % self.config.eval_every == 0):
                     eval_metrics = self.evaluate()
                     self.score_model.train()
+                    self.wandb.log({'eval_reward': eval_metrics['reward']})
                     logger.info(
                         f'Evaluation metrics after {example_cnt} training examples:\n'
                         f'{json.dumps(eval_metrics, indent=2)}'
