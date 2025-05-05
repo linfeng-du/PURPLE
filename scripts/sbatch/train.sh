@@ -21,6 +21,8 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+source /home/linfeng/.bashrc
+source /home/linfeng/projects/def-cpsmcgil/linfeng/environment/bandit_pr/bin/activate
 python src/train.py \
     experiment=$llm/bandit_pr-$num_retrieve/$task \
     task=$task \
