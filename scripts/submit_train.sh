@@ -1,7 +1,7 @@
 #!/bin/bash
 
-tasks=("LaMP-1" "LaMP-2" "LaMP-4" "LaMP-5" "LaMP-7")
-llm="llama-3-8b-instruct"
+tasks=("LaMP-1" "LaMP-2" "LaMP-3" "LaMP-4" "LaMP-5" "LaMP-7")
+llm="phi-4-mini-instruct"
 num_retrieve=5
 
 for task in ${tasks[@]}; do
