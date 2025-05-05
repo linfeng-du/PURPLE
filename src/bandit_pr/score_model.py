@@ -125,9 +125,11 @@ class ScoreModel(nn.Module):
 
         # Selects candidate profiles
         scores = (query_embedding @ corpus_embeddings.transpose(dim0=-1, dim1=-2)).squeeze(dim=1)
-        _, candidate_indices = scores.topk(num_candidates, dim=-1)
+        candidate_scores, candidate_indices = scores.topk(num_candidates, dim=-1)
+
+        # Indexes candidate embeddings and mask
         candidate_embeddings = corpus_embeddings[batch_indices, candidate_indices, :]
-        candidate_mask = profile_mask.gather(dim=1, index=candidate_indices)
+        candidate_mask = profile_mask.gather(dim=-1, index=candidate_indices)
 
         # Mixes query and candidate embeddings
         query_embedding = query_embedding.expand(-1, num_candidates, -1)
@@ -142,8 +144,7 @@ class ScoreModel(nn.Module):
         ffn_out = self.ffn_norm(attn_out + ffn_out)
 
         # Computes candidate profile likelihoods
-        candidate_likelihoods = self.mlp_decoder(ffn_out)
-        candidate_likelihoods = candidate_likelihoods.squeeze(dim=-1)
+        candidate_likelihoods = self.mlp_decoder(ffn_out).squeeze(dim=-1)
         candidate_likelihoods = candidate_likelihoods.masked_fill(~candidate_mask, value=0.)
 
         return candidate_likelihoods, candidate_mask, candidate_indices
