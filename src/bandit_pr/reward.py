@@ -58,7 +58,7 @@ def _create_generation_reward() -> Callable[[list[str], list[str]], torch.Tensor
             predictions=[prediction.strip() for prediction in predictions],
             references=[[target.strip()] for target in targets],
             rouge_types=['rouge1'],
-            use_aggregation=False
+            use_aggregator=False
         )
         return torch.tensor(rouge_results['rouge1'], dtype=torch.float)
 
