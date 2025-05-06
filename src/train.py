@@ -14,11 +14,13 @@ from lamp import RetrieverTrainingDataset, RetrieverTrainingCollator
 from trainer import RetrieverTrainer
 
 
+logging.getLogger('absl').setLevel(logging.WARNING)
+logging.getLogger('httpx').setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 
 @hydra.main(config_path='../conf', config_name='bandit_pr', version_base=None)
-def train(config: DictConfig):
+def main(config: DictConfig):
     # Checks config validity
     missing_keys = OmegaConf.missing_keys(config)
 
@@ -57,4 +59,4 @@ def train(config: DictConfig):
 
 
 if __name__ == '__main__':
-    train()
+    main()

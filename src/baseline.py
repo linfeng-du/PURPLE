@@ -14,12 +14,13 @@ from lamp import LaMPDataset, create_prompt_generator, create_metric
 from llm import LLM
 
 
-logger = logging.getLogger(__name__)
+logging.getLogger('absl').setLevel(logging.WARNING)
 logging.getLogger('httpx').setLevel(logging.WARNING)
+logger = logging.getLogger(__name__)
 
 
 @hydra.main(config_path='../conf', config_name='baseline', version_base=None)
-def baseline(config: DictConfig):
+def main(config: DictConfig):
     # Checks for missing keys
     missing_keys = OmegaConf.missing_keys(config)
 
@@ -68,4 +69,4 @@ def baseline(config: DictConfig):
 
 
 if __name__ == '__main__':
-    baseline()
+    main()
