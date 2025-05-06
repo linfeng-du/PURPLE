@@ -113,7 +113,6 @@ class LLM:
                     remaining_prompts.remove(index)
                 except OpenAIError as err:
                     logger.error(f'OpenAI API error: {err}', exc_info=True)
-                    logger.warning(f'Retrying...')
 
         return responses
 

@@ -97,16 +97,9 @@ class ScoreModel(nn.Module):
         """Computes candidate profile likelihoods conditioned on the given query.
         Candidate profiles are selected based on BERT score.
         """
-        num_candidates = self.num_candidates
         batch_size, num_profiles = profile_mask.size()
         batch_indices = torch.arange(batch_size).unsqueeze(dim=1)
-
-        if num_candidates > num_profiles:
-            logger.warning(
-                f'Number of candidates ({num_candidates}) is greater than '
-                f'the number of profiles ({num_profiles})'
-            )
-            num_candidates = num_profiles
+        num_candidates = min(self.num_candidates, num_profiles)
 
         # Computes query and corpus embeddings
         query_embedding = self._compute_sentence_embedding(query_inputs)

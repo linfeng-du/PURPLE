@@ -36,7 +36,7 @@ def _first_k_retriever(
     num_retrieve: int,
     query_corpus_generator: QueryCorpusGenerator
 ) -> list[Profile]:
-    num_retrieve = _validate_num_retrieve(num_retrieve, profiles)
+    num_retrieve = min(num_retrieve, len(profiles))
     retrieved_profiles = profiles[:num_retrieve]
     return retrieved_profiles
 
@@ -47,7 +47,7 @@ def _random_retriever(
     num_retrieve: int,
     query_corpus_generator: QueryCorpusGenerator
 ) -> list[Profile]:
-    num_retrieve = _validate_num_retrieve(num_retrieve, profiles)
+    num_retrieve = min(num_retrieve, len(profiles))
     retrieved_profiles = random.choices(profiles, k=num_retrieve)
     return retrieved_profiles
 
@@ -58,7 +58,7 @@ def _bm25_retriever(
     num_retrieve: int,
     query_corpus_generator: QueryCorpusGenerator
 ) -> list[Profile]:
-    num_retrieve = _validate_num_retrieve(num_retrieve, profiles)
+    num_retrieve = min(num_retrieve, len(profiles))
     query, corpus = query_corpus_generator(input_, profiles)
 
     tokenized_query = query.split()
@@ -85,7 +85,7 @@ class _ContrieverRetriever:
         num_retrieve: int,
         query_corpus_generator: QueryCorpusGenerator
     ) -> list[Profile]:
-        num_retrieve = _validate_num_retrieve(num_retrieve, profiles)
+        num_retrieve = min(num_retrieve, len(profiles))
         query, corpus = query_corpus_generator(input_, profiles)
 
         query_embedding = self._compute_sentence_embeddings([query])
@@ -107,14 +107,3 @@ class _ContrieverRetriever:
         token_embeddings.masked_fill_(attention_mask == 0, value=0.)
         sentence_embeddings = token_embeddings.sum(dim=1) / attention_mask.sum(dim=1)
         return sentence_embeddings
-
-
-def _validate_num_retrieve(num_retrieve: int, profiles: list[Profile]) -> int:
-    if num_retrieve > len(profiles):
-        logger.warning(
-            f'num_retrieve ({num_retrieve}) is greater than '
-            f'the number of profiles ({len(profiles)})'
-        )
-        num_retrieve = len(profiles)
-
-    return num_retrieve

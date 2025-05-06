@@ -18,13 +18,7 @@ def sample(
     sampling based on `likelihoods` with probability `1 - epsilon`.
     """
     min_num_items = mask.sum(dim=1).min().item()
-
-    if sample_size > min_num_items:
-        logger.warning(
-            f'sample_size ({sample_size}) is greater than '
-            f'the minimum number of items ({min_num_items})'
-        )
-        sample_size = min_num_items
+    sample_size = min(sample_size, min_num_items)
 
     indices = []
     log_probs = []
@@ -83,7 +77,5 @@ def _sample_without_replacement(
 
 def compute_loss(log_probs: torch.Tensor, rewards: torch.Tensor) -> torch.Tensor:
     """Computes the REINFORCE loss with an average baseline."""
-    # TODO: Consider using a moving average baseline
-    baseline = torch.mean(rewards)
-    loss = torch.mean(-(log_probs * ((rewards - baseline) / (baseline + 1e-9))))
+    loss = torch.mean(-(log_probs * rewards))
     return loss
