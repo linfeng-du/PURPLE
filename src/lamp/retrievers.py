@@ -92,7 +92,7 @@ class _ContrieverRetriever:
         corpus_embeddings = self._compute_sentence_embeddings(corpus)
         scores = (query_embedding @ corpus_embeddings.T).squeeze(dim=0)
 
-        _, indices = scores.topk(num_retrieve, dim=1)
+        _, indices = scores.topk(num_retrieve, dim=0)
         retrieved_profiles = [profiles[index] for index in indices]
         return retrieved_profiles
 
