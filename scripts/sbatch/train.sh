@@ -6,12 +6,12 @@ while [[ $# -gt 0 ]]; do
             task=$2
             shift 2
             ;;
-        --llm)
-            llm=$2
-            shift 2
-            ;;
         --num_retrieve)
             num_retrieve=$2
+            shift 2
+            ;;
+        --llm)
+            llm=$2
             shift 2
             ;;
         *)
@@ -26,5 +26,5 @@ source /home/linfeng/projects/def-cpsmcgil/linfeng/environment/bandit_pr/bin/act
 python src/train.py \
     experiment=$llm/bandit_pr-$num_retrieve/$task \
     task=$task \
-    llm=$llm \
-    num_retrieve=$num_retrieve
+    num_retrieve=$num_retrieve \
+    llm=$llm
