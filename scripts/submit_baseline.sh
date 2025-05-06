@@ -16,10 +16,11 @@ for llm in ${local_llms[@]}; do
                 --output=./logs/sbatch/$llm/$retriever-$num_retrieve/$task/%j.out \
                 --error=./logs/sbatch/$llm/$retriever-$num_retrieve/$task/%j.err \
                 scripts/sbatch/baseline.sh \
-                    --task $task \
-                    --retriever $retriever \
-                    --num_retrieve $num_retrieve \
-                    --llm $llm
+                    experiment=$llm/$retriever-$num_retrieve/$task \
+                    task=$task \
+                    retriever=$retriever \
+                    num_retrieve=$num_retrieve \
+                    llm=$llm
         done
     done
 done
@@ -40,10 +41,11 @@ for llm in ${api_llms[@]}; do
                 --output=./logs/sbatch/$llm/$retriever-$num_retrieve/$task/%j.out \
                 --error=./logs/sbatch/$llm/$retriever-$num_retrieve/$task/%j.err \
                 scripts/sbatch/baseline.sh \
-                    --task $task \
-                    --retriever $retriever \
-                    --num_retrieve $num_retrieve \
-                    --llm $llm
+                    experiment=$llm/$retriever-$num_retrieve/$task \
+                    task=$task \
+                    retriever=$retriever \
+                    num_retrieve=$num_retrieve \
+                    llm=$llm
         done
     done
 done
