@@ -92,7 +92,7 @@ class _ContrieverRetriever:
         corpus_embeddings = self._compute_sentence_embeddings(corpus)
         scores = (query_embedding @ corpus_embeddings.T).squeeze(dim=0)
 
-        _, indices = scores.topk(num_retrieve, dim=-1)
+        _, indices = scores.topk(num_retrieve, dim=1)
         retrieved_profiles = [profiles[index] for index in indices]
         return retrieved_profiles
 
@@ -102,7 +102,7 @@ class _ContrieverRetriever:
 
         outputs = self.contriever(**inputs)
         token_embeddings = outputs.last_hidden_state
-        attention_mask = inputs['attention_mask'].unsqueeze(dim=-1)
+        attention_mask = inputs['attention_mask'].unsqueeze(dim=2)
 
         token_embeddings.masked_fill_(attention_mask == 0, value=0.)
         sentence_embeddings = token_embeddings.sum(dim=1) / attention_mask.sum(dim=1)

@@ -145,8 +145,8 @@ class RetrieverTrainer:
                 [document_inputs.to(self.device) for document_inputs in batch['corpus_inputs']],
                 batch['profile_mask'].to(self.device)
             )
-            num_retrieve = min(self.config.num_retrieve, candidate_likelihoods.size(dim=-1))
-            _, retrieved_indices = candidate_likelihoods.topk(num_retrieve, dim=-1)
+            num_retrieve = min(self.config.num_retrieve, candidate_likelihoods.size(dim=1))
+            _, retrieved_indices = candidate_likelihoods.topk(num_retrieve, dim=1)
 
             prompts = []
 

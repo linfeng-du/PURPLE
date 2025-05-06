@@ -117,16 +117,16 @@ class ScoreModel(nn.Module):
         ).to_dense()
 
         # Selects candidate profiles
-        scores = (query_embedding @ corpus_embeddings.transpose(dim0=-1, dim1=-2)).squeeze(dim=1)
-        candidate_scores, candidate_indices = scores.topk(num_candidates, dim=-1)
+        scores = (query_embedding @ corpus_embeddings.transpose(dim0=1, dim1=2)).squeeze(dim=1)
+        candidate_scores, candidate_indices = scores.topk(num_candidates, dim=1)
 
         # Indexes candidate embeddings and mask
         candidate_embeddings = corpus_embeddings[batch_indices, candidate_indices, :]
-        candidate_mask = profile_mask.gather(dim=-1, index=candidate_indices)
+        candidate_mask = profile_mask.gather(dim=1, index=candidate_indices)
 
         # Mixes query and candidate embeddings
         query_embedding = query_embedding.expand(-1, num_candidates, -1)
-        mixed_embeddings = torch.cat((query_embedding, candidate_embeddings), dim=-1)
+        mixed_embeddings = torch.cat((query_embedding, candidate_embeddings), dim=2)
         mixer_out = self.mixer_norm(self.mixer_mlp(mixed_embeddings))
 
         # Models candidate profile dependencies
@@ -137,7 +137,7 @@ class ScoreModel(nn.Module):
         ffn_out = self.ffn_norm(attn_out + ffn_out)
 
         # Computes candidate profile likelihoods
-        candidate_likelihoods = self.mlp_decoder(ffn_out).squeeze(dim=-1)
+        candidate_likelihoods = self.mlp_decoder(ffn_out).squeeze(dim=2)
         candidate_likelihoods = candidate_likelihoods.masked_fill(~candidate_mask, value=0.)
 
         return candidate_likelihoods, candidate_mask, candidate_indices
@@ -146,7 +146,7 @@ class ScoreModel(nn.Module):
         """Computes sentence embedding by mean pooling over token embeddings."""
         sentence_outputs = self.encoder(**sentence_inputs)
         token_embeddings = sentence_outputs.last_hidden_state
-        attention_mask = sentence_inputs['attention_mask'].unsqueeze(dim=-1)
+        attention_mask = sentence_inputs['attention_mask'].unsqueeze(dim=2)
 
         token_embeddings.masked_fill_(attention_mask == 0, value=0.)
         sentence_embedding = token_embeddings.sum(dim=1) / attention_mask.sum(dim=1)
