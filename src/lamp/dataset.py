@@ -1,45 +1,23 @@
 import json
-from typing import TypedDict
 
-from torch.utils.data import Dataset
-
-from .data_types import PromptGenerator
+from .data_types import LaMPExample
 
 
-class LaMPExample(TypedDict):
+def load_lamp_dataset(task: str, split: str) -> list[LaMPExample]:
+    with open(f'./dataset/{task}/{split}_questions.json', 'r') as file:
+        questions = json.load(file)
 
-    id: str
-    source: str
-    target: str
+    with open(f'./dataset/{task}/{split}_outputs.json', 'r') as file:
+        outputs = {gold['id']: gold['output'] for gold in json.load(file)['golds']}
 
+    examples = []
 
-class LaMPDataset(Dataset):
-
-    def __init__(self, task: str, split: str, prompt_generator: PromptGenerator | None = None) -> None:
-        with open(f'./dataset/{task}/{split}_questions.json', 'r') as file:
-            self.examples= json.load(file)
-
-        with open(f'./dataset/{task}/{split}_outputs.json', 'r') as file:
-            outputs = json.load(file)
-            self.targets = {gold['id']: gold['output'] for gold in outputs['golds']}
-
-        self.prompt_generator = prompt_generator
-
-    def __getitem__(self, index: int) -> LaMPExample:
-        example = self.examples[index]
-
-        id_ = example['id']
-        source = example['input']
-        target = self.targets[id_]
-
-        if self.prompt_generator is not None:
-            source = self.prompt_generator(source, example['profile'])
-
-        return LaMPExample(
-            id=id_,
-            source=source,
-            target=target
+    for question in questions:
+        example = LaMPExample(
+            source=question['input'],
+            profile=question['profile'],
+            target=outputs[question['id']]
         )
+        examples.append(example)
 
-    def __len__(self) -> int:
-        return len(self.examples)
+    return examples

@@ -1,5 +1,5 @@
 defaults:
-  - llm: ???
+  - llm: phi-4-mini-instruct
   - _self_
 
 experiment: debug
@@ -14,4 +14,4 @@ prompt_generator:
 
 seed: 42
 task: ???
-num_retrieve: ???
+num_retrieve: 5

@@ -1,17 +1,14 @@
 import random
-from typing import Callable
 
 from rank_bm25 import BM25Okapi
 
 import torch
 from transformers import AutoTokenizer, AutoModel
 
-from .data_types import Profile, QueryCorpusGenerator
+from .data_types import Profile, QueryCorpusGenerator, Retriever
 
 
-def create_retriever(retriever: str, device: torch.device | None = None) -> (
-    Callable[[str, list[Profile], int, QueryCorpusGenerator], list[Profile]]
-):
+def create_retriever(retriever: str, device: torch.device | None = None) -> Retriever:
     if retriever == 'first_k':
         return _first_k_retriever
     elif retriever == 'random':
