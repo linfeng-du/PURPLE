@@ -46,10 +46,15 @@ def _create_classification_metric(labels: list[str]) -> Callable[[list[str], lis
         prediction_indices = [map_to_label_index(prediction) for prediction in predictions]
         target_indices = [map_to_label_index(target) for target in targets]
 
-        compute_kwargs = {'predictions': prediction_indices, 'references': target_indices}
-        accuracy_results = accuracy_metric.compute(**compute_kwargs)
-        f1_results = f1_metric.compute(**compute_kwargs, labels=list(range(len(labels))), average='macro')
-        return {'accuracy': accuracy_results['accuracy'], 'f1': f1_results['f1']}
+        accuracy_results = accuracy_metric.compute(predictions=prediction_indices, references=target_indices)
+        f1_results = f1_metric.compute(
+            predictions=prediction_indices,
+            references=target_indices,
+            labels=list(range(len(labels))),
+            average='macro'
+        )
+        results = {'accuracy': accuracy_results['accuracy'], 'f1': f1_results['f1']}
+        return results
 
     return classification_metric
 
@@ -73,10 +78,10 @@ def _create_regression_metric() -> Callable[[list[str], list[str]], dict[str, fl
         prediction_floats = [map_to_float(prediction, target) for prediction, target in zip(predictions, targets)]
         target_floats = [float(target) for target in targets]
 
-        compute_kwargs = {'predictions': prediction_floats, 'references': target_floats}
-        mae_results = mae_metric.compute(**compute_kwargs)
-        rmse_results = mse_metric.compute(**compute_kwargs, squared=False)
-        return {'mae': mae_results['mae'], 'rmse': rmse_results['mse']}
+        mae_results = mae_metric.compute(predictions=prediction_floats, references=target_floats)
+        rmse_results = mse_metric.compute(predictions=prediction_floats, references=target_floats, squared=False)
+        results = {'mae': mae_results['mae'], 'rmse': rmse_results['mse']}
+        return results
 
     return regression_metric
 
@@ -85,11 +90,15 @@ def _create_generation_metric() -> Callable[[list[str], list[str]], dict[str, fl
     rouge_metric = evaluate.load('rouge')
 
     def generation_metric(predictions: list[str], targets: list[str]) -> dict[str, float]:
+        predictions_stripped = [prediction.strip() for prediction in predictions]
+        targets_stripped = [[target.strip()] for target in targets]
+
         rouge_results = rouge_metric.compute(
-            predictions=[prediction.strip() for prediction in predictions],
-            references=[[target.strip()] for target in targets],
+            predictions=predictions_stripped,
+            references=targets_stripped,
             rouge_types=['rouge1', 'rougeL']
         )
-        return {'rouge-1': rouge_results['rouge1'], 'rouge-L': rouge_results['rougeL']}
+        results = {'rouge-1': rouge_results['rouge1'], 'rouge-L': rouge_results['rougeL']}
+        return results
 
     return generation_metric
