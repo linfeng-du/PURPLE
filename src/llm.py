@@ -96,6 +96,7 @@ class LLM:
         for output in tqdm(
             self.pipeline(dataset, **self.generate_kwargs),
             desc='Generating responses',
+            total=len(dataset),
             disable=(not self.verbose)
         ):
             response = output[0]['generated_text'][-1]['content']
