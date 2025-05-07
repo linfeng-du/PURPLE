@@ -1,9 +1,4 @@
-import logging
-
 import torch
-
-
-logger = logging.getLogger(__name__)
 
 
 def sample(
@@ -75,6 +70,6 @@ def _sample_without_replacement(
 
 
 def compute_loss(log_probs: torch.Tensor, rewards: torch.Tensor) -> torch.Tensor:
-    """Computes the REINFORCE loss with an average baseline."""
+    """Computes REINFORCE loss with an average baseline."""
     loss = torch.mean(-(log_probs * rewards))
     return loss

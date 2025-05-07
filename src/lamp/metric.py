@@ -1,19 +1,16 @@
-from typing import Callable
-
 import evaluate
 
+from .data_types import Metric
 
-def create_metric(task: str) -> Callable[[list[str], list[str]], dict[str, float]]:
+
+def create_metric(task: str) -> Metric:
     if task in {'LaMP-1', 'LaMP-2'}:
         labels = get_labels(task)
-        classification_metric = _create_classification_metric(labels)
-        return classification_metric
+        return _create_classification_metric(labels)
     elif task in {'LaMP-3'}:
-        regression_metric = _create_regression_metric()
-        return regression_metric
+        return _create_regression_metric()
     elif task in {'LaMP-4', 'LaMP-5', 'LaMP-6', 'LaMP-7'}:
-        generation_metric = _create_generation_metric()
-        return generation_metric
+        return _create_generation_metric()
     else:
         raise ValueError(f'Invalid task: {task}')
 
@@ -32,7 +29,7 @@ def get_labels(task: str) -> list[str]:
         raise ValueError(f'Not a classification or regression task: {task}')
 
 
-def _create_classification_metric(labels: list[str]) -> Callable[[list[str], list[str]], dict[str, float]]:
+def _create_classification_metric(labels: list[str]) -> Metric:
     accuracy_metric = evaluate.load('accuracy')
     f1_metric = evaluate.load('f1')
 
@@ -53,13 +50,12 @@ def _create_classification_metric(labels: list[str]) -> Callable[[list[str], lis
             labels=list(range(len(labels))),
             average='macro'
         )
-        results = {'accuracy': accuracy_results['accuracy'], 'f1': f1_results['f1']}
-        return results
+        return {'accuracy': accuracy_results['accuracy'], 'f1': f1_results['f1']}
 
     return classification_metric
 
 
-def _create_regression_metric() -> Callable[[list[str], list[str]], dict[str, float]]:
+def _create_regression_metric() -> Metric:
     mae_metric = evaluate.load('mae')
     mse_metric = evaluate.load('mse')
 
@@ -80,13 +76,12 @@ def _create_regression_metric() -> Callable[[list[str], list[str]], dict[str, fl
 
         mae_results = mae_metric.compute(predictions=prediction_floats, references=target_floats)
         rmse_results = mse_metric.compute(predictions=prediction_floats, references=target_floats, squared=False)
-        results = {'mae': mae_results['mae'], 'rmse': rmse_results['mse']}
-        return results
+        return {'mae': mae_results['mae'], 'rmse': rmse_results['mse']}
 
     return regression_metric
 
 
-def _create_generation_metric() -> Callable[[list[str], list[str]], dict[str, float]]:
+def _create_generation_metric() -> Metric:
     rouge_metric = evaluate.load('rouge')
 
     def generation_metric(predictions: list[str], targets: list[str]) -> dict[str, float]:
@@ -98,7 +93,6 @@ def _create_generation_metric() -> Callable[[list[str], list[str]], dict[str, fl
             references=targets_stripped,
             rouge_types=['rouge1', 'rougeL']
         )
-        results = {'rouge-1': rouge_results['rouge1'], 'rouge-L': rouge_results['rougeL']}
-        return results
+        return {'rouge-1': rouge_results['rouge1'], 'rouge-L': rouge_results['rougeL']}
 
     return generation_metric

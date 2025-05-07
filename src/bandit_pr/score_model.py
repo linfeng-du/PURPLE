@@ -1,14 +1,10 @@
 import os
 import json
-import logging
 from collections import OrderedDict
 
 import torch
 import torch.nn as nn
 from transformers import AutoModel, BatchEncoding
-
-
-logger = logging.getLogger(__name__)
 
 
 class ScoreModel(nn.Module):

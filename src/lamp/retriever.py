@@ -1,5 +1,4 @@
 import random
-import logging
 from typing import Callable
 
 from rank_bm25 import BM25Okapi
@@ -8,9 +7,6 @@ import torch
 from transformers import AutoTokenizer, AutoModel
 
 from .data_types import Profile, QueryCorpusGenerator
-
-
-logger = logging.getLogger(__name__)
 
 
 def create_retriever(retriever: str, device: torch.device | None = None) -> (
