@@ -2,6 +2,7 @@
 import logging
 from typing import Callable
 
+import torch
 from transformers import PreTrainedTokenizerBase
 
 from .retriever import create_retriever
@@ -17,7 +18,7 @@ def create_prompt_generator(
     num_retrieve: int,
     max_length: int,
     tokenizer: PreTrainedTokenizerBase,
-    device: str | None = None
+    device: torch.device | None = None
 ) -> PromptGenerator:
     retriever = create_retriever(retriever, device=device)
     query_corpus_generator = create_query_corpus_generator(task)

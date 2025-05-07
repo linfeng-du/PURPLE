@@ -3,6 +3,7 @@ import random
 import logging
 
 import numpy as np
+
 import torch
 from transformers import AutoTokenizer
 
@@ -39,16 +40,16 @@ def main(config: DictConfig):
         if config.llm.provider == 'local'
         else AutoTokenizer.from_pretrained('gpt2')
     )
-    device = ('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     prompt_generator = create_prompt_generator(
         config.task,
         config.retriever,
         config.num_retrieve,
         config.prompt_generator.max_length,
         tokenizer,
-        device
+        device=device
     )
-    test_dataset = LaMPDataset(config.task, 'dev', prompt_generator)
+    test_dataset = LaMPDataset(config.task, split='dev', prompt_generator=prompt_generator)
 
     # Collects sources and targets
     sources = []

@@ -13,7 +13,7 @@ from .data_types import Profile, QueryCorpusGenerator
 logger = logging.getLogger(__name__)
 
 
-def create_retriever(retriever: str, device: str | None = None) -> (
+def create_retriever(retriever: str, device: torch.device | None = None) -> (
     Callable[[str, list[Profile], int, QueryCorpusGenerator], list[Profile]]
 ):
     if retriever == 'first_k':
