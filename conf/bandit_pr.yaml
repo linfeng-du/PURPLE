@@ -2,7 +2,7 @@ defaults:
   - base
   - _self_
 
-collator:
+preprocessor:
   max_num_profiles: -1  # Maximum number of profiles to use per question (-1 to use all)
   max_query_length: 512
   max_document_length: 512

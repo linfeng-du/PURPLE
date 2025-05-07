@@ -8,9 +8,9 @@ from .data_types import Profile
 
 
 def load_lamp_dataset(task: str, split: str) -> Dataset:
-    cache_dir = f'./dataset/cache/{task}/{split}'
+    dataset_dir = f'./dataset/{task}/{split}'
 
-    if not os.path.exists(cache_dir):
+    if not os.path.exists(dataset_dir):
         with open(f'./dataset/{task}/{split}_questions.json', 'r') as file:
             questions = json.load(file)
 
@@ -29,9 +29,9 @@ def load_lamp_dataset(task: str, split: str) -> Dataset:
             example = {'source': source, 'profiles': profiles, 'query': query, 'corpus': corpus, 'target': target}
             examples.append(example)
 
-        Dataset.from_list(examples).save_to_disk(cache_dir)
+        Dataset.from_list(examples).save_to_disk(dataset_dir)
 
-    return load_from_disk(cache_dir)
+    return load_from_disk(dataset_dir)
 
 
 def _create_query_corpus_generator(task: str) -> Callable[[str, list[Profile]], tuple[str, list[str]]]:
