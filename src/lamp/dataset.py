@@ -1,8 +1,16 @@
 import json
+from typing import TypedDict
 
 from torch.utils.data import Dataset
 
-from .data_types import LaMPExample, PromptGenerator
+from .data_types import PromptGenerator
+
+
+class LaMPExample(TypedDict):
+
+    id: str
+    source: str
+    target: str
 
 
 class LaMPDataset(Dataset):
