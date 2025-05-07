@@ -24,7 +24,8 @@ def _classification_reward(predictions: list[str], targets: list[str]) -> torch.
         reward = float(prediction.strip() == target.strip())
         rewards.append(reward)
 
-    return torch.tensor(rewards, dtype=torch.float)
+    rewards = torch.tensor(rewards, dtype=torch.float)
+    return rewards
 
 
 def _regression_reward(predictions: list[str], targets: list[str]) -> torch.Tensor:
@@ -45,7 +46,8 @@ def _regression_reward(predictions: list[str], targets: list[str]) -> torch.Tens
         reward = -abs(prediction_float - target_float)
         rewards.append(reward)
 
-    return torch.tensor(rewards, dtype=torch.float)
+    rewards = torch.tensor(rewards, dtype=torch.float)
+    return rewards
 
 
 def _create_generation_reward() -> Callable[[list[str], list[str]], torch.Tensor]:
@@ -60,6 +62,7 @@ def _create_generation_reward() -> Callable[[list[str], list[str]], torch.Tensor
             rouge_types=['rouge1'],
             use_aggregator=False
         )
-        return torch.tensor(rouge_results['rouge1'], dtype=torch.float)
+        rewards = torch.tensor(rouge_results['rouge1'], dtype=torch.float)
+        return rewards
 
     return generation_reward
