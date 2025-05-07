@@ -5,8 +5,7 @@ from .data_types import Metric
 
 def create_metric(task: str) -> Metric:
     if task in {'LaMP-1', 'LaMP-2'}:
-        labels = get_labels(task)
-        return _create_classification_metric(labels)
+        return _create_classification_metric(get_labels(task))
     elif task in {'LaMP-3'}:
         return _create_regression_metric()
     elif task in {'LaMP-4', 'LaMP-5', 'LaMP-6', 'LaMP-7'}:

@@ -1,14 +1,17 @@
 import random
+from typing import Callable
 
 from rank_bm25 import BM25Okapi
 
 import torch
 from transformers import AutoTokenizer, AutoModel
 
-from .data_types import Profile, QueryCorpusGenerator, Retriever
+from .data_types import Profile
 
 
-def create_retriever(retriever: str, device: torch.device | None = None) -> Retriever:
+def create_retriever(retriever: str, device: torch.device | None = None) -> (
+    Callable[[str, list[str], list[Profile], int], list[Profile]]
+):
     if retriever == 'first_k':
         return _first_k_retriever
     elif retriever == 'random':
@@ -24,40 +27,35 @@ def create_retriever(retriever: str, device: torch.device | None = None) -> Retr
 
 
 def _first_k_retriever(
-    input_: str,
+    query: str,
+    corpus: list[str],
     profiles: list[Profile],
-    num_retrieve: int,
-    query_corpus_generator: QueryCorpusGenerator
+    num_retrieve: int
 ) -> list[Profile]:
     num_retrieve = min(num_retrieve, len(profiles))
-    retrieved_profiles = profiles[:num_retrieve]
-    return retrieved_profiles
+    return profiles[:num_retrieve]
 
 
 def _random_retriever(
-    input_: str,
+    query: str,
+    corpus: list[str],
     profiles: list[Profile],
-    num_retrieve: int,
-    query_corpus_generator: QueryCorpusGenerator
+    num_retrieve: int
 ) -> list[Profile]:
     num_retrieve = min(num_retrieve, len(profiles))
-    retrieved_profiles = random.choices(profiles, k=num_retrieve)
-    return retrieved_profiles
+    return random.choices(profiles, k=num_retrieve)
 
 
 def _bm25_retriever(
-    input_: str,
+    query: str,
+    corpus: list[str],
     profiles: list[Profile],
-    num_retrieve: int,
-    query_corpus_generator: QueryCorpusGenerator
+    num_retrieve: int
 ) -> list[Profile]:
     num_retrieve = min(num_retrieve, len(profiles))
-    query, corpus = query_corpus_generator(input_, profiles)
-
     tokenized_query = query.split()
     tokenized_corpus = [document.split() for document in corpus]
-    retrieved_profiles = BM25Okapi(tokenized_corpus).get_top_n(tokenized_query, profiles, n=num_retrieve)
-    return retrieved_profiles
+    return BM25Okapi(tokenized_corpus).get_top_n(tokenized_query, profiles, n=num_retrieve)
 
 
 class _ContrieverRetriever:
@@ -73,21 +71,19 @@ class _ContrieverRetriever:
     @torch.no_grad()
     def __call__(
         self,
-        input_: str,
+        query: str,
+        corpus: list[str],
         profiles: list[Profile],
-        num_retrieve: int,
-        query_corpus_generator: QueryCorpusGenerator
+        num_retrieve: int
     ) -> list[Profile]:
         num_retrieve = min(num_retrieve, len(profiles))
-        query, corpus = query_corpus_generator(input_, profiles)
 
         query_embedding = self._compute_sentence_embeddings([query])
         corpus_embeddings = self._compute_sentence_embeddings(corpus)
         scores = (query_embedding @ corpus_embeddings.T).squeeze(dim=0)
 
         _, indices = scores.topk(num_retrieve, dim=0)
-        retrieved_profiles = [profiles[index] for index in indices]
-        return retrieved_profiles
+        return [profiles[index] for index in indices]
 
     def _compute_sentence_embeddings(self, sentences: list[str]) -> torch.Tensor:
         inputs = self.tokenizer(sentences, padding=True, truncation=True, return_tensors='pt')

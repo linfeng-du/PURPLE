@@ -12,7 +12,7 @@ from omegaconf import OmegaConf, DictConfig
 from tqdm import tqdm
 
 from llm import LLM
-from lamp import LaMPDataset, create_prompt_generator, create_metric
+from lamp import load_lamp_dataset, create_prompt_generator, create_metric
 
 
 logging.getLogger('absl').setLevel(logging.WARNING)
@@ -49,14 +49,15 @@ def main(config: DictConfig):
         tokenizer,
         device=device
     )
-    test_dataset = LaMPDataset(config.task, split='dev', prompt_generator=prompt_generator)
+    test_dataset = load_lamp_dataset(config.task, split='dev')
 
     # Collects sources and targets
     sources = []
     targets = []
 
-    for example in tqdm(test_dataset, desc='Generating Prompt'):
-        sources.append(example['source'])
+    for example in tqdm(test_dataset, desc='Generating Prompts'):
+        source = prompt_generator(example['source'], example['profiles'], example['query'], example['corpus'])
+        sources.append(source)
         targets.append(example['target'])
 
     # Generates predictions
