@@ -11,8 +11,8 @@ import hydra
 from omegaconf import OmegaConf, DictConfig
 from tqdm import tqdm
 
-from lamp import LaMPDataset, create_prompt_generator, create_metric
 from llm import LLM
+from lamp import LaMPDataset, create_prompt_generator, create_metric
 
 
 logging.getLogger('absl').setLevel(logging.WARNING)
