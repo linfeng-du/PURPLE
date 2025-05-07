@@ -1,10 +1,10 @@
-from typing import Callable
-
 import torch
 import evaluate
 
+from .data_types import Reward
 
-def create_reward(task: str) -> Callable[[list[str], list[str]], torch.Tensor]:
+
+def create_reward(task: str) -> Reward:
     """Creates reward function for the specified task."""
     if task in {'LaMP-1', 'LaMP-2'}:
         return _classification_reward
@@ -50,7 +50,7 @@ def _regression_reward(predictions: list[str], targets: list[str]) -> torch.Tens
     return rewards
 
 
-def _create_generation_reward() -> Callable[[list[str], list[str]], torch.Tensor]:
+def _create_generation_reward() -> Reward:
     """Creates reward function for generation tasks."""
     rouge_metric = evaluate.load('rouge')
 
