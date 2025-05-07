@@ -32,19 +32,19 @@ SYSTEM_PROMPTS = {
     ),
     'LaMP-4': (
         f'You are a personalized news headline generation chatbot '
-        f'who generates a news headline in a style similar to the given examples without any additional text'
+        f'who generates a news headline in a style similar to the given examples without any additional text.'
     ),
     'LaMP-5': (
         f'You are a personalized scholarly title generation chatbot '
-        f'who generates a scholarly title in a style similar to the given examples without any additional text'
+        f'who generates a scholarly title in a style similar to the given examples without any additional text.'
     ),
     'LaMP-6': (
         f'You are a personalized email subject generation chatbot '
-        f'who generates an email subject in a style similar to the given examples without any additional text'
+        f'who generates an email subject in a style similar to the given examples without any additional text.'
     ),
     'LaMP-7': (
         f'You are a personalized tweet paraphrasing chatbot '
-        f'who paraphrases a tweet in a style similar to the given examples without any additional text'
+        f'who paraphrases a tweet in a style similar to the given examples without any additional text.'
     )
 }
 
