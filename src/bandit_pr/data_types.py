@@ -6,6 +6,15 @@ from transformers import BatchEncoding
 from lamp.data_types import Profile
 
 
+class Example(TypedDict):
+
+    source: str
+    profiles: list[Profile]
+    target: str
+    query_inputs: dict[str, list[int]]
+    corpus_inputs: list[dict[str, list[int]]]
+
+
 class Batch(TypedDict):
 
     source: list[str]
@@ -16,6 +25,5 @@ class Batch(TypedDict):
     profile_mask: torch.Tensor
 
 
-Example: TypeAlias = dict[str, str | list[Profile] | dict[str, list[int]] | list[dict[str, list[int]]]]
 Collator: TypeAlias = Callable[[list[Example]], Batch]
 Reward: TypeAlias = Callable[[list[str], list[str]], torch.Tensor]
