@@ -1,6 +1,6 @@
 model: microsoft/Phi-4-mini-instruct
 provider: local
-generate_kwargs:
+generate_config:
   batch_size: 1
   max_new_tokens: 256
   do_sample: true

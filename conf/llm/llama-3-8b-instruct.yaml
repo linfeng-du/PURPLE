@@ -1,6 +1,6 @@
 model: meta-llama/Meta-Llama-3-8B-Instruct
 provider: local
-generate_kwargs:
+generate_config:
   batch_size: 1
   max_new_tokens: 256
   do_sample: true

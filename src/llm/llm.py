@@ -56,13 +56,13 @@ class LLM:
         task: str,
         model: str,
         provider: str,
-        generate_kwargs: dict,
+        generate_config: dict,
         verbose: bool = False
     ):
         self.task = task
         self.model = model
         self.provider = provider
-        self.generate_kwargs = generate_kwargs
+        self.generate_config = generate_config
         self.verbose = verbose
 
         if self.provider == 'local':
@@ -94,7 +94,7 @@ class LLM:
         dataset = _ChatDataset([self._create_message(prompt) for prompt in prompts])
 
         for output in tqdm(
-            self.pipeline(dataset, **self.generate_kwargs),
+            self.pipeline(dataset, **self.generate_config),
             desc='Generating responses',
             total=len(dataset),
             disable=(not self.verbose)
@@ -114,7 +114,7 @@ class LLM:
                     completion = self.client.chat.completions.create(
                         model=self.model,
                         messages=self._create_message(prompts[index]),
-                        **self.generate_kwargs
+                        **self.generate_config
                     )
                     responses[index] = completion.choices[0].message.content
                     remaining_prompts.remove(index)
