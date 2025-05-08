@@ -1,160 +1,77 @@
-import json
-from typing import TypedDict
+from typing import Callable
 
 import torch
-from transformers import PreTrainedTokenizerBase, BatchEncoding
-from datasets import Dataset, DatasetDict
+from transformers import PreTrainedTokenizerBase
 from datasets.formatting.formatting import LazyBatch
 
-from lamp import create_query_corpus_generator
-from lamp.data_types import Profile
+from .data_types import Batch, Example, Collator
 
 
-def load_lamp_dataset(task: str, split: str) -> Dataset:
-    with open(f'./dataset/{task}/{split}_questions.json', 'r') as file:
-        examples = json.load(file)
-
-    with open(f'./dataset/{task}/{split}_outputs.json', 'r') as file:
-        targets = json.load(file)
-
-
-class RetrieverTrainingExample(TypedDict):
-
-    id: str
-    source: str
-    profile: list[Profile]
-    query: str
-    corpus: list[str]
-    target: str
-
-
-class RetrieverTrainingDataset(Dataset):
-
-    def __init__(self, task: str, split: str) -> None:
-        with open(f'./dataset/{task}/{split}_questions.json', 'r') as file:
-            self.examples = json.load(file)
-
-        with open(f'./dataset/{task}/{split}_outputs.json', 'r') as file:
-            outputs = json.load(file)
-            self.targets = {gold['id']: gold['output'] for gold in outputs['golds']}
-
-        self.query_corpus_generator = create_query_corpus_generator(task)
-
-    def __getitem__(self, index: int) -> RetrieverTrainingExample:
-        example = self.examples[index]
-
-        id_ = example['id']
-        source = example['input']
-        profile = example['profile']
-        target = self.targets[id_]
-        query, corpus = self.query_corpus_generator(source, profile)
-
-        return RetrieverTrainingExample(
-            id=id_,
-            source=source,
-            profile=profile,
-            query=query,
-            corpus=corpus,
-            target=target
-        )
-
-    def __len__(self) -> int:
-        return len(self.examples)
-
-
-def create_preprocessor(tokenizer: PreTrainedTokenizerBase, max_query_length: int, max_document_length: int):
+def create_preprocessor(
+    max_num_profiles: int,
+    max_query_length: int,
+    max_document_length: int,
+    tokenizer: PreTrainedTokenizerBase
+) -> Callable[[LazyBatch], LazyBatch]:
     def preprocessor(batch: LazyBatch) -> LazyBatch:
+        if max_num_profiles > 0:
+            batch['profiles'] = [profiles[:max_num_profiles] for profiles in batch['profiles']]
+            batch['corpus'] = [corpus[:max_num_profiles] for corpus in batch['corpus']]
+
         query_inputs = tokenizer(batch['query'], truncation=True, max_length=max_query_length)
         batch['query_inputs'] = [
             {key: value[index] for key, value in query_inputs.items()}
             for index in range(len(batch['query']))
         ]
-        batch['corpus_inputs'] = [
-            tokenizer(corpus, truncation=True, max_length=max_document_length)
-            for corpus in batch['corpus']
-        ]
+
+        batch['corpus_inputs'] = []
+
+        for corpus in batch['corpus']:
+            corpus_inputs = tokenizer(corpus, truncation=True, max_length=max_document_length)
+            corpus_inputs = [
+                {key: value[index] for key, value in corpus_inputs.items()}
+                for index in range(len(corpus))
+            ]
+            batch['corpus_inputs'].append(corpus_inputs)
+
         return batch
 
     return preprocessor
 
 
-class BatchedRetrieverTrainingExamples(TypedDict):
-
-    id: list[str]
-    source: list[str]
-    profile: list[list[Profile]]
-    query_inputs: BatchEncoding
-    corpus_inputs: list[BatchEncoding]
-    profile_mask: torch.Tensor
-    targets: list[str]
-
-
-class RetrieverTrainingCollator:
-
-    def __init__(
-        self,
-        max_num_profiles: int,
-        max_query_length: int,
-        max_document_length: int,
-        tokenizer: PreTrainedTokenizerBase
-    ) -> None:
-        self.max_num_profiles = max_num_profiles
-        self.max_query_length = max_query_length
-        self.max_document_length = max_document_length
-        self.tokenizer = tokenizer
-
-    def __call__(self, examples: list[RetrieverTrainingExample]) -> BatchedRetrieverTrainingExamples:
-        ids = [example['id'] for example in examples]
+def create_collator(tokenizer: PreTrainedTokenizerBase) -> Collator:
+    def collator(examples: list[Example]) -> Batch:
         sources = [example['source'] for example in examples]
-        profiles = [example['profile'] for example in examples]
-        queries = [example['query'] for example in examples]
-        corpuses = [example['corpus'] for example in examples]
+        profiles = [example['profiles'] for example in examples]
         targets = [example['target'] for example in examples]
+        query_inputs = [example['query_inputs'] for example in examples]
+        document_inputs = [document_inputs for example in examples for document_inputs in example['corpus_inputs']]
 
-        # Keep only `self.max_num_profiles` profiles for each example
-        max_num_profiles = max(len(profile) for profile in profiles)
+        # Creates profile mask
+        max_num_profiles = max(len(example_profiles) for example_profiles in profiles)
+        profile_mask = torch.ones(len(profiles), max_num_profiles, dtype=torch.bool)
 
-        if self.max_num_profiles > 0:
-            max_num_profiles = min(max_num_profiles, self.max_num_profiles)
+        for index, example_profiles in enumerate(profiles):
+            profile_mask[index, len(example_profiles):] = 0
 
-        profile_mask = torch.ones(len(examples), max_num_profiles, dtype=torch.bool)
+        # Pads query and corpus inputs
+        query_inputs = tokenizer.pad(query_inputs, return_tensors='pt')
 
-        for index, corpus in enumerate(corpuses):
-            if len(corpus) < max_num_profiles:
-                profile_mask[index, len(corpus):] = 0
-            elif len(corpus) > max_num_profiles:
-                corpus[max_num_profiles:] = []
-                profiles[index][max_num_profiles:] = []
-
-        query_inputs = self.tokenizer(
-            queries,
-            padding=True,
-            truncation=True,
-            max_length=self.max_query_length,
-            return_tensors='pt'
-        )
-
-        # Split documents into batches of 100 to save memory
+        # Split corpus into batches of 128 to save memory
         corpus_inputs = []
-        documents = [document for corpus in corpuses for document in corpus]
-        document_batches = [documents[i : i + 100] for i in range(0, len(documents), 100)]
+        document_batches = [document_inputs[index : index + 128] for index in range(0, len(document_inputs), 128)]
 
-        for document_batch in document_batches:
-            document_batch_inputs = self.tokenizer(
-                document_batch,
-                padding=True,
-                truncation=True,
-                max_length=self.max_document_length,
-                return_tensors='pt'
-            )
-            corpus_inputs.append(document_batch_inputs)
+        for document_inputs in document_batches:
+            document_inputs = tokenizer.pad(document_inputs, return_tensors='pt')
+            corpus_inputs.append(document_inputs)
 
-        return BatchedRetrieverTrainingExamples(
-            id=ids,
+        return Batch(
             source=sources,
-            profile=profiles,
-            # query_inputs=query_inputs,
-            # corpus_inputs=corpus_inputs,
-            profile_mask=profile_mask,
-            target=targets
+            profiles=profiles,
+            target=targets,
+            query_inputs=query_inputs,
+            corpus_inputs=corpus_inputs,
+            profile_mask=profile_mask
         )
+
+    return collator

@@ -2,16 +2,16 @@ import random
 import logging
 
 import numpy as np
+
 import torch
 from transformers import AutoTokenizer
 
 import hydra
 from omegaconf import OmegaConf, DictConfig
 
-from bandit_pr import ScoreModel
 from llm import LLM
-from lamp import RetrieverTrainingDataset, RetrieverTrainingCollator
-from trainer import RetrieverTrainer
+from bandit_pr import ScoreModel, Trainer, create_preprocessor, create_collator, create_reward
+from lamp import load_lamp_dataset, create_prompt_generator, create_metric
 
 
 logging.getLogger('absl').setLevel(logging.WARNING)
@@ -27,9 +27,11 @@ def main(config: DictConfig):
     if missing_keys:
         raise ValueError(f'Missing keys in config:\n{missing_keys}')
 
-    if config.eval_every % config.batch_size != 0:
-        config.eval_every = config.eval_every - config.eval_every % config.batch_size
-        logger.warning(f'eval_every changed to {config.eval_every} to be divisible by batch size')
+    effective_batch_size = config.batch_size * config.gradient_accumulation_steps
+
+    if config.eval_every % effective_batch_size != 0:
+        config.eval_every = config.eval_every - config.eval_every % effective_batch_size
+        logger.warning(f'eval_every changed to {config.eval_every} to be divisible by effective batch size')
 
     # Seeds everything for reproducibility
     random.seed(config.seed)
@@ -45,16 +47,51 @@ def main(config: DictConfig):
 
     llm = LLM(config.task, **config.llm)
 
-    # Prepares dataset and metric
-    train_dataset = RetrieverTrainingDataset(config.task, 'train')
-    test_dataset = RetrieverTrainingDataset(config.task, 'dev')
-    collate_fn = RetrieverTrainingCollator(
-        tokenizer=AutoTokenizer.from_pretrained(config.score_model.encoder_model),
-        **config.collator
+    # Prepares datasets
+    tokenizer = AutoTokenizer.from_pretrained(config.score_model.encoder_model)
+    preprocessor = create_preprocessor(tokenizer=tokenizer, **config.preprocessor)
+    train_dataset = load_lamp_dataset(config.task, split='train').map(
+        preprocessor,
+        batched=True,
+        remove_columns=['query', 'corpus'],
+        num_proc=16
     )
 
+    # Re-initializes tokenizer to ensure consistent hashing
+    tokenizer = AutoTokenizer.from_pretrained(config.score_model.encoder_model)
+    preprocessor = create_preprocessor(tokenizer=tokenizer, **config.preprocessor)
+    test_dataset = load_lamp_dataset(config.task, split='dev').map(
+        preprocessor,
+        batched=True,
+        remove_columns=['query', 'corpus'],
+        num_proc=16
+    )
+
+    collate_fn = create_collator(tokenizer)
+
+    # Prepares LaMP components
+    tokenizer = (
+        AutoTokenizer.from_pretrained(config.llm.model)
+        if config.llm.provider == 'local'
+        else AutoTokenizer.from_pretrained('gpt2')
+    )
+    prompt_generator = create_prompt_generator(
+        config.task,
+        'first_k',
+        config.num_retrieve,
+        config.prompt_generator.max_length,
+        tokenizer
+    )
+    reward_fn = create_reward(config.task)
+    metric_fn = create_metric(config.task)
+
     # Initializes trainer and starts training
-    trainer = RetrieverTrainer(config, score_model, llm, train_dataset, test_dataset, collate_fn)
+    trainer = Trainer(
+        config,
+        score_model, llm,
+        train_dataset, test_dataset, collate_fn,
+        prompt_generator, reward_fn, metric_fn
+    )
     trainer.train()
 
 

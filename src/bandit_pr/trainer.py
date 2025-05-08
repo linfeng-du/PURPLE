@@ -1,40 +1,47 @@
 import json
 import logging
 
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
+from datasets import Dataset
+
 import wandb
 from tqdm import tqdm
 from omegaconf import DictConfig
 
-import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader
-from transformers import AutoTokenizer
-
-from bandit_pr import ScoreModel, reinforce, create_reward
+from . import reinforce
+from .score_model import ScoreModel
+from .data_types import Collator, Reward
 from llm import LLM
-from lamp import RetrieverTrainingDataset, RetrieverTrainingCollator, create_prompt_generator, create_metric
+from lamp.data_types import PromptGenerator, Metric
 
 
 logger = logging.getLogger(__name__)
-logging.getLogger('httpx').setLevel(logging.WARNING)
 
 
-class RetrieverTrainer:
+class Trainer:
 
     def __init__(
         self,
         config: DictConfig,
         score_model: ScoreModel,
         llm: LLM,
-        train_dataset: RetrieverTrainingDataset,
-        test_dataset: RetrieverTrainingDataset,
-        collate_fn: RetrieverTrainingCollator
+        train_dataset: Dataset,
+        test_dataset: Dataset,
+        collate_fn: Collator,
+        prompt_generator: PromptGenerator,
+        reward_fn: Reward,
+        metric_fn: Metric
     ) -> None:
         self.config = config
         self.score_model = score_model
         self.llm = llm
+        self.prompt_generator = prompt_generator
+        self.reward_fn = reward_fn
+        self.metric_fn = metric_fn
 
-        self.wandb = wandb.init(project='BanditPR', dir='logs', name=f'{config.experiment}')
+        # self.wandb = wandb.init(project='BanditPR', dir='logs', name=f'{config.experiment}')
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.score_model.to(self.device)
 
@@ -46,21 +53,6 @@ class RetrieverTrainer:
             drop_last=True
         )
         self.test_loader = DataLoader(test_dataset, batch_size=self.config.eval_batch_size, collate_fn=collate_fn)
-
-        tokenizer = (
-            AutoTokenizer.from_pretrained(self.config.llm.model)
-            if self.config.llm.provider == 'local'
-            else AutoTokenizer.from_pretrained('gpt2')
-        )
-        self.prompt_generator = create_prompt_generator(
-            self.config.task,
-            'first_k',
-            self.config.num_retrieve,
-            self.config.prompt_generator.max_length,
-            tokenizer
-        )
-        self.reward_fn = create_reward(self.config.task)
-        self.metric_fn = create_metric(self.config.task)
         self.optimizer = torch.optim.Adam(
             [param for param in self.score_model.parameters() if param.requires_grad],
             lr=self.config.lr
@@ -74,17 +66,17 @@ class RetrieverTrainer:
         for epoch in range(self.config.num_epochs):
             for step, batch in enumerate(tqdm(self.train_loader, desc=f'Epoch {epoch}')):
                 if (example_cnt > 0) and (example_cnt % self.config.eval_every == 0):
-                    eval_metrics = self.evaluate()
+                    eval_results = self.evaluate()
                     self.score_model.train()
-                    self.wandb.log({'eval_reward': eval_metrics['reward']})
+                    # self.wandb.log({'eval_reward': eval_results['reward']})
                     logger.info(
-                        f'Evaluation metrics after {example_cnt} training examples:\n'
-                        f'{json.dumps(eval_metrics, indent=2)}'
+                        f'Evaluation results after {example_cnt} training examples:\n'
+                        f'{json.dumps(eval_results, indent=2)}'
                     )
 
-                    if eval_metrics['reward'] > best_eval_reward:
-                        logger.info(f'Best evaluation reward achieved: {eval_metrics["reward"]}')
-                        best_eval_reward = eval_metrics['reward']
+                    if eval_results['reward'] > best_eval_reward:
+                        logger.info(f'Best evaluation reward achieved: {eval_results["reward"]}')
+                        best_eval_reward = eval_results['reward']
                         self.score_model.save_pretrained(f'{self.config.experiment}')
 
                 candidate_likelihoods, candidate_mask, candidate_indices = self.score_model(
@@ -106,7 +98,7 @@ class RetrieverTrainer:
                 for batch_index, batch_retrieved_indices in enumerate(retrieved_indices):
                     for sample_retrieved_indices in batch_retrieved_indices:
                         profiles = [
-                            batch['profile'][batch_index][candidate_indices[batch_index][retrieved_index]]
+                            batch['profiles'][batch_index][candidate_indices[batch_index][retrieved_index]]
                             for retrieved_index in sample_retrieved_indices
                         ]
                         prompt = self.prompt_generator(batch['source'][batch_index], profiles)
@@ -129,14 +121,14 @@ class RetrieverTrainer:
                     self.optimizer.zero_grad()
 
                 example_cnt += len(batch['source'])
-                self.wandb.log({'reward': rewards.mean().item(), 'loss': loss.item()})
+                # self.wandb.log({'reward': rewards.mean().item(), 'loss': loss.item()})
 
-        self.wandb.finish()
+        # self.wandb.finish()
 
     @torch.no_grad()
     def evaluate(self) -> dict[str, float]:
         self.score_model.eval()
-        predictions = []
+        prompts = []
         targets = []
 
         for batch in tqdm(self.test_loader, desc='Evaluating'):
@@ -148,23 +140,18 @@ class RetrieverTrainer:
             num_retrieve = min(self.config.num_retrieve, candidate_likelihoods.size(dim=1))
             _, retrieved_indices = candidate_likelihoods.topk(num_retrieve, dim=1)
 
-            prompts = []
-
             for batch_index, batch_retrieved_indices in enumerate(retrieved_indices):
                 retrieved_profiles = [
-                    batch['profile'][batch_index][candidate_indices[batch_index][retrieved_index]]
+                    batch['profiles'][batch_index][candidate_indices[batch_index][retrieved_index]]
                     for retrieved_index in batch_retrieved_indices
                     if candidate_mask[batch_index][retrieved_index]
                 ]
                 prompt = self.prompt_generator(batch['source'][batch_index], retrieved_profiles)
                 prompts.append(prompt)
+                targets.append(batch['target'][batch_index])
 
-            batch_predictions = self.llm(prompts)
-            batch_targets = batch['target']
-            predictions.extend(batch_predictions)
-            targets.extend(batch_targets)
-
+        predictions = self.llm(prompts)
         rewards = self.reward_fn(predictions, targets)
-        metrics = self.metric_fn(predictions, targets)
-        metrics.update({'reward': rewards.mean().item()})
-        return metrics
+        results = self.metric_fn(predictions, targets)
+        results.update({'reward': rewards.mean().item()})
+        return results
