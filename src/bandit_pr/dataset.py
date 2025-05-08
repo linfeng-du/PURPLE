@@ -54,10 +54,10 @@ def create_collator(tokenizer: PreTrainedTokenizerBase) -> Collator:
         for index, example_profiles in enumerate(profiles):
             profile_mask[index, len(example_profiles):] = 0
 
-        # Pads query and corpus inputs
+        # Pads query inputs
         query_inputs = tokenizer.pad(query_inputs, return_tensors='pt')
 
-        # Split corpus into batches of 128 to save memory
+        # Split corpus into batches of 128 documents to save memory
         corpus_inputs = []
         document_batches = [document_inputs[index : index + 128] for index in range(0, len(document_inputs), 128)]
 
