@@ -41,7 +41,7 @@ class Trainer:
         self.reward_fn = reward_fn
         self.metric_fn = metric_fn
 
-        # self.wandb = wandb.init(project='BanditPR', dir='logs', name=f'{config.experiment}')
+        self.wandb = wandb.init(project='BanditPR', dir='logs', name=f'{config.experiment}')
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.score_model.to(self.device)
 
@@ -68,7 +68,7 @@ class Trainer:
                 if (example_cnt > 0) and (example_cnt % self.config.eval_every == 0):
                     eval_results = self.evaluate()
                     self.score_model.train()
-                    # self.wandb.log({'eval_reward': eval_results['reward']})
+                    self.wandb.log({'eval_reward': eval_results['reward']})
                     logger.info(
                         f'Evaluation results after {example_cnt} training examples:\n'
                         f'{json.dumps(eval_results, indent=2)}'
@@ -121,9 +121,9 @@ class Trainer:
                     self.optimizer.zero_grad()
 
                 example_cnt += len(batch['source'])
-                # self.wandb.log({'reward': rewards.mean().item(), 'loss': loss.item()})
+                self.wandb.log({'reward': rewards.mean().item(), 'loss': loss.item()})
 
-        # self.wandb.finish()
+        self.wandb.finish()
 
     @torch.no_grad()
     def evaluate(self) -> dict[str, float]:
