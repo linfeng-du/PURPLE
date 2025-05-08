@@ -42,7 +42,7 @@ def _sample_without_replacement(
 
     # Creates a copy of the mask to avoid in-place operations
     mask = mask.clone()
-    batch_indices = torch.arange(likelihoods.size(dim=0)).unsqueeze(dim=1)
+    batch_indices = torch.arange(likelihoods.size(dim=0), device=likelihoods.device).unsqueeze(dim=1)
 
     for i in range(sample_size):
         # Samples uniformly
