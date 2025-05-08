@@ -5,7 +5,6 @@ from .data_types import Reward
 
 
 def create_reward(task: str) -> Reward:
-    """Creates reward function for the specified task."""
     if task in {'LaMP-1', 'LaMP-2'}:
         return _classification_reward
     elif task in {'LaMP-3'}:
@@ -17,7 +16,6 @@ def create_reward(task: str) -> Reward:
 
 
 def _classification_reward(predictions: list[str], targets: list[str]) -> torch.Tensor:
-    """Computes classification rewards based on prediction and target sequences."""
     rewards = []
 
     for prediction, target in zip(predictions, targets):
@@ -28,7 +26,6 @@ def _classification_reward(predictions: list[str], targets: list[str]) -> torch.
 
 
 def _regression_reward(predictions: list[str], targets: list[str]) -> torch.Tensor:
-    """Computes regression rewards based on prediction and target sequences."""
     rewards = []
 
     for prediction, target in zip(predictions, targets):
@@ -49,11 +46,9 @@ def _regression_reward(predictions: list[str], targets: list[str]) -> torch.Tens
 
 
 def _create_generation_reward() -> Reward:
-    """Creates reward function for generation tasks."""
     rouge_metric = evaluate.load('rouge')
 
     def generation_reward(predictions: list[str], targets: list[str]) -> torch.Tensor:
-        """Computes generation rewards based on prediction and target sequences."""
         rouge_results = rouge_metric.compute(
             predictions=[prediction.strip() for prediction in predictions],
             references=[[target.strip()] for target in targets],
