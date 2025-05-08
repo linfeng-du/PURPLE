@@ -12,7 +12,8 @@ for task in ${tasks[@]}; do
         --output=./logs/sbatch/$llm/bandit_pr-$num_retrieve/$task/%j.out \
         --error=./logs/sbatch/$llm/bandit_pr-$num_retrieve/$task/%j.err \
         scripts/sbatch/train.sh \
-            --task $task \
-            --num_retrieve $num_retrieve \
-            --llm $llm
+            experiment=$llm/bandit_pr-$num_retrieve/$task \
+            task=$task \
+            num_retrieve=$num_retrieve \
+            llm=$llm
 done
