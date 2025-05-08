@@ -1,10 +1,14 @@
 # Adapted from https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/prompts/prompts.py
+import random
 import logging
 from typing import Callable
+
+from rank_bm25 import BM25Okapi
+
 import torch
 from transformers import PreTrainedTokenizerBase
 
-from .retriever import create_retriever
+from .contriever import Contriever
 from .data_types import Profile, PromptGenerator
 
 
@@ -19,17 +23,35 @@ def create_prompt_generator(
     tokenizer: PreTrainedTokenizerBase,
     device: torch.device | None = None
 ) -> PromptGenerator:
-    retriever = create_retriever(retriever, device=device)
+    if retriever == 'contriever':
+        contriever = Contriever()
+        contriever.to(device)
+
     prompt_generator = _create_prompt_generator(task)
 
     def retrieval_augmented_prompt_generator(
         source: str,
         profiles: list[Profile],
-        query: str,
-        corpus: list[str],
+        query: str | None = None,
+        corpus: list[str] | None = None,
         factor: float = 0.6
     ) -> str:
-        retrieved_profiles = retriever(query, corpus, profiles, num_retrieve)
+        nonlocal num_retrieve
+        num_retrieve = min(num_retrieve, len(profiles))
+
+        if retriever == 'first_k':
+            retrieved_profiles = profiles[:num_retrieve]
+        elif retriever == 'random':
+            retrieved_profiles = random.choices(profiles, k=num_retrieve)
+        elif retriever == 'bm25':
+            tokenized_query = query.split()
+            tokenized_corpus = [document.split() for document in corpus]
+            retrieved_profiles = BM25Okapi(tokenized_corpus).get_top_n(tokenized_query, profiles, n=num_retrieve)
+        elif retriever == 'contriever':
+            retrieved_profiles = contriever(query, corpus, profiles, num_retrieve)
+        else:
+            raise ValueError(f'Invalid retriever: {retriever}')
+
         source_length = len(tokenizer.encode(source, truncation=True, max_length=max_length))
 
         while True:

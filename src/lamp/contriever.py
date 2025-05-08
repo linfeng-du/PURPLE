@@ -1,64 +1,10 @@
-import random
-from typing import Callable
-
-from rank_bm25 import BM25Okapi
-
 import torch
 from transformers import AutoTokenizer, AutoModel
 
 from .data_types import Profile
 
 
-def create_retriever(retriever: str, device: torch.device | None = None) -> (
-    Callable[[str, list[str], list[Profile], int], list[Profile]]
-):
-    if retriever == 'first_k':
-        return _first_k_retriever
-    elif retriever == 'random':
-        return _random_retriever
-    elif retriever == 'bm25':
-        return _bm25_retriever
-    elif retriever == 'contriever':
-        contriever = _ContrieverRetriever()
-        contriever.to(device)
-        return contriever
-    else:
-        raise ValueError(f'Invalid retriever: {retriever}')
-
-
-def _first_k_retriever(
-    query: str,
-    corpus: list[str],
-    profiles: list[Profile],
-    num_retrieve: int
-) -> list[Profile]:
-    num_retrieve = min(num_retrieve, len(profiles))
-    return profiles[:num_retrieve]
-
-
-def _random_retriever(
-    query: str,
-    corpus: list[str],
-    profiles: list[Profile],
-    num_retrieve: int
-) -> list[Profile]:
-    num_retrieve = min(num_retrieve, len(profiles))
-    return random.choices(profiles, k=num_retrieve)
-
-
-def _bm25_retriever(
-    query: str,
-    corpus: list[str],
-    profiles: list[Profile],
-    num_retrieve: int
-) -> list[Profile]:
-    num_retrieve = min(num_retrieve, len(profiles))
-    tokenized_query = query.split()
-    tokenized_corpus = [document.split() for document in corpus]
-    return BM25Okapi(tokenized_corpus).get_top_n(tokenized_query, profiles, n=num_retrieve)
-
-
-class _ContrieverRetriever:
+class Contriever:
 
     def __init__(self) -> None:
         self.tokenizer = AutoTokenizer.from_pretrained('facebook/contriever')
