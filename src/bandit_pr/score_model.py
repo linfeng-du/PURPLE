@@ -11,7 +11,7 @@ class ScoreModel(nn.Module):
 
     def __init__(self, encoder_model: str, num_candidates: int, num_heads: int, decoder_hidden_size: int) -> None:
         """Initializes ScoreModel.
-        The model ranks candidate profiles before computing their likelihoods.
+        The model first selects candidate profiles and then computes their likelihoods.
         """
         super().__init__()
         self.encoder_model = encoder_model
@@ -94,7 +94,7 @@ class ScoreModel(nn.Module):
         Candidate profiles are selected based on BERT score.
         """
         batch_size, num_profiles = profile_mask.size()
-        batch_indices = torch.arange(batch_size).unsqueeze(dim=1)
+        batch_indices = torch.arange(batch_size, device=profile_mask.device).unsqueeze(dim=1)
         num_candidates = min(self.num_candidates, num_profiles)
 
         # Computes query and corpus embeddings
