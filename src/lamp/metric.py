@@ -32,9 +32,9 @@ def _create_classification_metric(labels: list[str]) -> Metric:
     accuracy_metric = evaluate.load('accuracy')
     f1_metric = evaluate.load('f1')
 
-    def map_to_label_index(input_: str) -> int:
+    def map_to_label_index(string: str) -> int:
         try:
-            return labels.index(input_.strip())
+            return labels.index(string.strip())
         except ValueError:
             return -1
 
@@ -82,16 +82,22 @@ def _create_regression_metric() -> Metric:
 
 def _create_generation_metric() -> Metric:
     rouge_metric = evaluate.load('rouge')
+    meteor_metric = evaluate.load('meteor')
 
     def generation_metric(predictions: list[str], targets: list[str]) -> dict[str, float]:
-        predictions_stripped = [prediction.strip() for prediction in predictions]
-        targets_stripped = [[target.strip()] for target in targets]
+        stripped_predictions = [prediction.strip() for prediction in predictions]
+        stripped_targets = [[target.strip()] for target in targets]
 
         rouge_results = rouge_metric.compute(
-            predictions=predictions_stripped,
-            references=targets_stripped,
+            predictions=stripped_predictions,
+            references=stripped_targets,
             rouge_types=['rouge1', 'rougeL']
         )
-        return {'rouge-1': rouge_results['rouge1'], 'rouge-L': rouge_results['rougeL']}
+        meteor_results = meteor_metric.compute(predictions=stripped_predictions, references=stripped_targets)
+        return {
+            'rouge-1': rouge_results['rouge1'],
+            'rouge-L': rouge_results['rougeL'],
+            'meteor': meteor_results['meteor']
+        }
 
     return generation_metric
