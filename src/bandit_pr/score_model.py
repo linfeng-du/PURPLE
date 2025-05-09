@@ -89,7 +89,7 @@ class ScoreModel(nn.Module):
         query_inputs: BatchEncoding,
         corpus_inputs: list[BatchEncoding],
         profile_mask: torch.Tensor
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Computes candidate profile likelihoods conditioned on the given query.
         Candidate profiles are selected based on BERT score.
         """

@@ -10,11 +10,12 @@ import wandb
 from tqdm import tqdm
 from omegaconf import DictConfig
 
+from llm import LLM
+from lamp.data_types import PromptGenerator, Metric
+
 from . import reinforce
 from .score_model import ScoreModel
 from .data_types import Collator, Reward
-from llm import LLM
-from lamp.data_types import PromptGenerator, Metric
 
 
 logger = logging.getLogger(__name__)
@@ -147,8 +148,10 @@ class Trainer:
                     if candidate_mask[batch_index][retrieved_index]
                 ]
                 prompt = self.prompt_generator(batch['source'][batch_index], retrieved_profiles)
+                target = batch['target'][batch_index]
+
                 prompts.append(prompt)
-                targets.append(batch['target'][batch_index])
+                targets.append(target)
 
         predictions = self.llm(prompts)
         rewards = self.reward_fn(predictions, targets)
