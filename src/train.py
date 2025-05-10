@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 @hydra.main(config_path='../conf', config_name='bandit_pr', version_base=None)
-def main(config: DictConfig):
+def main(config: DictConfig) -> None:
     # Checks config validity
     missing_keys = OmegaConf.missing_keys(config)
 

@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 @hydra.main(config_path='../conf', config_name='baseline', version_base=None)
-def main(config: DictConfig):
+def main(config: DictConfig) -> None:
     # Checks for missing keys
     missing_keys = OmegaConf.missing_keys(config)
 
@@ -57,8 +57,10 @@ def main(config: DictConfig):
 
     for example in tqdm(test_dataset, desc='Generating Prompts'):
         source = prompt_generator(example['source'], example['profiles'], example['query'], example['corpus'])
+        target = example['target']
+
         sources.append(source)
-        targets.append(example['target'])
+        targets.append(target)
 
     # Generates predictions
     llm = LLM(config.task, verbose=True, **config.llm)
