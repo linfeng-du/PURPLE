@@ -94,7 +94,7 @@ def _generate_prompt_classification_citation(
     template_length = 2 * len(profiles)
     max_length_per_profile = (max_length - template_length) // len(profiles)
 
-    profile_prompts = []
+    prompts = []
     saved_length = 0
 
     for profile in profiles:
@@ -110,11 +110,11 @@ def _generate_prompt_classification_citation(
         new_title = tokenizer.decode(input_ids, skip_special_tokens=True)
         profile_prompt = f'"{new_title}"'
 
-        profile_prompts.append(profile_prompt)
+        prompts.append(profile_prompt)
         saved_length += max_length_per_profile - profile_template_length - len(input_ids)
 
     title_start = source.find('title')
-    return f'{source[:title_start + 5]}, and {", and ".join(profile_prompts)}{source[title_start + 5:]}'
+    return f'{source[:title_start + 5]}, and {", and ".join(prompts)}{source[title_start + 5:]}'
 
 
 # ==================================        LaMP 2: Personalized Movie Tagging        ==================================
@@ -127,7 +127,7 @@ def _generate_prompt_classification_movies(
     template_length = 2 * (len(profiles) - 1) + 1
     max_length_per_profile = (max_length - template_length) // len(profiles)
 
-    profile_prompts = []
+    prompts = []
     saved_length = 0
 
     for profile in profiles:
@@ -144,10 +144,10 @@ def _generate_prompt_classification_movies(
         new_description = tokenizer.decode(input_ids, skip_special_tokens=True)
         profile_prompt = f'the tag for the movie: "{new_description}" is "{profile["tag"]}" '
 
-        profile_prompts.append(profile_prompt)
+        prompts.append(profile_prompt)
         saved_length += max_length_per_profile - profile_template_length - len(input_ids)
 
-    return f'{", and ".join(profile_prompts)}. {source}'
+    return f'{", and ".join(prompts)}. {source}'
 
 
 # ==================================       LaMP 3: Personalized Product Rating       ==================================
@@ -160,7 +160,7 @@ def _generate_prompt_regression_review(
     template_length = 2 * (len(profiles) - 1) + 1
     max_length_per_profile = (max_length - template_length) // len(profiles)
 
-    profile_prompts = []
+    prompts = []
     saved_length = 0
 
     for profile in profiles:
@@ -177,10 +177,10 @@ def _generate_prompt_regression_review(
         new_text = tokenizer.decode(input_ids, skip_special_tokens=True)
         profile_prompt = f'{profile["score"]} is the score for "{new_text}" '
 
-        profile_prompts.append(profile_prompt)
+        prompts.append(profile_prompt)
         saved_length += max_length_per_profile - profile_template_length - len(input_ids)
 
-    return f'{", and ".join(profile_prompts)}. {source}'
+    return f'{", and ".join(prompts)}. {source}'
 
 
 # ==================================  LaMP 4: Personalized News Headline Generation  ==================================
@@ -193,7 +193,7 @@ def _generate_prompt_generation_news(
     template_length = 2 * (len(profiles) - 1) + 1
     max_length_per_profile = (max_length - template_length) // len(profiles)
 
-    profile_prompts = []
+    prompts = []
     saved_length = 0
 
     for profile in profiles:
@@ -210,10 +210,10 @@ def _generate_prompt_generation_news(
         new_text = tokenizer.decode(input_ids, skip_special_tokens=True)
         profile_prompt = f'"{profile["title"]}" is the title for "{new_text}" '
 
-        profile_prompts.append(profile_prompt)
+        prompts.append(profile_prompt)
         saved_length += max_length_per_profile - profile_template_length - len(input_ids)
 
-    return f'{", and ".join(profile_prompts)}. {source}'
+    return f'{", and ".join(prompts)}. {source}'
 
 
 # ================================== LaMP 5: Personalized Scholarly Title Generation ==================================
@@ -230,7 +230,7 @@ def _generate_prompt_generation_paper(
     )
     max_length_per_profile = (max_length - template_length) // len(profiles)
 
-    profile_prompts = []
+    prompts = []
     saved_length = 0
 
     for profile in profiles:
@@ -247,10 +247,10 @@ def _generate_prompt_generation_paper(
         new_abstract = tokenizer.decode(input_ids, skip_special_tokens=True)
         profile_prompt = f'"{profile["title"]}" is a title for "{new_abstract}" '
 
-        profile_prompts.append(profile_prompt)
+        prompts.append(profile_prompt)
         saved_length += max_length_per_profile - profile_template_length - len(input_ids)
 
-    return f'{", and ".join(profile_prompts)}. Following the given patterns {source}'
+    return f'{", and ".join(prompts)}. Following the given patterns {source}'
 
 
 # ==================================  LaMP 6: Personalized Email Subject Generation  ==================================
@@ -263,7 +263,7 @@ def _generate_prompt_generation_avocado(
     template_length = 2 * (len(profiles) - 1) + 1
     max_length_per_profile = (max_length - template_length) // len(profiles)
 
-    profile_prompts = []
+    prompts = []
     saved_length = 0
 
     for profile in profiles:
@@ -280,10 +280,10 @@ def _generate_prompt_generation_avocado(
         new_text = tokenizer.decode(input_ids, skip_special_tokens=True)
         profile_prompt = f'"{profile["title"]}" is the title for "{new_text}" '
 
-        profile_prompts.append(profile_prompt)
+        prompts.append(profile_prompt)
         saved_length += max_length_per_profile - profile_template_length - len(input_ids)
 
-    return f'{", and ".join(profile_prompts)}. {source}'
+    return f'{", and ".join(prompts)}. {source}'
 
 
 # ==================================     LaMP 7: Personalized Tweet Paraphrasing     ==================================
@@ -300,7 +300,7 @@ def _generate_prompt_paraphrase_tweet(
     )
     max_length_per_profile = (max_length - template_length) // len(profiles)
 
-    profile_prompts = []
+    prompts = []
     saved_length = 0
 
     for profile in profiles:
@@ -316,7 +316,7 @@ def _generate_prompt_paraphrase_tweet(
         new_text = tokenizer.decode(input_ids, skip_special_tokens=True)
         profile_prompt = f'"{new_text}" '
 
-        profile_prompts.append(profile_prompt)
+        prompts.append(profile_prompt)
         saved_length += max_length_per_profile - profile_template_length - len(input_ids)
 
-    return f'{", and ".join(profile_prompts)} are written by a person. Following the given patterns {source}'
+    return f'{", and ".join(prompts)} are written by a person. Following the given patterns {source}'

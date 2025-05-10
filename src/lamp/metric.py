@@ -1,3 +1,5 @@
+# Adapted from https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/metrics/classification_metrics.py
+# and https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/metrics/generation_metrics.py
 import evaluate
 
 from .data_types import Metric

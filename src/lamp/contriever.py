@@ -1,3 +1,4 @@
+# Adapted from https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/prompts/contriever_retriever.py
 import torch
 from transformers import AutoTokenizer, AutoModel
 
