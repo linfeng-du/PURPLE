@@ -51,14 +51,7 @@ SYSTEM_PROMPTS = {
 
 class LLM:
 
-    def __init__(
-        self,
-        task: str,
-        model: str,
-        provider: str,
-        generate_config: dict,
-        verbose: bool = False
-    ):
+    def __init__(self, task: str, model: str, provider: str, generate_config: dict, verbose: bool = False) -> None:
         self.task = task
         self.model = model
         self.provider = provider
