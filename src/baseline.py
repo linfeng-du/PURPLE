@@ -12,7 +12,7 @@ from omegaconf import OmegaConf, DictConfig
 from tqdm import tqdm
 
 from llm import LLM
-from lamp import load_lamp_dataset, create_prompt_generator, create_metric
+from lamp import load_lamp_dataset, load_long_lamp_dataset, create_prompt_generator, create_metric
 
 
 logging.getLogger('absl').setLevel(logging.WARNING)
@@ -49,7 +49,13 @@ def main(config: DictConfig) -> None:
         tokenizer,
         device=device
     )
-    test_dataset = load_lamp_dataset(config.task, split='dev')
+
+    if config.task.startswith('LaMP'):
+        test_dataset = load_lamp_dataset(config.task, split='dev')
+    elif config.task.startswith('LongLaMP'):
+        test_dataset = load_long_lamp_dataset(config.task, split='test')
+    else:
+        raise ValueError(f'Invalid task: {config.task}')
 
     # Collects sources and targets
     sources = []

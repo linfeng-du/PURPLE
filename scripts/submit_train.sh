@@ -1,6 +1,6 @@
 #!/bin/bash
 
-tasks=("LaMP-1" "LaMP-2" "LaMP-3" "LaMP-4" "LaMP-5" "LaMP-7")
+tasks=("LaMP-1" "LaMP-2" "LaMP-3" "LaMP-4" "LaMP-5" "LaMP-7", "LongLaMP-2", "LongLaMP-3", 'LaMPLaMP-4')
 num_retrieve=5
 llm="phi-4-mini-instruct"
 

@@ -2,7 +2,7 @@ import os
 import json
 from typing import Callable
 
-from datasets import Dataset, load_from_disk
+from datasets import Dataset, load_dataset, load_from_disk
 
 from .data_types import Profile
 
@@ -34,6 +34,37 @@ def load_lamp_dataset(task: str, split: str) -> Dataset:
     return load_from_disk(dataset_dir)
 
 
+TASK_NAMES = {
+    'LongLaMP-1': NotImplementedError,
+    'LongLaMP-2': 'abstract_generation_user',
+    'LongLaMP-3': 'topic_writing_user',
+    'LongLaMP-4': 'product_review_user'
+}
+
+
+def load_long_lamp_dataset(task: str, split: str) -> Dataset:
+    dataset_dir = f'./dataset/{task}/{split}'
+
+    if not os.path.exists(dataset_dir):
+        dataset = load_dataset('LongLaMP/LongLaMP', name=TASK_NAMES[task], split=split)
+
+        examples = []
+        query_corpus_generator = _create_query_corpus_generator(task)
+
+        for row in dataset:
+            source = row['input']
+            profiles = row['profile']
+            target = row['output']
+            query, corpus = query_corpus_generator(source, profiles)
+
+            example = {'source': source, 'profiles': profiles, 'query': query, 'corpus': corpus, 'target': target}
+            examples.append(example)
+
+        Dataset.from_list(examples).save_to_disk(dataset_dir)
+
+    return load_from_disk(dataset_dir)
+
+
 def _create_query_corpus_generator(task: str) -> Callable[[str, list[Profile]], tuple[str, list[str]]]:
     task_fns = {
         'LaMP-1': _generate_query_corpus_classification_citation,
@@ -42,7 +73,11 @@ def _create_query_corpus_generator(task: str) -> Callable[[str, list[Profile]], 
         'LaMP-4': _generate_query_corpus_generation_news,
         'LaMP-5': _generate_query_corpus_generation_paper,
         'LaMP-6': _generate_query_corpus_generation_avocado,
-        'LaMP-7': _generate_query_corpus_paraphrase_tweet
+        'LaMP-7': _generate_query_corpus_generation_tweet,
+        'LongLaMP-1': _generate_query_corpus_generation_email,
+        'LongLaMP-2': _generate_query_corpus_generation_abstract,
+        'LongLaMP-3': _generate_query_corpus_generation_topic,
+        'LongLaMP-4': _generate_query_corpus_generation_review
     }
     return task_fns[task]
 
@@ -91,10 +126,39 @@ def _generate_query_corpus_generation_avocado(source: str, profiles: list[Profil
 
 
 # ==================================     LaMP 7: Personalized Tweet Paraphrasing     ==================================
-def _generate_query_corpus_paraphrase_tweet(source: str, profiles: list[Profile]) -> tuple[str, list[str]]:
+def _generate_query_corpus_generation_tweet(source: str, profiles: list[Profile]) -> tuple[str, list[str]]:
     query = _extract_string_after_keyword(source, ': ')
     corpus = [profile['text'] for profile in profiles]
     return query, corpus
+
+
+# =================================     LongLaMP 1: Personalized Email Completion     =================================
+def _generate_query_corpus_generation_email(source: str, profiles: list[Profile]) -> tuple[str, list[str]]:
+    query = _extract_string_after_keyword(source, ': ')
+    corpus = [profile['text'] for profile in profiles]
+    return query, corpus
+
+
+# ================================     LongLaMP 2: Personalized Abstract Generation     ================================
+def _generate_query_corpus_generation_abstract(source: str, profiles: list[Profile]) -> tuple[str, list[str]]:
+    query = _extract_string_after_keyword(source, 'items: ')
+    corpus = [f'{profile["title"]} {profile["abstract"]}' for profile in profiles]
+    return query, corpus
+
+
+# =================================     LongLaMP 3: Personalized Topic Generation     =================================
+def _generate_query_corpus_generation_topic(source: str, profiles: list[Profile]) -> tuple[str, list[str]]:
+    corpus = [f'{profile["input"]} {profile["output"]}' for profile in profiles]
+    return source, corpus
+
+
+# =============================     LongLaMP 4: Personalized Product Review Generation     =============================
+def _generate_query_corpus_generation_review(source: str, profiles: list[Profile]) -> tuple[str, list[str]]:
+    corpus = [
+        f'{profile["overall"]} {profile["summary"]} {profile["description"]} {profile["reviewText"]}'
+        for profile in profiles
+    ]
+    return source, corpus
 
 
 # ==================================                Utility Functions                ==================================

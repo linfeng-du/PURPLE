@@ -11,7 +11,7 @@ from omegaconf import OmegaConf, DictConfig
 
 from llm import LLM
 from bandit_pr import ScoreModel, Trainer, create_preprocessor, create_collator, create_reward
-from lamp import load_lamp_dataset, create_prompt_generator, create_metric
+from lamp import load_lamp_dataset, load_long_lamp_dataset, create_prompt_generator, create_metric
 
 
 logging.getLogger('absl').setLevel(logging.WARNING)
@@ -48,24 +48,23 @@ def main(config: DictConfig) -> None:
     llm = LLM(config.task, **config.llm)
 
     # Prepares datasets
+    if config.task.startswith('LaMP'):
+        train_dataset = load_lamp_dataset(config.task, split='train')
+        test_dataset = load_lamp_dataset(config.task, split='dev')
+    elif config.task.startswith('LongLaMP'):
+        train_dataset = load_long_lamp_dataset(config.task, split='train')
+        test_dataset = load_long_lamp_dataset(config.task, split='test')
+    else:
+        raise ValueError(f'Invalid task: {config.task}')
+
     tokenizer = AutoTokenizer.from_pretrained(config.score_model.encoder_model)
     preprocessor = create_preprocessor(tokenizer=tokenizer, **config.preprocessor)
-    train_dataset = load_lamp_dataset(config.task, split='train').map(
-        preprocessor,
-        batched=True,
-        remove_columns=['query', 'corpus'],
-        num_proc=16
-    )
+    train_dataset = train_dataset.map(preprocessor, batched=True, remove_columns=['query', 'corpus'], num_proc=16)
 
     # Re-initializes tokenizer to ensure consistent hashing
     tokenizer = AutoTokenizer.from_pretrained(config.score_model.encoder_model)
     preprocessor = create_preprocessor(tokenizer=tokenizer, **config.preprocessor)
-    test_dataset = load_lamp_dataset(config.task, split='dev').map(
-        preprocessor,
-        batched=True,
-        remove_columns=['query', 'corpus'],
-        num_proc=16
-    )
+    test_dataset = test_dataset.map(preprocessor, batched=True, remove_columns=['query', 'corpus'], num_proc=16)
 
     collate_fn = create_collator(tokenizer)
 

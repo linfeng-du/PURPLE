@@ -45,6 +45,22 @@ SYSTEM_PROMPTS = {
     'LaMP-7': (
         f'You are a personalized tweet paraphrasing chatbot '
         f'who paraphrases a tweet in a style similar to the given examples without any additional text.'
+    ),
+    'LongLaMP-1': (
+        f'You are a personalized email completion chatbot '
+        f'who completes an email in a style similar to the given examples without any additional text.'
+    ),
+    'LongLaMP-2': (
+        f'You are a personalized abstract generation chatbot '
+        f'who generates an abstract in a style similar to the given examples without any additional text.'
+    ),
+    'LongLaMP-3': (
+        f'You are a personalized topic generation chatbot '
+        f'who generates a topic in a style similar to the given examples without any additional text.'
+    ),
+    'LongLaMP-4': (
+        f'You are a personalized product review generation chatbot '
+        f'who generates a product review in a style similar to the given examples without any additional text.'
     )
 }
 

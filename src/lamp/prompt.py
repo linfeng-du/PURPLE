@@ -79,7 +79,11 @@ def _create_prompt_generator(task: str) -> (
         'LaMP-4': _generate_prompt_generation_news,
         'LaMP-5': _generate_prompt_generation_paper,
         'LaMP-6': _generate_prompt_generation_avocado,
-        'LaMP-7': _generate_prompt_paraphrase_tweet
+        'LaMP-7': _generate_prompt_generation_tweet,
+        'LongLaMP-1': _generate_prompt_generation_email,
+        'LongLaMP-2': _generate_prompt_generation_abstract,
+        'LongLaMP-3': _generate_prompt_generation_topic,
+        'LongLaMP-4': _generate_prompt_generation_review
     }
     return task_fns[task]
 
@@ -108,9 +112,9 @@ def _generate_prompt_classification_citation(
             max_length=max_profile_length
         )
         new_title = tokenizer.decode(input_ids, skip_special_tokens=True)
-        profile_prompt = f'"{new_title}"'
+        prompt = f'"{new_title}"'
 
-        prompts.append(profile_prompt)
+        prompts.append(prompt)
         saved_length += max_length_per_profile - profile_template_length - len(input_ids)
 
     title_start = source.find('title')
@@ -142,9 +146,9 @@ def _generate_prompt_classification_movies(
             max_length=max_profile_length
         )
         new_description = tokenizer.decode(input_ids, skip_special_tokens=True)
-        profile_prompt = f'the tag for the movie: "{new_description}" is "{profile["tag"]}" '
+        prompt = f'the tag for the movie: "{new_description}" is "{profile["tag"]}" '
 
-        prompts.append(profile_prompt)
+        prompts.append(prompt)
         saved_length += max_length_per_profile - profile_template_length - len(input_ids)
 
     return f'{", and ".join(prompts)}. {source}'
@@ -175,9 +179,9 @@ def _generate_prompt_regression_review(
             max_length=max_profile_length
         )
         new_text = tokenizer.decode(input_ids, skip_special_tokens=True)
-        profile_prompt = f'{profile["score"]} is the score for "{new_text}" '
+        prompt = f'{profile["score"]} is the score for "{new_text}" '
 
-        prompts.append(profile_prompt)
+        prompts.append(prompt)
         saved_length += max_length_per_profile - profile_template_length - len(input_ids)
 
     return f'{", and ".join(prompts)}. {source}'
@@ -208,9 +212,9 @@ def _generate_prompt_generation_news(
             max_length=max_profile_length
         )
         new_text = tokenizer.decode(input_ids, skip_special_tokens=True)
-        profile_prompt = f'"{profile["title"]}" is the title for "{new_text}" '
+        prompt = f'"{profile["title"]}" is the title for "{new_text}" '
 
-        prompts.append(profile_prompt)
+        prompts.append(prompt)
         saved_length += max_length_per_profile - profile_template_length - len(input_ids)
 
     return f'{", and ".join(prompts)}. {source}'
@@ -245,9 +249,9 @@ def _generate_prompt_generation_paper(
             max_length=max_profile_length
         )
         new_abstract = tokenizer.decode(input_ids, skip_special_tokens=True)
-        profile_prompt = f'"{profile["title"]}" is a title for "{new_abstract}" '
+        prompt = f'"{profile["title"]}" is a title for "{new_abstract}" '
 
-        prompts.append(profile_prompt)
+        prompts.append(prompt)
         saved_length += max_length_per_profile - profile_template_length - len(input_ids)
 
     return f'{", and ".join(prompts)}. Following the given patterns {source}'
@@ -278,16 +282,16 @@ def _generate_prompt_generation_avocado(
             max_length=max_profile_length
         )
         new_text = tokenizer.decode(input_ids, skip_special_tokens=True)
-        profile_prompt = f'"{profile["title"]}" is the title for "{new_text}" '
+        prompt = f'"{profile["title"]}" is the title for "{new_text}" '
 
-        prompts.append(profile_prompt)
+        prompts.append(prompt)
         saved_length += max_length_per_profile - profile_template_length - len(input_ids)
 
     return f'{", and ".join(prompts)}. {source}'
 
 
 # ==================================     LaMP 7: Personalized Tweet Paraphrasing     ==================================
-def _generate_prompt_paraphrase_tweet(
+def _generate_prompt_generation_tweet(
     source: str,
     profiles: list[Profile],
     max_length: int,
@@ -314,9 +318,108 @@ def _generate_prompt_paraphrase_tweet(
             max_length=max_profile_length
         )
         new_text = tokenizer.decode(input_ids, skip_special_tokens=True)
-        profile_prompt = f'"{new_text}" '
+        prompt = f'"{new_text}" '
 
-        prompts.append(profile_prompt)
+        prompts.append(prompt)
         saved_length += max_length_per_profile - profile_template_length - len(input_ids)
 
     return f'{", and ".join(prompts)} are written by a person. Following the given patterns {source}'
+
+
+# =================================     LongLaMP 1: Personalized Email Completion     =================================
+def _generate_prompt_generation_email(
+    source: str,
+    profiles: list[Profile],
+    max_length: int,
+    tokenizer: PreTrainedTokenizerBase
+) -> str:
+    prompts = []
+
+    for profile in profiles:
+        input_ids = tokenizer.encode(
+            profile['text'],
+            add_special_tokens=False,
+            truncation=True,
+            max_length=max_length
+        )
+        new_text = tokenizer.decode(input_ids, skip_special_tokens=True)
+        prompt = f'"{profile["title"]}" is the title for "{new_text}" '
+        prompts.append(prompt)
+
+    return f'{", and ".join(prompts)}. {source}'
+
+
+# ================================     LongLaMP 2: Personalized Abstract Generation     ================================
+def _generate_prompt_generation_abstract(
+    source: str,
+    profiles: list[Profile],
+    max_length: int,
+    tokenizer: PreTrainedTokenizerBase
+) -> str:
+    prompts = []
+
+    for profile in profiles:
+        # Truncates abstract to 750 words
+        input_ids = tokenizer.encode(
+            ' '.join(profile['abstract'].split()[:750]),
+            add_special_tokens=False,
+            truncation=True,
+            max_length=max_length
+        )
+        new_abstract = tokenizer.decode(input_ids, skip_special_tokens=True)
+        prompt = f'"{new_abstract}" is the abstract for the title "{profile["title"]}"'
+        prompts.append(prompt)
+
+    return (
+        f'{", and ".join(prompts)}. Use the above abstracts as context to '
+        f'understand the style and language of the user and, {source}'
+    )
+
+
+# =================================     LongLaMP 3: Personalized Topic Generation     =================================
+def _generate_prompt_generation_topic(
+    source: str,
+    profiles: list[Profile],
+    max_length: int,
+    tokenizer: PreTrainedTokenizerBase
+) -> str:
+    prompts = []
+
+    for profile in profiles:
+        input_ids = tokenizer.encode(
+            profile['output'],
+            add_special_tokens=False,
+            truncation=True,
+            max_length=max_length
+        )
+        new_output = tokenizer.decode(input_ids, skip_special_tokens=True)
+        prompt = f'"{profile["input"]}" is a summary for "{new_output}" '
+        prompts.append(prompt)
+
+    return f'{", and ".join(prompts)}. Following the given patterns, {source}'
+
+
+# =============================     LongLaMP 4: Personalized Product Review Generation     =============================
+def _generate_prompt_generation_review(
+    source: str,
+    profiles: list[Profile],
+    max_length: int,
+    tokenizer: PreTrainedTokenizerBase
+) -> str:
+    prompts = []
+
+    for profile in profiles:
+        input_ids = tokenizer.encode(
+            profile['reviewText'],
+            add_special_tokens=False,
+            truncation=True,
+            max_length=max_length
+        )
+        new_review_text = tokenizer.decode(input_ids, skip_special_tokens=True)
+        prompt = (
+            f'"{profile["overall"]}" is a rating for the product with description "{profile["description"]}". '
+            f'"{profile["summary"]}" is summary for "{new_review_text}" '
+        )
+        prompts.append(prompt)
+
+    return f'{", and ".join(prompts)}. Following the given patterns {source}'

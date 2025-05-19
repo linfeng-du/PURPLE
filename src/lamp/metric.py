@@ -12,6 +12,8 @@ def create_metric(task: str) -> Metric:
         return _create_regression_metric()
     elif task in {'LaMP-4', 'LaMP-5', 'LaMP-6', 'LaMP-7'}:
         return _create_generation_metric()
+    elif task in {'LongLaMP-1', 'LongLaMP-2', 'LongLaMP-3', 'LongLaMP-4'}:
+        return _create_generation_metric()
     else:
         raise ValueError(f'Invalid task: {task}')
 

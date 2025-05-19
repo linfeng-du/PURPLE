@@ -11,6 +11,8 @@ def create_reward(task: str) -> Reward:
         return _regression_reward
     elif task in {'LaMP-4', 'LaMP-5', 'LaMP-6', 'LaMP-7'}:
         return _create_generation_reward()
+    elif task in {'LongLaMP-1', 'LongLaMP-2', 'LongLaMP-3', 'LongLaMP-4'}:
+        return _create_generation_reward()
     else:
         raise ValueError(f'Invalid task: {task}')
 
