@@ -35,7 +35,6 @@ def load_lamp_dataset(task: str, split: str) -> Dataset:
 
 
 TASK_NAMES = {
-    'LongLaMP-1': NotImplementedError,
     'LongLaMP-2': 'abstract_generation_user',
     'LongLaMP-3': 'topic_writing_user',
     'LongLaMP-4': 'product_review_user'
