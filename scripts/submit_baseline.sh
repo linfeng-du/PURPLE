@@ -2,7 +2,7 @@
 
 local_llms=("llama-3-8b-instruct" "phi-4-mini-instruct")
 api_llms=("gpt-4o-mini")
-tasks=("LaMP-1" "LaMP-2" "LaMP-3" "LaMP-4" "LaMP-5" "LaMP-7", "LongLaMP-2", "LongLaMP-3", 'LaMPLaMP-4')
+tasks=("LaMP-1" "LaMP-2" "LaMP-3" "LaMP-4" "LaMP-5" "LaMP-7" "LongLaMP-2" "LongLaMP-3" "LongLaMP-4")
 retrievers=("random" "bm25" "contriever")
 num_retrieve=5
 
