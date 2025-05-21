@@ -387,13 +387,13 @@ def _generate_prompt_generation_topic(
 
     for profile in profiles:
         input_ids = tokenizer.encode(
-            profile['output'],
+            profile['summary'],
             add_special_tokens=False,
             truncation=True,
             max_length=max_length
         )
-        new_output = tokenizer.decode(input_ids, skip_special_tokens=True)
-        prompt = f'"{profile["input"]}" is a summary for "{new_output}" '
+        new_summary = tokenizer.decode(input_ids, skip_special_tokens=True)
+        prompt = f'"{profile["content"]}" is a summary for "{new_summary}" '
         prompts.append(prompt)
 
     return f'{", and ".join(prompts)}. Following the given patterns, {source}'

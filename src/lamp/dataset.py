@@ -147,7 +147,7 @@ def _generate_query_corpus_generation_abstract(source: str, profiles: list[Profi
 
 # =================================     LongLaMP 3: Personalized Topic Generation     =================================
 def _generate_query_corpus_generation_topic(source: str, profiles: list[Profile]) -> tuple[str, list[str]]:
-    corpus = [f'{profile["input"]} {profile["output"]}' for profile in profiles]
+    corpus = [f'{profile["content"]} {profile["summary"]}' for profile in profiles]
     return source, corpus
 
 
