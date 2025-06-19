@@ -87,21 +87,25 @@ def _create_regression_metric() -> Metric:
 def _create_generation_metric() -> Metric:
     rouge_metric = evaluate.load('rouge')
     meteor_metric = evaluate.load('meteor')
+    wer_metric = evaluate.load('wer')
 
     def generation_metric(predictions: list[str], targets: list[str]) -> dict[str, float]:
         stripped_predictions = [prediction.strip() for prediction in predictions]
-        stripped_targets = [[target.strip()] for target in targets]
+        stripped_targets = [target.strip() for target in targets]
+        target_lists = [[target] for target in stripped_targets]
 
         rouge_results = rouge_metric.compute(
             predictions=stripped_predictions,
-            references=stripped_targets,
+            references=target_lists,
             rouge_types=['rouge1', 'rougeL']
         )
-        meteor_results = meteor_metric.compute(predictions=stripped_predictions, references=stripped_targets)
+        meteor_results = meteor_metric.compute(predictions=stripped_predictions, references=target_lists)
+        wer_result = wer_metric.compute(predictions=stripped_predictions, references=stripped_targets)
         return {
             'rouge-1': rouge_results['rouge1'],
             'rouge-L': rouge_results['rougeL'],
-            'meteor': meteor_results['meteor']
+            'meteor': meteor_results['meteor'],
+            'wer': wer_result
         }
 
     return generation_metric
