@@ -79,8 +79,7 @@ class LLM:
                 task='text-generation',
                 model=self.model,
                 device=(torch.cuda.device_count() - 1),
-                torch_dtype=torch.bfloat16,
-                trust_remote_code=True
+                torch_dtype=torch.bfloat16
             )
             self.pipeline.tokenizer.padding_side = 'left'
 
