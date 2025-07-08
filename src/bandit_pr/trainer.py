@@ -113,10 +113,10 @@ class Trainer:
                         prompts.append(prompt)
                         targets.append(target)
 
-                target_logps = self.llm.compute_target_logps(prompts, targets)
-                target_logps = target_logps.to(self.device).view_as(logps)
+                rewards = self.llm.compute_target_logps(prompts, targets)
+                rewards = rewards.to(self.device).view_as(logps)
 
-                loss = reinforce.compute_loss(logps, target_logps)
+                loss = reinforce.compute_loss(logps, rewards)
                 loss = loss / self.config.gradient_accumulation_steps
                 loss.backward()
 
