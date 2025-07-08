@@ -22,19 +22,19 @@ logger = logging.getLogger(__name__)
 
 @hydra.main(config_path='../conf', config_name='baseline', version_base=None)
 def main(config: DictConfig) -> None:
-    # Checks for missing keys
+    # Check for missing keys
     missing_keys = OmegaConf.missing_keys(config)
 
     if missing_keys:
         raise ValueError(f'Missing keys in config:\n{missing_keys}')
 
-    # Seeds everything for reproducibility
+    # Seed everything for reproducibility
     random.seed(config.seed)
     np.random.seed(config.seed)
     torch.manual_seed(config.seed)
     torch.cuda.manual_seed(config.seed)
 
-    # Prepares dataset
+    # Prepare dataset
     tokenizer = (
         AutoTokenizer.from_pretrained(config.llm.model)
         if config.llm.provider == 'local'
@@ -57,7 +57,7 @@ def main(config: DictConfig) -> None:
     else:
         raise ValueError(f'Invalid task: {config.task}')
 
-    # Collects sources and targets
+    # Collect sources and targets
     sources = []
     targets = []
 
@@ -68,11 +68,11 @@ def main(config: DictConfig) -> None:
         sources.append(source)
         targets.append(target)
 
-    # Generates predictions
+    # Generate predictions
     llm = LLM(config.task, verbose=True, **config.llm)
     predictions = llm.generate(sources)
 
-    # Computes metrics
+    # Compute metrics
     metric_fn = create_metric(config.task)
     test_results = metric_fn(predictions, targets)
     logger.info(f'Evaluation results:\n{json.dumps(test_results, indent=2)}')

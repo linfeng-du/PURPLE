@@ -119,7 +119,6 @@ class ScoreModel(nn.Module):
         return likelihoods
 
     def _compute_sentence_embedding(self, sentence_inputs: BatchEncoding) -> torch.Tensor:
-        """Computes sentence embedding by mean pooling over token embeddings."""
         sentence_outputs = self.encoder(**sentence_inputs)
         token_embeddings = sentence_outputs.last_hidden_state
         attention_mask = sentence_inputs['attention_mask'].unsqueeze(dim=2)
