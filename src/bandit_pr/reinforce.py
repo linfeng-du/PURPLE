@@ -15,16 +15,16 @@ def sample(
     sample_size = min(sample_size, mask.sum(dim=1).min().item())
 
     indices = []
-    log_probs = []
+    logps = []
 
     for _ in range(num_samples):
-        sample_indices, sample_log_prob = _sample_without_replacement(likelihoods, mask, sample_size, epsilon)
+        sample_indices, sample_logp = _sample_without_replacement(likelihoods, mask, sample_size, epsilon)
         indices.append(sample_indices)
-        log_probs.append(sample_log_prob)
+        logps.append(sample_logp)
 
     indices = torch.stack(indices, dim=1)
-    log_probs = torch.stack(log_probs, dim=1)
-    return indices, log_probs
+    logps = torch.stack(logps, dim=1)
+    return indices, logps
 
 
 def _sample_without_replacement(
@@ -38,37 +38,37 @@ def _sample_without_replacement(
     sampling based on `likelihoods` with probability `1 - epsilon`.
     """
     indices = torch.full_like(likelihoods[:, :sample_size], fill_value=-1, dtype=torch.long)
-    log_probs = torch.zeros_like(likelihoods[:, :sample_size], dtype=torch.float)
+    logps = torch.zeros_like(likelihoods[:, :sample_size], dtype=torch.float)
 
-    # Creates a copy of the mask to avoid in-place operations
+    # Create a copy of the mask to avoid in-place operations
     mask = mask.clone()
-    batch_indices = torch.arange(likelihoods.size(dim=0), device=likelihoods.device).unsqueeze(dim=1)
+    batch_indices = torch.arange(likelihoods.shape[0], device=likelihoods.device).unsqueeze(dim=1)
 
     for i in range(sample_size):
-        # Samples uniformly
+        # Sample uniformly
         uniform_indices = torch.multinomial(mask.float(), num_samples=1)
         uniform_probs = 1. / mask.sum(dim=1, keepdim=True)
 
-        # Samples based on `likelihoods`
+        # Sample based on `likelihoods`
         probs = likelihoods / likelihoods.sum(dim=1, keepdim=True)
         likelihood_indices = torch.multinomial(probs, num_samples=1)
         likelihood_probs = probs.gather(dim=1, index=likelihood_indices)
 
-        # Samples uniformly with a probability of `epsilon`, otherwise samples based on `likelihoods`
+        # Sample uniformly with a probability of `epsilon`, otherwise sample based on `likelihoods`
         is_uniform = (torch.rand_like(batch_indices.float()) < epsilon)
         col_i_indices = torch.where(is_uniform, uniform_indices, likelihood_indices)
         col_i_probs = torch.where(is_uniform, uniform_probs, likelihood_probs)
 
         indices[:, i] = col_i_indices.squeeze(dim=1)
-        log_probs[:, i] = torch.log(col_i_probs).squeeze(dim=1)
+        logps[:, i] = torch.log(col_i_probs).squeeze(dim=1)
 
         mask[batch_indices, col_i_indices] = 0
         likelihoods = likelihoods.masked_fill(~mask, 0.)
 
-    log_prob = log_probs.sum(dim=1)
-    return indices, log_prob
+    logp = logps.sum(dim=1)
+    return indices, logp
 
 
-def compute_loss(log_probs: torch.Tensor, rewards: torch.Tensor) -> torch.Tensor:
+def compute_loss(logps: torch.Tensor, rewards: torch.Tensor) -> torch.Tensor:
     """Computes REINFORCE loss."""
-    return -torch.mean(log_probs * rewards)
+    return -torch.mean(logps * rewards)

@@ -51,9 +51,9 @@ def main(config: DictConfig) -> None:
     )
 
     if config.task.startswith('LaMP'):
-        test_dataset = load_lamp_dataset(config.task, split='dev')
+        test_dataset = load_lamp_dataset(config.task, 'dev')
     elif config.task.startswith('LongLaMP'):
-        test_dataset = load_long_lamp_dataset(config.task, split='test')
+        test_dataset = load_long_lamp_dataset(config.task, 'test')
     else:
         raise ValueError(f'Invalid task: {config.task}')
 
@@ -70,7 +70,7 @@ def main(config: DictConfig) -> None:
 
     # Generates predictions
     llm = LLM(config.task, verbose=True, **config.llm)
-    predictions = llm(sources)
+    predictions = llm.generate(sources)
 
     # Computes metrics
     metric_fn = create_metric(config.task)

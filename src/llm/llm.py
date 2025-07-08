@@ -3,7 +3,9 @@ import logging
 from typing import TypeAlias
 
 import torch
+import torch.nn.functional as F
 from torch.utils.data import Dataset
+
 from transformers import pipeline
 from transformers.pipelines.text_generation import Chat
 from openai import OpenAI, OpenAIError
@@ -75,10 +77,11 @@ class LLM:
         self.verbose = verbose
 
         if self.provider == 'local':
+            self.device = torch.cuda.device_count() - 1
             self.pipeline = pipeline(
                 task='text-generation',
                 model=self.model,
-                device=(torch.cuda.device_count() - 1),
+                device=self.device,
                 torch_dtype=torch.bfloat16
             )
             self.pipeline.tokenizer.padding_side = 'left'
@@ -91,52 +94,82 @@ class LLM:
         else:
             raise ValueError(f'Invalid provider: {self.provider}')
 
-    def __call__(self, prompts: list[str]) -> list[str]:
+    def generate(self, prompts: list[str]) -> list[str]:
         if self.provider == 'local':
-            return self._generate_local(prompts)
-        else:
-            return self._generate_api(prompts)
+            responses = []
+            dataset = _ChatDataset([self._create_message(prompt) for prompt in prompts])
 
-    def _generate_local(self, prompts: list[str]) -> list[str]:
-        responses = []
-        dataset = _ChatDataset([self._create_message(prompt) for prompt in prompts])
+            for output in tqdm(
+                self.pipeline(dataset, **self.generate_config),
+                desc='Generating responses',
+                total=len(dataset),
+                disable=(not self.verbose)
+            ):
+                response = output[0]['generated_text'][-1]['content']
+                responses.append(response)
 
-        for output in tqdm(
-            self.pipeline(dataset, **self.generate_config),
-            desc='Generating responses',
-            total=len(dataset),
-            disable=(not self.verbose)
-        ):
-            response = output[0]['generated_text'][-1]['content']
-            responses.append(response)
+            return responses
+        elif self.provider == 'openai':
+            responses = [None] * len(prompts)
+            remaining_prompts = set(range(len(prompts)))
 
-        return responses
+            while remaining_prompts:
+                for index in tqdm(
+                    list(remaining_prompts),
+                    desc='Requesting responses',
+                    disable=(not self.verbose)
+                ):
+                    try:
+                        completion = self.client.chat.completions.create(
+                            model=self.model,
+                            messages=self._create_message(prompts[index]),
+                            **self.generate_config
+                        )
+                        responses[index] = completion.choices[0].message.content
+                        remaining_prompts.remove(index)
+                    except OpenAIError as err:
+                        logger.error(f'OpenAI API error: {err}', exc_info=True)
 
-    def _generate_api(self, prompts: list[str]) -> list[str]:
-        responses = [None] * len(prompts)
-        remaining_prompts = set(range(len(prompts)))
+            return responses
 
-        while remaining_prompts:
-            for index in tqdm(list(remaining_prompts), desc='Requesting responses', disable=(not self.verbose)):
-                try:
-                    completion = self.client.chat.completions.create(
-                        model=self.model,
-                        messages=self._create_message(prompts[index]),
-                        **self.generate_config
-                    )
-                    responses[index] = completion.choices[0].message.content
-                    remaining_prompts.remove(index)
-                except OpenAIError as err:
-                    logger.error(f'OpenAI API error: {err}', exc_info=True)
+    @torch.no_grad()
+    def compute_target_logps(self, prompts: list[str], targets: list[str]) -> torch.Tensor:
+        full_texts = []
+        target_lengths = []
 
-        return responses
+        for prompt, target in zip(prompts, targets):
+            chat = self.pipeline.tokenizer.apply_chat_template(
+                self._create_message(prompt),
+                add_generation_prompt=True,
+                tokenize=False
+            )
+            full_text = f'{chat} {target}'
+            target_length = len(self.pipeline.tokenizer.encode(target))
+            full_texts.append(full_text)
+            target_lengths.append(target_length)
+
+        inputs = self.pipeline.tokenizer(full_texts, padding=True, truncation=True, return_tensors='pt')
+        inputs = inputs.to(self.device)
+
+        labels = inputs['input_ids'].clone()[:, 1:]
+        target_mask = torch.zeros_like(labels)
+
+        for index, target_length in enumerate(target_lengths):
+            target_mask[index, -target_length:] = 1
+
+        outputs = self.pipeline.model(**inputs)
+        logps = F.log_softmax(outputs.logits, dim=2)
+
+        token_logps = logps[:, :-1, :].gather(dim=2, index=labels.unsqueeze(dim=2)).squeeze(dim=2)
+        target_logps = torch.sum(token_logps * target_mask, dim=1)
+        return target_logps
+
 
     def _create_message(self, prompt: str) -> Message:
-        message = [
+        return [
             {'role': 'system', 'content': SYSTEM_PROMPTS[self.task]},
             {'role': 'user', 'content': prompt}
         ]
-        return message
 
 
 class _ChatDataset(Dataset):

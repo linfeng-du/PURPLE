@@ -9,7 +9,6 @@ preprocessor:
 
 score_model:
   encoder_model: facebook/contriever
-  num_candidates: 20  # Number of candidate profiles for re-ranking
   num_heads: 12
   decoder_hidden_size: 100
 
@@ -17,6 +16,7 @@ reinforce:
   num_samples: 20   # Number of samples, each contains `sample_size` profiles
   epsilon: 0.1      # Exploration rate
 
+num_candidates: 20  # Number of candidate profiles for re-ranking
 from_pretrained: null
 
 num_epochs: 10

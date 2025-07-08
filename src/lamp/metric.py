@@ -5,19 +5,6 @@ import evaluate
 from .data_types import Metric
 
 
-def create_metric(task: str) -> Metric:
-    if task in {'LaMP-1', 'LaMP-2'}:
-        return _create_classification_metric(get_labels(task))
-    elif task in {'LaMP-3'}:
-        return _create_regression_metric()
-    elif task in {'LaMP-4', 'LaMP-5', 'LaMP-6', 'LaMP-7'}:
-        return _create_generation_metric()
-    elif task in {'LongLaMP-1', 'LongLaMP-2', 'LongLaMP-3', 'LongLaMP-4'}:
-        return _create_generation_metric()
-    else:
-        raise ValueError(f'Invalid task: {task}')
-
-
 def get_labels(task: str) -> list[str]:
     if task == 'LaMP-1':
         return ['[1]', '[2]']
@@ -30,6 +17,19 @@ def get_labels(task: str) -> list[str]:
         return ['1', '2', '3', '4', '5']
     else:
         raise ValueError(f'Not a classification or regression task: {task}')
+
+
+def create_metric(task: str) -> Metric:
+    if task in {'LaMP-1', 'LaMP-2'}:
+        return _create_classification_metric(get_labels(task))
+    elif task in {'LaMP-3'}:
+        return _create_regression_metric()
+    elif task in {'LaMP-4', 'LaMP-5', 'LaMP-6', 'LaMP-7'}:
+        return _create_generation_metric()
+    elif task in {'LongLaMP-1', 'LongLaMP-2', 'LongLaMP-3', 'LongLaMP-4'}:
+        return _create_generation_metric()
+    else:
+        raise ValueError(f'Invalid task: {task}')
 
 
 def _create_classification_metric(labels: list[str]) -> Metric:

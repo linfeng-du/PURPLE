@@ -9,13 +9,9 @@ from transformers import AutoModel, BatchEncoding
 
 class ScoreModel(nn.Module):
 
-    def __init__(self, encoder_model: str, num_candidates: int, num_heads: int, decoder_hidden_size: int) -> None:
-        """Initializes ScoreModel.
-        The model first selects candidate profiles and then computes their likelihoods.
-        """
+    def __init__(self, encoder_model: str, num_heads: int, decoder_hidden_size: int) -> None:
         super().__init__()
         self.encoder_model = encoder_model
-        self.num_candidates = num_candidates
         self.num_heads = num_heads
         self.decoder_hidden_size = decoder_hidden_size
 
@@ -50,7 +46,6 @@ class ScoreModel(nn.Module):
 
     @classmethod
     def from_pretrained(cls, model_name: str) -> 'ScoreModel':
-        """Loads pretrained ScoreModel."""
         config_path = f'./models/{model_name}/config.json'
         state_dict_path = f'./models/{model_name}/model.bin'
 
@@ -63,7 +58,6 @@ class ScoreModel(nn.Module):
         return model
 
     def save_pretrained(self, model_name: str) -> None:
-        """Saves pretrained ScoreModel."""
         os.makedirs(f'./models/{model_name}', exist_ok=True)
         config_path = f'./models/{model_name}/config.json'
         state_dict_path = f'./models/{model_name}/model.bin'
@@ -90,14 +84,9 @@ class ScoreModel(nn.Module):
         corpus_inputs: list[BatchEncoding],
         profile_mask: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """Computes candidate profile likelihoods conditioned on the given query.
-        Candidate profiles are selected based on BERT score.
-        """
-        batch_size, num_profiles = profile_mask.size()
-        batch_indices = torch.arange(batch_size, device=profile_mask.device).unsqueeze(dim=1)
-        num_candidates = min(self.num_candidates, num_profiles)
+        batch_size, num_profiles = profile_mask.shape
 
-        # Computes query and corpus embeddings
+        # Compute query and corpus embeddings
         query_embedding = self._compute_sentence_embedding(query_inputs)
         corpus_embeddings = []
 
@@ -112,31 +101,22 @@ class ScoreModel(nn.Module):
             size=(batch_size, num_profiles, self.encoder_hidden_size)
         ).to_dense()
 
-        # Selects candidate profiles
-        scores = (query_embedding @ corpus_embeddings.transpose(dim0=1, dim1=2)).squeeze(dim=1)
-        candidate_scores, candidate_indices = scores.topk(num_candidates, dim=1)
-
-        # Indexes candidate embeddings and mask
-        candidate_embeddings = corpus_embeddings[batch_indices, candidate_indices, :]
-        candidate_mask = profile_mask.gather(dim=1, index=candidate_indices)
-
-        # Mixes query and candidate embeddings
-        query_embedding = query_embedding.expand(-1, num_candidates, -1)
-        mixed_embeddings = torch.cat((query_embedding, candidate_embeddings), dim=2)
+        # Mix query and corpus embeddings
+        query_embedding = query_embedding.expand(-1, num_profiles, -1)
+        mixed_embeddings = torch.cat((query_embedding, corpus_embeddings), dim=2)
         mixer_out = self.mixer_norm(self.mixer_mlp(mixed_embeddings))
 
-        # Models candidate profile dependencies
-        attn_out, _ = self.attn(mixer_out, mixer_out, mixer_out, key_padding_mask=~candidate_mask)
+        # Model candidate profile dependencies
+        attn_out, _ = self.attn(mixer_out, mixer_out, mixer_out, key_padding_mask=~profile_mask)
         attn_out = self.attn_norm(mixer_out + attn_out)
 
         ffn_out = self.ffn(attn_out)
         ffn_out = self.ffn_norm(attn_out + ffn_out)
 
-        # Computes candidate profile likelihoods
-        candidate_likelihoods = self.mlp_decoder(ffn_out).squeeze(dim=2)
-        candidate_likelihoods = candidate_likelihoods.masked_fill(~candidate_mask, value=0.)
-
-        return candidate_likelihoods, candidate_mask, candidate_indices
+        # Compute profile likelihoods
+        likelihoods = self.mlp_decoder(ffn_out).squeeze(dim=2)
+        likelihoods = likelihoods.masked_fill(~profile_mask, value=0.)
+        return likelihoods
 
     def _compute_sentence_embedding(self, sentence_inputs: BatchEncoding) -> torch.Tensor:
         """Computes sentence embedding by mean pooling over token embeddings."""

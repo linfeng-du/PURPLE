@@ -1,10 +1,11 @@
 import json
 import logging
 
+from datasets import Dataset
+
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from datasets import Dataset
 
 import wandb
 from tqdm import tqdm
@@ -53,7 +54,11 @@ class Trainer:
             collate_fn=collate_fn,
             drop_last=True
         )
-        self.test_loader = DataLoader(test_dataset, batch_size=self.config.eval_batch_size, collate_fn=collate_fn)
+        self.test_loader = DataLoader(
+            test_dataset,
+            batch_size=self.config.eval_batch_size,
+            collate_fn=collate_fn
+        )
         self.optimizer = torch.optim.Adam(
             [param for param in self.score_model.parameters() if param.requires_grad],
             lr=self.config.lr
@@ -80,14 +85,14 @@ class Trainer:
                         best_eval_reward = eval_results['reward']
                         self.score_model.save_pretrained(f'{self.config.experiment}')
 
-                candidate_likelihoods, candidate_mask, candidate_indices = self.score_model(
+                likelihoods = self.score_model(
                     batch['query_inputs'].to(self.device),
                     [document_inputs.to(self.device) for document_inputs in batch['corpus_inputs']],
                     batch['profile_mask'].to(self.device)
                 )
-                retrieved_indices, log_probs = reinforce.sample(
-                    candidate_likelihoods,
-                    candidate_mask,
+                retrieved_indices, logps = reinforce.sample(
+                    likelihoods,
+                    batch['profile_mask'].to(self.device),
                     self.config.reinforce.num_samples,
                     self.config.num_retrieve,
                     self.config.reinforce.epsilon
@@ -99,7 +104,7 @@ class Trainer:
                 for batch_index, batch_retrieved_indices in enumerate(retrieved_indices):
                     for sample_retrieved_indices in batch_retrieved_indices:
                         profiles = [
-                            batch['profiles'][batch_index][candidate_indices[batch_index][retrieved_index]]
+                            batch['profiles'][batch_index][retrieved_index]
                             for retrieved_index in sample_retrieved_indices
                         ]
                         prompt = self.prompt_generator(batch['source'][batch_index], profiles)
@@ -108,11 +113,10 @@ class Trainer:
                         prompts.append(prompt)
                         targets.append(target)
 
-                predictions = self.llm(prompts)
-                rewards = self.reward_fn(predictions, targets)
-                rewards = rewards.to(self.device).view_as(log_probs)
+                target_logps = self.llm.compute_target_logps(prompts, targets)
+                target_logps = target_logps.to(self.device).view_as(logps)
 
-                loss = reinforce.compute_loss(log_probs, rewards)
+                loss = reinforce.compute_loss(logps, target_logps)
                 loss = loss / self.config.gradient_accumulation_steps
                 loss.backward()
 
@@ -133,19 +137,19 @@ class Trainer:
         targets = []
 
         for batch in tqdm(self.test_loader, desc='Evaluating'):
-            candidate_likelihoods, candidate_mask, candidate_indices = self.score_model(
+            likelihoods = self.score_model(
                 batch['query_inputs'].to(self.device),
                 [document_inputs.to(self.device) for document_inputs in batch['corpus_inputs']],
                 batch['profile_mask'].to(self.device)
             )
-            num_retrieve = min(self.config.num_retrieve, candidate_likelihoods.size(dim=1))
-            _, retrieved_indices = candidate_likelihoods.topk(num_retrieve, dim=1)
+            num_retrieve = min(self.config.num_retrieve, likelihoods.shape[1])
+            _, retrieved_indices = likelihoods.topk(num_retrieve, dim=1)
 
             for batch_index, batch_retrieved_indices in enumerate(retrieved_indices):
                 retrieved_profiles = [
-                    batch['profiles'][batch_index][candidate_indices[batch_index][retrieved_index]]
+                    batch['profiles'][batch_index][retrieved_index]
                     for retrieved_index in batch_retrieved_indices
-                    if candidate_mask[batch_index][retrieved_index]
+                    if batch['profile_mask'][batch_index][retrieved_index]
                 ]
                 prompt = self.prompt_generator(batch['source'][batch_index], retrieved_profiles)
                 target = batch['target'][batch_index]
@@ -153,7 +157,7 @@ class Trainer:
                 prompts.append(prompt)
                 targets.append(target)
 
-        predictions = self.llm(prompts)
+        predictions = self.llm.generate(prompts)
         rewards = self.reward_fn(predictions, targets)
         results = self.metric_fn(predictions, targets)
         results.update({'reward': rewards.mean().item()})

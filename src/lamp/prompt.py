@@ -44,9 +44,8 @@ def create_prompt_generator(
         elif retriever == 'random':
             retrieved_profiles = random.choices(profiles, k=num_retrieve)
         elif retriever == 'bm25':
-            tokenized_query = query.split()
-            tokenized_corpus = [document.split() for document in corpus]
-            retrieved_profiles = BM25Okapi(tokenized_corpus).get_top_n(tokenized_query, profiles, n=num_retrieve)
+            bm25 = BM25Okapi([document.split() for document in corpus])
+            retrieved_profiles = bm25.get_top_n(query.split(), profiles, n=num_retrieve)
         elif retriever == 'contriever':
             retrieved_profiles = contriever(query, corpus, profiles, num_retrieve)
         else:
