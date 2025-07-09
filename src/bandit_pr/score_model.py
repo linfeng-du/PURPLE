@@ -65,7 +65,6 @@ class ScoreModel(nn.Module):
         with open(config_path, 'w') as file:
             config = {
                 'encoder_model': self.encoder_model,
-                'num_candidates': self.num_candidates,
                 'num_heads': self.num_heads,
                 'decoder_hidden_size': self.decoder_hidden_size
             }
