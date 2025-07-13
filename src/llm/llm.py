@@ -148,21 +148,28 @@ class LLM:
             full_texts.append(full_text)
             target_lengths.append(target_length)
 
-        inputs = self.pipeline.tokenizer(full_texts, padding=True, truncation=True, return_tensors='pt')
-        inputs = inputs.to(self.device)
+        target_logps = []
 
-        labels = inputs['input_ids'].clone()[:, 1:]
-        target_mask = torch.zeros_like(labels)
+        for batch_texts, batch_target_lengths in zip(
+            [full_texts[i:i+5] for i in range(0, len(full_texts), 5)],
+            [target_lengths[i:i+5] for i in range(0, len(target_lengths), 5)]
+        ):
+            inputs = self.pipeline.tokenizer(batch_texts, padding=True, truncation=True, return_tensors='pt')
+            inputs = inputs.to(self.device)
+            labels = inputs['input_ids'].clone()[:, 1:]
+            target_mask = torch.zeros_like(labels)
 
-        for index, target_length in enumerate(target_lengths):
-            target_mask[index, -target_length:] = 1
+            for index, target_length in enumerate(batch_target_lengths):
+                target_mask[index, -target_length:] = 1
 
-        outputs = self.pipeline.model(**inputs)
-        logps = F.log_softmax(outputs.logits, dim=2)
+            outputs = self.pipeline.model(**inputs)
+            logps = F.log_softmax(outputs.logits, dim=2)
+            token_logps = logps[:, :-1, :].gather(dim=2, index=labels.unsqueeze(dim=2)).squeeze(dim=2)
+            batch_target_logps = torch.sum(token_logps * target_mask, dim=1)
 
-        token_logps = logps[:, :-1, :].gather(dim=2, index=labels.unsqueeze(dim=2)).squeeze(dim=2)
-        target_logps = torch.sum(token_logps * target_mask, dim=1)
-        return target_logps
+            target_logps.append(batch_target_logps)
+
+        return torch.cat(target_logps, dim=0)
 
 
     def _create_message(self, prompt: str) -> Message:
