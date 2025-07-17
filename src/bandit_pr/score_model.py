@@ -27,19 +27,16 @@ class ScoreModel(nn.Module):
         )
         self.mixer_norm = nn.LayerNorm(self.encoder_hidden_size)
 
-        self.attn = nn.MultiheadAttention(self.encoder_hidden_size, self.num_heads, batch_first=True)
-        self.attn_norm = nn.LayerNorm(self.encoder_hidden_size)
-
-        self.ffn = nn.Sequential(
-            nn.Linear(self.encoder_hidden_size, 4 * self.encoder_hidden_size),
-            nn.ReLU(),
-            nn.Linear(4 * self.encoder_hidden_size, self.encoder_hidden_size)
+        self.doc_transformer = nn.TransformerEncoderLayer(
+            self.encoder_hidden_size,
+            self.num_heads,
+            dim_feedforward=4 * self.encoder_hidden_size,
+            batch_first=True
         )
-        self.ffn_norm = nn.LayerNorm(self.encoder_hidden_size)
 
         self.mlp_decoder = nn.Sequential(
             nn.Linear(self.encoder_hidden_size, self.decoder_hidden_size),
-            nn.Tanh(),
+            nn.ReLU(),
             nn.Linear(self.decoder_hidden_size, 1),
             nn.Sigmoid()
         )
@@ -106,14 +103,10 @@ class ScoreModel(nn.Module):
         mixer_out = self.mixer_norm(self.mixer_mlp(mixed_embeddings))
 
         # Model candidate profile dependencies
-        attn_out, _ = self.attn(mixer_out, mixer_out, mixer_out, key_padding_mask=~profile_mask)
-        attn_out = self.attn_norm(mixer_out + attn_out)
-
-        ffn_out = self.ffn(attn_out)
-        ffn_out = self.ffn_norm(attn_out + ffn_out)
+        transformer_out = self.doc_transformer(mixer_out, src_key_padding_mask=~profile_mask)
 
         # Compute profile likelihoods
-        likelihoods = self.mlp_decoder(ffn_out).squeeze(dim=2)
+        likelihoods = self.mlp_decoder(transformer_out).squeeze(dim=2)
         likelihoods = likelihoods.masked_fill(~profile_mask, value=0.)
         return likelihoods
 
