@@ -9,7 +9,7 @@ preprocessor:
 
 score_model:
   encoder_model: facebook/contriever
-  num_heads: 12
+  fuse_mode: concat
   decoder_hidden_size: 100
 
 reinforce:

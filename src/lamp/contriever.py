@@ -25,21 +25,18 @@ class Contriever:
     ) -> list[Profile]:
         num_retrieve = min(num_retrieve, len(profiles))
 
-        query_embedding = self._compute_sentence_embeddings([query])
-        corpus_embeddings = self._compute_sentence_embeddings(corpus)
-        scores = (query_embedding @ corpus_embeddings.T).squeeze(dim=0)
+        query_embed = self._compute_sentence_embedding([query])
+        corpus_embeds = self._compute_sentence_embedding(corpus)
+        scores = (query_embed @ corpus_embeds.T).squeeze(dim=0)
 
         _, indices = scores.topk(num_retrieve, dim=0)
         return [profiles[index] for index in indices]
 
-    def _compute_sentence_embeddings(self, sentences: list[str]) -> torch.Tensor:
+    def _compute_sentence_embedding(self, sentences: list[str]) -> torch.Tensor:
         inputs = self.tokenizer(sentences, padding=True, truncation=True, return_tensors='pt')
         inputs = inputs.to(self.contriever.device)
-
-        outputs = self.contriever(**inputs)
-        token_embeddings = outputs.last_hidden_state
         attention_mask = inputs['attention_mask'].unsqueeze(dim=2)
 
-        token_embeddings.masked_fill_(attention_mask == 0, value=0.)
-        sentence_embeddings = token_embeddings.sum(dim=1) / attention_mask.sum(dim=1)
-        return sentence_embeddings
+        token_embeds = self.contriever(**inputs).last_hidden_state
+        token_embeds.masked_fill_(attention_mask == 0, value=0.)
+        return token_embeds.sum(dim=1) / attention_mask.sum(dim=1)
