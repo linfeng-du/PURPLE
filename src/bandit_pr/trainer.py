@@ -87,7 +87,10 @@ class Trainer:
 
                 likelihoods = self.score_model(
                     batch['query_inputs'].to(self.device),
-                    [document_inputs.to(self.device) for document_inputs in batch['corpus_inputs']],
+                    [
+                        [document_inputs.to(self.device) for document_inputs in document_subbatches]
+                        for document_subbatches in batch['corpus_inputs']
+                    ],
                     batch['profile_mask'].to(self.device)
                 )
                 retrieved_indices, logps = reinforce.sample(
@@ -139,7 +142,10 @@ class Trainer:
         for batch in tqdm(self.test_loader, desc='Evaluating'):
             likelihoods = self.score_model(
                 batch['query_inputs'].to(self.device),
-                [document_inputs.to(self.device) for document_inputs in batch['corpus_inputs']],
+                [
+                    [document_inputs.to(self.device) for document_inputs in document_subbatches]
+                    for document_subbatches in batch['corpus_inputs']
+                ],
                 batch['profile_mask'].to(self.device)
             )
             num_retrieve = min(self.config.num_retrieve, likelihoods.shape[1])

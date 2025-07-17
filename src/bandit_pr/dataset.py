@@ -76,11 +76,7 @@ def create_collator(tokenizer: PreTrainedTokenizerBase) -> Collator:
         profiles = [example['profiles'] for example in examples]
         targets = [example['target'] for example in examples]
         query_inputs = [example['query_inputs'] for example in examples]
-        document_inputs = [
-            document_inputs
-            for example in examples
-            for document_inputs in example['corpus_inputs']
-        ]
+        corpus_inputs = [example['corpus_inputs'] for example in examples]
 
         # Create profile mask
         max_num_profiles = max(len(example_profiles) for example_profiles in profiles)
@@ -93,22 +89,26 @@ def create_collator(tokenizer: PreTrainedTokenizerBase) -> Collator:
         query_inputs = tokenizer.pad(query_inputs, return_tensors='pt')
 
         # Split corpus into batches of 128 documents to save memory
-        corpus_inputs = []
-        document_batches = [
-            document_inputs[index : index + 128]
-            for index in range(0, len(document_inputs), 128)
-        ]
+        subbatched_corpus_inputs = []
 
-        for document_inputs in document_batches:
-            document_inputs = tokenizer.pad(document_inputs, return_tensors='pt')
-            corpus_inputs.append(document_inputs)
+        for example_corpus_inputs in corpus_inputs:
+            document_subbatches = []
+
+            for document_inputs in [
+                example_corpus_inputs[i:i+128]
+                for i in range(0, len(example_corpus_inputs), 128)
+            ]:
+                document_inputs = tokenizer.pad(document_inputs, return_tensors='pt')
+                document_subbatches.append(document_inputs)
+
+            subbatched_corpus_inputs.append(document_subbatches)
 
         return Batch(
             source=sources,
             profiles=profiles,
             target=targets,
             query_inputs=query_inputs,
-            corpus_inputs=corpus_inputs,
+            corpus_inputs=subbatched_corpus_inputs,
             profile_mask=profile_mask
         )
 

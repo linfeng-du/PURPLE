@@ -86,7 +86,7 @@ class ScoreModel(nn.Module):
     def forward(
         self,
         query_inputs: BatchEncoding,
-        corpus_inputs: list[BatchEncoding],
+        corpus_inputs: list[list[BatchEncoding]],
         profile_mask: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         if self.fuse_mode == 'concat':
@@ -105,17 +105,17 @@ class ScoreModel(nn.Module):
     def _fuse_concat(
         self,
         query_inputs: BatchEncoding,
-        corpus_inputs: list[BatchEncoding],
+        corpus_inputs: list[list[BatchEncoding]],
         profile_mask: torch.Tensor
     ) -> torch.Tensor:
         batch_size, num_profiles = profile_mask.shape
 
         query_embed = self._compute_sentence_embedding(query_inputs)
-        corpus_embeds = []
-
-        for document_inputs in corpus_inputs:
-            document_embeds = self._compute_sentence_embedding(document_inputs)
-            corpus_embeds.append(document_embeds)
+        corpus_embeds = [
+            self._compute_sentence_embedding(document_inputs)
+            for document_subbatches in corpus_inputs
+            for document_inputs in document_subbatches
+        ]
 
         query_embed = query_embed.unsqueeze(dim=1)
         corpus_embeds = torch.sparse_coo_tensor(
@@ -130,30 +130,30 @@ class ScoreModel(nn.Module):
     def _fuse_cross_attention(
         self,
         query_inputs: BatchEncoding,
-        corpus_inputs: list[BatchEncoding],
+        corpus_inputs: list[list[BatchEncoding]],
         profile_mask: torch.Tensor
     ) -> torch.Tensor:
         query_mask = query_inputs['attention_mask'].bool()
         batch_size, num_profiles = profile_mask.shape
-        assert batch_size == 1, 'Batch size must be 1 for cross-attention'
 
         query_token_embeds = self.encoder(**query_inputs).last_hidden_state
         fuse_embeds = []
 
-        for document_inputs in corpus_inputs:
-            num_documents = document_inputs['attention_mask'].shape[0]
-            document_mask = document_inputs['attention_mask'].unsqueeze(dim=2)
-            document_token_embeds = self.encoder(**document_inputs).last_hidden_state
+        for index, document_subbatches in enumerate(corpus_inputs):
+            for document_inputs in document_subbatches:
+                num_documents = document_inputs['attention_mask'].shape[0]
+                document_mask = document_inputs['attention_mask'].unsqueeze(dim=2)
+                document_token_embeds = self.encoder(**document_inputs).last_hidden_state
 
-            attn_out, _ = self.fuse_attn(
-                document_token_embeds,
-                query_token_embeds.expand(num_documents, -1, -1),
-                query_token_embeds.expand(num_documents, -1, -1),
-                key_padding_mask=~query_mask.expand(num_documents, -1)
-            )
-            attn_out.masked_fill_(document_mask == 0, value=0.)
-            fuse_embed = attn_out.sum(dim=1) / document_mask.sum(dim=1)
-            fuse_embeds.append(fuse_embed)
+                attn_out, _ = self.fuse_attn(
+                    document_token_embeds,
+                    query_token_embeds[index].expand(num_documents, -1, -1),
+                    query_token_embeds[index].expand(num_documents, -1, -1),
+                    key_padding_mask=~query_mask[index].expand(num_documents, -1)
+                )
+                attn_out.masked_fill_(document_mask == 0, value=0.)
+                fuse_embed = attn_out.sum(dim=1) / document_mask.sum(dim=1)
+                fuse_embeds.append(fuse_embed)
 
         return torch.sparse_coo_tensor(
             indices=profile_mask.nonzero().T,
