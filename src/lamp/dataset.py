@@ -1,6 +1,5 @@
 import os
 import json
-from typing import Callable
 
 from datasets import Dataset, load_dataset, load_from_disk
 
@@ -17,8 +16,16 @@ def load_lamp_dataset(task: str, split: str) -> Dataset:
         with open(f'./dataset/{task}/{split}_outputs.json', 'r') as file:
             outputs = {gold['id']: gold['output'] for gold in json.load(file)['golds']}
 
+        query_corpus_generator = {
+            'LaMP-1': _generate_query_corpus_classification_citation,
+            'LaMP-2': _generate_query_corpus_classification_movies,
+            'LaMP-3': _generate_query_corpus_regression_review,
+            'LaMP-4': _generate_query_corpus_generation_news,
+            'LaMP-5': _generate_query_corpus_generation_paper,
+            'LaMP-6': _generate_query_corpus_generation_avocado,
+            'LaMP-7': _generate_query_corpus_generation_tweet
+        }[task]
         examples = []
-        query_corpus_generator = _create_query_corpus_generator(task)
 
         for question in questions:
             source = question['input']
@@ -26,7 +33,13 @@ def load_lamp_dataset(task: str, split: str) -> Dataset:
             target = outputs[question['id']]
             query, corpus = query_corpus_generator(source, profiles)
 
-            example = {'source': source, 'profiles': profiles, 'query': query, 'corpus': corpus, 'target': target}
+            example = {
+                'source': source,
+                'profiles': profiles,
+                'query': query,
+                'corpus': corpus,
+                'target': target
+            }
             examples.append(example)
 
         Dataset.from_list(examples).save_to_disk(dataset_dir)
@@ -34,21 +47,24 @@ def load_lamp_dataset(task: str, split: str) -> Dataset:
     return load_from_disk(dataset_dir)
 
 
-TASK_NAMES = {
-    'LongLaMP-2': 'abstract_generation_user',
-    'LongLaMP-3': 'topic_writing_user',
-    'LongLaMP-4': 'product_review_user'
-}
-
-
 def load_long_lamp_dataset(task: str, split: str) -> Dataset:
     dataset_dir = f'./dataset/{task}/{split}'
 
     if not os.path.exists(dataset_dir):
-        dataset = load_dataset('LongLaMP/LongLaMP', name=TASK_NAMES[task], split=split)
+        name = {
+            'LongLaMP-2': 'abstract_generation_user',
+            'LongLaMP-3': 'topic_writing_user',
+            'LongLaMP-4': 'product_review_user'
+        }[task]
+        dataset = load_dataset('LongLaMP/LongLaMP', name=name, split=split)
 
+        query_corpus_generator = {
+            'LongLaMP-1': _generate_query_corpus_generation_email,
+            'LongLaMP-2': _generate_query_corpus_generation_abstract,
+            'LongLaMP-3': _generate_query_corpus_generation_topic,
+            'LongLaMP-4': _generate_query_corpus_generation_review
+        }[task]
         examples = []
-        query_corpus_generator = _create_query_corpus_generator(task)
 
         for row in dataset:
             source = row['input']
@@ -56,29 +72,18 @@ def load_long_lamp_dataset(task: str, split: str) -> Dataset:
             target = row['output']
             query, corpus = query_corpus_generator(source, profiles)
 
-            example = {'source': source, 'profiles': profiles, 'query': query, 'corpus': corpus, 'target': target}
+            example = {
+                'source': source,
+                'profiles': profiles,
+                'query': query,
+                'corpus': corpus,
+                'target': target
+            }
             examples.append(example)
 
         Dataset.from_list(examples).save_to_disk(dataset_dir)
 
     return load_from_disk(dataset_dir)
-
-
-def _create_query_corpus_generator(task: str) -> Callable[[str, list[Profile]], tuple[str, list[str]]]:
-    task_fns = {
-        'LaMP-1': _generate_query_corpus_classification_citation,
-        'LaMP-2': _generate_query_corpus_classification_movies,
-        'LaMP-3': _generate_query_corpus_regression_review,
-        'LaMP-4': _generate_query_corpus_generation_news,
-        'LaMP-5': _generate_query_corpus_generation_paper,
-        'LaMP-6': _generate_query_corpus_generation_avocado,
-        'LaMP-7': _generate_query_corpus_generation_tweet,
-        'LongLaMP-1': _generate_query_corpus_generation_email,
-        'LongLaMP-2': _generate_query_corpus_generation_abstract,
-        'LongLaMP-3': _generate_query_corpus_generation_topic,
-        'LongLaMP-4': _generate_query_corpus_generation_review
-    }
-    return task_fns[task]
 
 
 # ==================================   LaMP 1: Personalized Citation Identification   ==================================

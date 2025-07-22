@@ -10,7 +10,7 @@ from transformers import PreTrainedTokenizerBase
 
 from tqdm import tqdm
 
-from lamp import load_lamp_dataset
+from lamp import load_lamp_dataset, load_long_lamp_dataset
 from .data_types import Batch, Example, Collator
 
 
@@ -19,7 +19,13 @@ def load_retrieved_lamp_dataset(task: str, split: str, num_candidates: int) -> D
 
     if not os.path.exists(dataset_dir):
         examples = []
-        dataset = load_lamp_dataset(task, split)
+
+        if task.startswith('LaMP'):
+            dataset = load_lamp_dataset(task, split)
+        elif task.startswith('LongLaMP'):
+            dataset = load_long_lamp_dataset(task, split)
+        else:
+            raise ValueError(f'Invalid task: {task}')
 
         for example in tqdm(dataset, desc='Retrieving'):
             query = example['query']
