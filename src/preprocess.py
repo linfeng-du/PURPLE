@@ -1,8 +1,6 @@
-import os
-
 import evaluate
 from datasets import load_dataset
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, AutoModel, AutoModelForCausalLM
 
 import fire
 
@@ -10,10 +8,15 @@ from bandit_pr import load_retrieved_lamp_dataset, create_preprocessor
 
 
 def download() -> None:
+    print('Downloading tokenizers...')
+    AutoTokenizer.from_pretrained('facebook/contriever')
+    AutoTokenizer.from_pretrained('meta-llama/Meta-Llama-3-8B-Instruct')
+    AutoTokenizer.from_pretrained('microsoft/Phi-4-mini-instruct')
+
     print('Downloading models...')
-    os.system('huggingface-cli download facebook/contriever')
-    os.system('huggingface-cli download meta-llama/Meta-Llama-3-8B-Instruct')
-    os.system('huggingface-cli download microsoft/Phi-4-mini-instruct')
+    AutoModel.from_pretrained('facebook/contriever')
+    AutoModelForCausalLM.from_pretrained('meta-llama/Meta-Llama-3-8B-Instruct')
+    AutoModelForCausalLM.from_pretrained('microsoft/Phi-4-mini-instruct')
 
     print('Downloading LongLaMP datasets...')
     load_dataset('LongLaMP/LongLaMP', name='abstract_generation_user')
