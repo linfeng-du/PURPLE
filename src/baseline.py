@@ -1,7 +1,9 @@
+import os
 import json
 import random
 import logging
 
+import nltk
 import numpy as np
 
 import torch
@@ -13,6 +15,10 @@ from tqdm import tqdm
 
 from llm import LLM
 from lamp import load_lamp_dataset, load_long_lamp_dataset, create_prompt_generator, create_metric
+
+
+if os.getenv('HF_EVALUATE_OFFLINE') == '1':
+    nltk.download = lambda *args, **kwargs: None
 
 
 logging.getLogger('absl').setLevel(logging.WARNING)

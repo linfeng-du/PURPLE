@@ -1,6 +1,8 @@
+import os
 import random
 import logging
 
+import nltk
 import numpy as np
 
 import torch
@@ -19,6 +21,10 @@ from bandit_pr import (
     create_collator,
     create_reward
 )
+
+
+if os.getenv('HF_EVALUATE_OFFLINE') == '1':
+    nltk.download = lambda *args, **kwargs: None
 
 
 logging.getLogger('absl').setLevel(logging.WARNING)
