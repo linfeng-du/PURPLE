@@ -55,11 +55,8 @@ def main(cfg: DictConfig) -> None:
     llm = LLM(cfg.task, **cfg.llm)
 
     # Prepare datasets
-    if cfg.task.startswith('LaMP'):
-        train_dataset = load_retrieved_lamp_dataset(cfg.task, 'train', cfg.num_candidates)
-        test_dataset = load_retrieved_lamp_dataset(cfg.task, 'dev', cfg.num_candidates)
-    else:
-        raise ValueError(f'Invalid task: {cfg.task}')
+    train_dataset = load_retrieved_lamp_dataset(cfg.task, 'train', cfg.num_candidates)
+    test_dataset = load_retrieved_lamp_dataset(cfg.task, 'dev', cfg.num_candidates)
 
     tokenizer = AutoTokenizer.from_pretrained(cfg.score_model.encoder_model)
     preprocessor = create_preprocessor(tokenizer=tokenizer, **cfg.preprocessor)
