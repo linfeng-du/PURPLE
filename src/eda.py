@@ -1,19 +1,19 @@
 import os
+import re
 import math
+import json
 import itertools
-
-import evaluate
-from transformers import AutoTokenizer
-import matplotlib.pyplot as plt
+from pathlib import Path
+from collections import defaultdict
 
 import fire
 from tqdm import tqdm
 
-from llm import LLM
-from lamp import Contriever, load_lamp_dataset, create_prompt_generator
-
 
 def inspect_token_length() -> None:
+    from transformers import AutoTokenizer
+    from lamp import load_lamp_dataset
+
     max_query_length = 512
     max_document_length = 512
     tokenizer = AutoTokenizer.from_pretrained('facebook/contriever')
@@ -52,6 +52,13 @@ def inspect_token_length() -> None:
 
 
 def inspect_performance_range(task: str, num_retrieve: int) -> None:
+    import evaluate
+    from transformers import AutoTokenizer
+    import matplotlib.pyplot as plt
+
+    from llm import LLM
+    from lamp import Contriever, load_lamp_dataset, create_prompt_generator
+
     test_dataset = load_lamp_dataset(task, 'dev')
 
     contriever = Contriever()
@@ -115,6 +122,59 @@ def inspect_performance_range(task: str, num_retrieve: int) -> None:
         plt.scatter(range(len(rouge_results['rouge1'])), rouge_results['rouge1'], s=4)
         plt.savefig(f'{save_dir}/{index}.png')
         plt.clf()
+
+
+def baseline_results() -> None:
+    for task in ['LaMP-1', 'LaMP-2', 'LaMP-3', 'LaMP-4', 'LaMP-5', 'LaMP-7']:
+        results = defaultdict(list)
+
+        for baseline in ['contriever', 'bm25', 'random']:
+            for llm in ['phi-4-mini-instruct', 'llama-3-8b-instruct']:
+                result_dir = Path(f'logs/{llm}/{baseline}-5/{task}')
+                result_file = list(result_dir.rglob('*.out'))[0]
+                result = ''
+
+                with open(result_file, 'r') as file:
+                    for line in file:
+                        if not line.startswith('['):
+                            result += line
+
+                for key, value in json.loads(result).items():
+                    results[key].append(f'{value:.3f}')
+
+        print(task)
+
+        for key, value in results.items():
+            print(key, ' & '.join(value))
+
+
+def bandit_pr_results() -> None:
+    for task in ['LaMP-1', 'LaMP-2', 'LaMP-3', 'LaMP-4', 'LaMP-5', 'LaMP-7']:
+
+        for llm in ['phi-4-mini-instruct', 'llama-3-8b-instruct']:
+            for method in ['concat', 'cross_attn']:
+                result_dir = Path(f'logs/{llm}/bandit_pr-5/{method}/{task}')
+                result_file = list(result_dir.rglob('*.out'))[0]
+                result = _get_best_result(result_file)
+                print(task, llm, method, result)
+
+        print('-' * 100)
+
+
+def _get_best_result(result_file: str) -> dict:
+    with open(result_file, 'r') as file:
+        text = file.read()
+
+    matches = re.findall(r'\{.*?\}', text, flags=re.DOTALL)
+    results = [json.loads(match) for match in matches]
+    key = lambda x: x['accuracy'] if 'accuracy' in x else x['mae'] if 'mae' in x else x['rouge-1']
+    best_result = max(results, key=key)
+
+    best_result.pop('reward')
+    best_result.pop('meteor', None)
+    best_result.pop('wer', None)
+    best_result = {key: f'{value:.3f}' for key, value in best_result.items()}
+    return best_result
 
 
 if __name__ == '__main__':
