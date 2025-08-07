@@ -1,10 +1,9 @@
 #!/bin/bash
 
-ARGS=$(getopt --options "" --long experiment:,api,llms:,tasks:,num_retrieve:,fuse_modes: --name "$0" -- "$@")
+ARGS=$(getopt --options "" --long experiment:,api,llms:,tasks:,num_retrieve:,fuse_modes:,gpu_type: --name "$0" -- "$@")
 eval set -- "$ARGS"
 
 api=0
-gpu_type=h100
 
 while true; do
     case "$1" in
@@ -14,6 +13,7 @@ while true; do
         --tasks) tasks="$2"; shift 2 ;;
         --num_retrieve) num_retrieve="$2"; shift 2 ;;
         --fuse_modes) fuse_modes="$2"; shift 2 ;;
+        --gpu_type) gpu_type="$2"; shift 2 ;;
         --) shift; break ;;
         *) echo "Unknown option: $1" >&2; exit 1 ;;
     esac

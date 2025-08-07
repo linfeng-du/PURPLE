@@ -160,26 +160,24 @@ def bandit_pr_results() -> None:
             for method in ['concat', 'cross_attn']:
                 result_dir = Path(f'logs/{llm}/bandit_pr-5/{method}/{task}')
                 result_file = list(result_dir.rglob('*.out'))[0]
-                result = _get_best_result(result_file)
-                print(task, llm, method, result)
+
+                with open(result_file, 'r') as file:
+                    text = file.read()
+
+                results = [json.loads(match) for match in re.findall(r'\{.*?\}', text, flags=re.DOTALL)]
+                key = lambda x: (
+                    x['accuracy'] if 'accuracy' in x else
+                    x['mae'] if 'mae' in x else x['rouge-1']
+                )
+                best_result = max(results, key=key)
+                best_result = {
+                    key: f'{value:.3f}'
+                    for key, value in best_result.items()
+                    if key not in ['reward', 'meteor', 'wer']
+                }
+                print(task, llm, method, best_result)
 
         print('-' * 100)
-
-
-def _get_best_result(result_file: str) -> dict:
-    with open(result_file, 'r') as file:
-        text = file.read()
-
-    matches = re.findall(r'\{.*?\}', text, flags=re.DOTALL)
-    results = [json.loads(match) for match in matches]
-    key = lambda x: x['accuracy'] if 'accuracy' in x else x['mae'] if 'mae' in x else x['rouge-1']
-    best_result = max(results, key=key)
-
-    best_result.pop('reward')
-    best_result.pop('meteor', None)
-    best_result.pop('wer', None)
-    best_result = {key: f'{value:.3f}' for key, value in best_result.items()}
-    return best_result
 
 
 if __name__ == '__main__':
