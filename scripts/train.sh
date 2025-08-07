@@ -1,18 +1,19 @@
 #!/bin/bash
 
-ARGS=$(getopt --options "" --long api,llms:,tasks:,num_retrieve:,fuse_modes:,gpu_type: --name "$0" -- "$@")
+ARGS=$(getopt --options "" --long experiment:,api,llms:,tasks:,num_retrieve:,fuse_modes: --name "$0" -- "$@")
 eval set -- "$ARGS"
 
 api=0
+gpu_type=h100
 
 while true; do
     case "$1" in
+        --experiment) experiment="$2"; shift 2 ;;
         --api) api=1; shift ;;
         --llms) llms="$2"; shift 2 ;;
         --tasks) tasks="$2"; shift 2 ;;
         --num_retrieve) num_retrieve="$2"; shift 2 ;;
         --fuse_modes) fuse_modes="$2"; shift 2 ;;
-        --gpu_type) gpu_type="$2"; shift 2 ;;
         --) shift; break ;;
         *) echo "Unknown option: $1" >&2; exit 1 ;;
     esac
@@ -25,7 +26,7 @@ IFS=',' read -ra fuse_modes <<< "$fuse_modes"
 for llm in ${llms[@]}; do
     for task in ${tasks[@]}; do
         for fuse_mode in ${fuse_modes[@]}; do
-            experiment="$llm/bandit_pr-$num_retrieve/$fuse_mode/$task"
+            experiment="$llm/bandit_pr-$num_retrieve-$experiment/$task"
             sbatch \
                 --job-name=$experiment \
                 --time=48:0:0 \

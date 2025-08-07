@@ -34,7 +34,7 @@ for llm in ${llms[@]}; do
             experiment="$llm/$retriever-$num_retrieve/$task"
             sbatch \
                 --job-name=$experiment \
-                --time=3:0:0 \
+                --time=6:0:0 \
                 --$compute \
                 --mem=64G \
                 --output=./logs/$experiment/%j.out \
