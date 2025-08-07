@@ -150,7 +150,6 @@ def baseline_results() -> None:
 
 def bandit_pr_results() -> None:
     for task in ['LaMP-1', 'LaMP-2', 'LaMP-3', 'LaMP-4', 'LaMP-5', 'LaMP-7']:
-
         for llm in ['phi-4-mini-instruct', 'llama-3-8b-instruct']:
             for method in ['concat', 'cross_attn']:
                 result_dir = Path(f'logs/{llm}/bandit_pr-5/{method}/{task}')
