@@ -2,18 +2,16 @@
 import torch
 from transformers import AutoTokenizer, AutoModel
 
-from .data_types import Profile
+from ..data_types import Profile
 
 
 class Contriever:
 
-    def __init__(self) -> None:
+    def __init__(self, device: torch.device) -> None:
         self.tokenizer = AutoTokenizer.from_pretrained('facebook/contriever')
         self.contriever = AutoModel.from_pretrained('facebook/contriever')
-        self.contriever.eval()
-
-    def to(self, device: str) -> None:
         self.contriever.to(device)
+        self.contriever.eval()
 
     @torch.no_grad()
     def __call__(

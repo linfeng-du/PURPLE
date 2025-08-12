@@ -70,7 +70,6 @@ def main(config: DictConfig) -> None:
     for example in tqdm(test_dataset, desc='Generating Prompts'):
         source = prompt_generator(example['source'], example['profiles'], example['query'], example['corpus'])
         target = example['target']
-
         sources.append(source)
         targets.append(target)
 

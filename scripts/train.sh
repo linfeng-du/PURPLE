@@ -1,6 +1,11 @@
 #!/bin/bash
 
-ARGS=$(getopt --options "" --long experiment:,api,llms:,tasks:,num_retrieve:,fuse_modes:,gpu_type: --name "$0" -- "$@")
+ARGS=$(getopt \
+    --options "" \
+    --long experiment:,api,llms:,tasks:,num_retrieve:,fuse_modes:,time:,gpu_type: \
+    --name "$0" \
+    -- "$@"
+)
 eval set -- "$ARGS"
 
 api=0
@@ -13,6 +18,7 @@ while true; do
         --tasks) tasks="$2"; shift 2 ;;
         --num_retrieve) num_retrieve="$2"; shift 2 ;;
         --fuse_modes) fuse_modes="$2"; shift 2 ;;
+        --time) time="$2"; shift 2 ;;
         --gpu_type) gpu_type="$2"; shift 2 ;;
         --) shift; break ;;
         *) echo "Unknown option: $1" >&2; exit 1 ;;
@@ -29,7 +35,7 @@ for llm in ${llms[@]}; do
             experiment="$llm/bandit_pr-$num_retrieve-$experiment/$task"
             sbatch \
                 --job-name=$experiment \
-                --time=48:0:0 \
+                --time=$time \
                 --gres=gpu:$gpu_type:1 \
                 --mem=64G \
                 --output=./logs/$experiment/%j.out \
