@@ -42,11 +42,11 @@ class RankGPT:
         rank_end = len(profiles)
 
         while rank_start >= 0:
-            message = _create_permutation_instruction(query, retrieved_corpus, rank_start, rank_end)
+            message = _create_ranking_instruction(query, retrieved_corpus, rank_start, rank_end)
             output = self.pipeline(message, max_new_tokens=256, do_sample=False, temperature=None, top_p=None)
             response = output[0]['generated_text'][-1]['content']
 
-            indices = _receive_permutation(indices, response, rank_start, rank_end)
+            indices = _receive_ranking(indices, response, rank_start, rank_end)
             retrieved_corpus = [retrieved_corpus[index] for index in indices]
             retrieved_profiles = [retrieved_profiles[index] for index in indices]
 
@@ -56,7 +56,7 @@ class RankGPT:
         return retrieved_profiles[:num_retrieve]
 
 
-def _create_permutation_instruction(
+def _create_ranking_instruction(
     query: str,
     corpus: list[str],
     rank_start: int,
@@ -100,17 +100,17 @@ def _create_postfix_prompt(query: str, num_passages: int) -> str:
     )
 
 
-def _receive_permutation(indices: list[int], response: str, rank_start: int, rank_end: int) -> list[int]:
-    permutation = ''.join(char if char.isdigit() else ' ' for char in response)
-    permutation = [int(char) - 1 for char in permutation.strip().split()]
-    permutation = list(dict.fromkeys(permutation))
+def _receive_ranking(indices: list[int], response: str, rank_start: int, rank_end: int) -> list[int]:
+    ranking = ''.join(char if char.isdigit() else ' ' for char in response)
+    ranking = [int(char) - 1 for char in ranking.strip().split()]
+    ranking = list(dict.fromkeys(ranking))
 
     window_indices = indices[rank_start:rank_end].copy()
-    original_rank = list(range(len(window_indices)))
-    permutation = [rank for rank in permutation if rank in original_rank]
-    permutation = permutation + [rank for rank in original_rank if rank not in permutation]
+    original_ranking = list(range(len(window_indices)))
+    ranking = [rank for rank in ranking if rank in original_ranking]
+    ranking += [rank for rank in original_ranking if rank not in ranking]
 
-    for index, rank in enumerate(permutation):
+    for index, rank in enumerate(ranking):
         indices[index + rank_start] = window_indices[rank]
 
     return indices
