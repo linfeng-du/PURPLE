@@ -9,7 +9,7 @@ from transformers import AutoModel, BatchEncoding
 
 class ScoreModel(nn.Module):
 
-    def __init__(self, encoder_model: str, fuse_mode: str, decoder_hidden_size: int) -> None:
+    def __init__(self, encoder_model: str, fuse_mode: str, num_layers: int, decoder_hidden_size: int) -> None:
         super().__init__()
         self.encoder_model = encoder_model
         self.fuse_mode = fuse_mode
@@ -21,11 +21,13 @@ class ScoreModel(nn.Module):
         for param in self.encoder.parameters():
             param.requires_grad = False
 
-        if self.fuse_mode == 'concat':
+        if self.fuse_mode == 'concat_hidden':
             self.fuse_mlp = nn.Sequential(
                 nn.Linear(2 * self.encoder_hidden_size, self.encoder_hidden_size),
                 nn.ReLU()
             )
+        elif self.fuse_mode == 'concat_token':
+            pass
         elif self.fuse_mode == 'cross_attn':
             self.fuse_attn = nn.MultiheadAttention(
                 self.encoder_hidden_size,
@@ -36,11 +38,14 @@ class ScoreModel(nn.Module):
             raise ValueError(f'Invalid fuse mode: {self.fuse_mode}')
 
         self.fuse_norm = nn.LayerNorm(self.encoder_hidden_size)
-        self.doc_transformer = nn.TransformerEncoderLayer(
-            self.encoder_hidden_size,
-            self.encoder.config.num_attention_heads,
-            dim_feedforward=4 * self.encoder_hidden_size,
-            batch_first=True
+        self.doc_transformer = nn.TransformerEncoder(
+            nn.TransformerEncoderLayer(
+                self.encoder_hidden_size,
+                self.encoder.config.num_attention_heads,
+                dim_feedforward=4 * self.encoder_hidden_size,
+                batch_first=True
+            ),
+            num_layers
         )
 
         self.mlp_decoder = nn.Sequential(
@@ -89,20 +94,27 @@ class ScoreModel(nn.Module):
         corpus_inputs: list[list[BatchEncoding]],
         profile_mask: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        if self.fuse_mode == 'concat':
-            fuse_embeds = self._fuse_concat(query_inputs, corpus_inputs, profile_mask)
+        if self.fuse_mode == 'concat_hidden':
+            fuse_embeds = self._fuse_concat_hidden(query_inputs, corpus_inputs, profile_mask)
+        elif self.fuse_mode == 'concat_token':
+            fuse_embeds, fuse_mask = self._fuse_concat_token(query_inputs, corpus_inputs, profile_mask)
         elif self.fuse_mode == 'cross_attn':
             fuse_embeds = self._fuse_cross_attention(query_inputs, corpus_inputs, profile_mask)
 
         # Model candidate profile dependencies
         fuse_embeds = self.fuse_norm(fuse_embeds)
-        transformer_out = self.doc_transformer(fuse_embeds, src_key_padding_mask=~profile_mask)
+        src_key_padding_mask = ~(fuse_mask if self.fuse_mode == 'concat_token' else profile_mask)
+        transformer_out = self.doc_transformer(fuse_embeds, src_key_padding_mask=src_key_padding_mask)
 
         # Compute profile likelihoods
         likelihoods = self.mlp_decoder(transformer_out).squeeze(dim=2)
+
+        if self.fuse_mode == 'concat_token':
+            likelihoods = likelihoods[:, 1:]
+
         return likelihoods.masked_fill(~profile_mask, value=0.)
 
-    def _fuse_concat(
+    def _fuse_concat_hidden(
         self,
         query_inputs: BatchEncoding,
         corpus_inputs: list[list[BatchEncoding]],
@@ -126,6 +138,30 @@ class ScoreModel(nn.Module):
 
         query_embed = query_embed.expand(-1, num_profiles, -1)
         return self.fuse_mlp(torch.cat((query_embed, corpus_embeds), dim=2))
+
+    def _fuse_concat_token(
+        self,
+        query_inputs: BatchEncoding,
+        corpus_inputs: list[list[BatchEncoding]],
+        profile_mask: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        batch_size, num_profiles = profile_mask.shape
+
+        query_embed = self._compute_sentence_embedding(query_inputs)
+        corpus_embeds = [
+            self._compute_sentence_embedding(document_inputs)
+            for document_subbatches in corpus_inputs
+            for document_inputs in document_subbatches
+        ]
+        corpus_embeds = torch.sparse_coo_tensor(
+            indices=profile_mask.nonzero().T,
+            values=torch.cat(corpus_embeds, dim=0),
+            size=(batch_size, num_profiles, self.encoder_hidden_size)
+        ).to_dense()
+
+        fuse_embeds = torch.cat([query_embed.unsqueeze(dim=1), corpus_embeds], dim=1)
+        fuse_mask = torch.cat([torch.ones_like(profile_mask[:, :1]), profile_mask], dim=1)
+        return fuse_embeds, fuse_mask
 
     def _fuse_cross_attention(
         self,

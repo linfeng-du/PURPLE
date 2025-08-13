@@ -2,7 +2,7 @@
 
 ARGS=$(getopt \
     --options "" \
-    --long experiment:,api,llms:,tasks:,num_retrieve:,fuse_modes:,time:,gpu_type: \
+    --long api,llms:,tasks:,num_retrieve:,fuse_modes:,time:,gpu_type: \
     --name "$0" \
     -- "$@"
 )
@@ -12,7 +12,6 @@ api=0
 
 while true; do
     case "$1" in
-        --experiment) experiment="$2"; shift 2 ;;
         --api) api=1; shift ;;
         --llms) llms="$2"; shift 2 ;;
         --tasks) tasks="$2"; shift 2 ;;
@@ -32,7 +31,7 @@ IFS=',' read -ra fuse_modes <<< "$fuse_modes"
 for llm in ${llms[@]}; do
     for task in ${tasks[@]}; do
         for fuse_mode in ${fuse_modes[@]}; do
-            experiment="$llm/bandit_pr-$num_retrieve-$experiment/$task"
+            experiment="$llm/bandit_pr-$num_retrieve/$fuse_mode/$task"
             sbatch \
                 --job-name=$experiment \
                 --time=$time \

@@ -9,7 +9,8 @@ preprocessor:
 
 score_model:
   encoder_model: facebook/contriever
-  fuse_mode: concat
+  fuse_mode: concat_hidden
+  num_layers: 12
   decoder_hidden_size: 100
 
 reinforce:
@@ -20,10 +21,10 @@ num_candidates: 20  # Number of candidate profiles for re-ranking
 from_pretrained: null
 
 num_epochs: 10
-batch_size: 1
+batch_size: 4
 gradient_accumulation_steps: 1
 max_grad_norm: 1.0
 lr: 1e-4
 
 eval_every: 1000
-eval_batch_size: 8
+eval_batch_size: 16
