@@ -2,7 +2,7 @@
 
 ARGS=$(getopt \
     --options "" \
-    --long api,llms:,tasks:,retrievers:,num_retrieve:,time:,gpu_type: \
+    --long tasks:,retrievers:,num_retrieve:,llms:,api,time:,gpu_type: \
     --name "$0" \
     -- "$@"
 )
@@ -12,11 +12,11 @@ api=0
 
 while true; do
     case "$1" in
-        --api) api=1; shift ;;
-        --llms) llms="$2"; shift 2 ;;
         --tasks) tasks="$2"; shift 2 ;;
         --retrievers) retrievers="$2"; shift 2 ;;
         --num_retrieve) num_retrieve="$2"; shift 2 ;;
+        --llms) llms="$2"; shift 2 ;;
+        --api) api=1; shift ;;
         --time) time="$2"; shift 2 ;;
         --gpu_type) gpu_type="$2"; shift 2 ;;
         --) shift; break ;;
