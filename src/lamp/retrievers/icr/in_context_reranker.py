@@ -1,37 +1,36 @@
-import gc
 import math
 
-import torch
 import transformers
 from transformers.cache_utils import DynamicCache
 from transformers.models.mistral.modeling_mistral import repeat_kv
+import torch
+import gc
+import random
 
-from .custom_cache import DynamicCacheWithQuery
-from .custom_modeling_mistral import MistralForCausalLM
-from .custom_modeling_llama import LlamaForCausalLM
-
+from .custom.custom_cache import DynamicCacheWithQuery
+# from .custom.custom_modeling_mistral import MistralForCausalLM
+from .custom.custom_modeling_llama import LlamaForCausalLM
 
 class InContextReranker():
 
-    def __init__(
-        self,
-        base_llm_name,
-        prompt_template='instruct',
-        prompt_prefix='',
-        prompt_suffix='',
-        scoring_strategy='query_last',
-        use_fa2=True,
-        retrieval_type='QA',
-        sliding_window_size=20,
-        sliding_window_stride=None,
-        reverse_doc_order=False,
-    ) -> None:
+    def __init__(self, 
+                 base_llm_name,
+                 prompt_template='instruct',
+                 prompt_prefix='',
+                 prompt_suffix='',
+                 scoring_strategy='query_last',
+                 use_fa2=True,
+                 retrieval_type='QA',
+                 sliding_window_size=20,
+                 sliding_window_stride=None,
+                 reverse_doc_order=False,
+                 ) -> None:
         '''
         Inputs:
             base_llm: The base LLM model to be used for document retrieval.
             tokenizer: The tokenizer for the base LLM model.
-            prompt_template: The template for the prompt to be used for document retrieval.
-                Options:
+            prompt_template: The template for the prompt to be used for document retrieval. 
+                Options: 
                     'instruct': default instruction template
                     'simple': no instruction used
                     'simple_instruct: only wrap the input with corresponding chat templates of the base model. e.g. [INST]...[/INST] for Mistral-instruct
@@ -42,7 +41,7 @@ class InContextReranker():
         tokenizer = transformers.AutoTokenizer.from_pretrained(base_llm_name)
         self.tokenizer = tokenizer
         print(f"initialized tokenizer for [{base_llm_name}]")
-
+        
         if any([x in base_llm_name.lower() for x in ['mistralai/mistral', ]]):
             BaseLLMClass = MistralForCausalLM
         elif any([x in base_llm_name.lower() for x in ['llama']]):
@@ -52,30 +51,31 @@ class InContextReranker():
             raise NotImplementedError
 
         prompt_template, prompt_prefix, prompt_suffix, = self._setup_llm_prompts(prompt_template, base_llm_name)
-
+        
         if use_fa2:
             _attn_implementation = "flash_attention_2"
         else:
             _attn_implementation = "eager"
 
         llm = BaseLLMClass.from_pretrained(
-            base_llm_name,
-            torch_dtype=torch.float16,
-            attn_implementation=_attn_implementation,
-            device_map='auto'
-        )
+                base_llm_name, 
+                torch_dtype=torch.float16, 
+                attn_implementation=_attn_implementation,
+                device_map='auto'
+            )
         self.llm = llm
         self.llm.config.pad_token_id = self.llm.config.eos_token_id
-
+        
         # Setup prompts for ICR
         assert prompt_template in ['instruct', 'simple', 'simple_instruct'], "Invalid prompt template!"
-
+        
         self.prompt_template = prompt_template
         self.prompt_prefix = prompt_prefix
 
+        
         self.prompt_suffix = prompt_suffix
         self.scoring_strategy = scoring_strategy
-
+        
         if retrieval_type == 'QA':
             print('[ICR is using QA prompt type]')
             self.retrieval_instruction = ' Here are some paragraphs:'
@@ -88,18 +88,20 @@ class InContextReranker():
             raise NotImplementedError('Invalid retrieval type! Should be one of [QA, IE]')
 
         assert scoring_strategy in ['query_last', 'attention_sorting', 'NA_only', 'NA_calibration_no_agg', 'masked_NA_calibration'], "Invalid scoring strategy!"
-
+        
         self._use_fa2 = use_fa2
         if use_fa2:
             print('Using FA2 for retrieval score computation.')
         else:
             print('Using eager attention weights for retrieval score computation.')
         self.num_layers = self.llm.config.num_hidden_layers
+        
 
         self.start_layer = 0
         self.end_layer = self.num_layers - 1
-
+        
         print('[ICR is using layers from {} to {}.]'.format(self.start_layer, self.end_layer))
+
 
         # The following settings are for constructing the input prompt.
         self.prompt_bos_length=1
@@ -113,6 +115,7 @@ class InContextReranker():
             self.additional_prompt_offset = 0
             self.prompt_separator = '\n\n'
 
+        
         # Setup sliding window.
         # ICR typically works worse with sliding window, especially with smaller window sizes. Try to fit all documents to be re-ranked in the context as much as possible. 
         self.reverse_doc_order = reverse_doc_order
@@ -121,7 +124,27 @@ class InContextReranker():
             self.sliding_window_stride = sliding_window_size//2
         else:
             self.sliding_window_stride = sliding_window_stride
+        
+    def _setup_llm_prompts(self, prompt_template, base_llm_name):
+        
+        if prompt_template == '':
+            prompt_template='instruct' if any(x in base_llm_name.lower() for x in ['instruct']) else 'simple'
+        else:
+            assert prompt_template in ['instruct', 'simple', 'simple_instruct']
+        print('ICR is using prompt template [{}] for in-context retrieval'.format(prompt_template))
+        
+        if  'mistral' in base_llm_name.lower():
+            prompt_prefix = '[INST]'
+            prompt_suffix = '[/INST]'
+        elif 'llama-3' in base_llm_name.lower():
+            prompt_prefix = '<|start_header_id|>user<|end_header_id|>'
+            prompt_suffix = '<|eot_id|><|start_header_id|>assistant<|end_header_id|>'
+        else:
+            raise NotImplementedError("Prompt prefix and suffix not defined for the model family of {}.".format(base_llm_name))
+        
+        return prompt_template, prompt_prefix, prompt_suffix
 
+            
     def rerank(self, query, documents, return_per_doc_results=False, order='desc', calib_query_type='NA'):
         '''
         Rerank the documents based on the query using a sliding window strategy.
@@ -182,6 +205,101 @@ class InContextReranker():
 
         assert len(sorted_doc_ids) == len(sorted_doc_scores), "Length mismatch between sorted doc ids ({}) and scores({})!".format(len(sorted_doc_ids), len(sorted_doc_scores))
         return (sorted_doc_ids, sorted_doc_scores), per_doc_results
+
+    def score_documents(
+            self,
+            llm_input,
+            doc_tok_idx_spans,
+            query_start_tok_idx,
+            query_end_tok_idx,
+            context_start_idx=0,
+            return_per_doc_results=False,
+            long_prompt=False,
+            return_cache=False,
+            kv_cache=None,
+        ):
+
+        tokenized_input = self.tokenizer(llm_input,return_tensors='pt').to(self.llm.device)
+        _input_ids = tokenized_input.input_ids[:, context_start_idx:]
+        _query_indices = list(range(query_start_tok_idx-context_start_idx, query_end_tok_idx-context_start_idx+1))
+        
+        if kv_cache is None:
+            if self._use_fa2:
+                kv_cache=DynamicCacheWithQuery(query_indices=_query_indices)
+            else:
+                kv_cache=DynamicCache()
+        else:
+            kv_cache.query_cache = []
+            _query_indices = _query_indices
+            kv_cache._query_indices = _query_indices
+
+        with torch.no_grad():
+            output = self.llm(
+                input_ids=_input_ids,
+                use_cache=True,
+                past_key_values=kv_cache,
+                output_attentions=True
+                )
+
+        if self._use_fa2:
+            # Extract key and query vectors from FA2. Then recompute attention scores for re-ranking.
+            kv_cache = output.past_key_values
+
+            long_prompt = False
+            if len(_input_ids[0]) > 40000:
+                # For sequences that are too long, compute scores on CPU to void GPU OOM.
+                # Adjust the limit here depending on your system configuration.
+                print('Long sequence of more than 40K tokens detected. Computing attention scores on CPU.')
+                long_prompt = True
+            
+            attention_weights = []
+            doc_tok_weights = []
+            
+            if long_prompt:
+                _device = 'cpu'
+            else:
+                _device = 'cuda:0'
+            
+            # loop through all layers and compute attention scores
+            for i in range(self.start_layer, self.end_layer+1):                     
+                attn_weights = self._get_attn_weights(kv_cache.key_cache[i][:,:,:query_end_tok_idx+1], kv_cache.query_cache[i],  use_cpu=long_prompt).to(_device).squeeze(0)
+                attn_weights = attn_weights.mean(1) # average over query tokens
+                attention_weights.append(attn_weights.squeeze(0))
+                
+        else:
+            # Directly extract attention weights from the attention layers of the LLM.
+            attention_weights = [attn[0][:,query_start_tok_idx:query_end_tok_idx+1,:].mean(1) for attn in output.attentions]
+
+        attention_weights = torch.stack(attention_weights, dim=0)
+        
+        if return_per_doc_results != 'none':
+            per_doc_results = [[None, None] for _ in range(len(doc_tok_idx_spans))]
+        else:
+            per_doc_results = None
+    
+        attention_weights = attention_weights.sum(0) # sum attention scores across layers            
+        attention_weights = attention_weights.sum(0) # sum attention scores across attention heads
+        doc_scores = []
+        
+        for i, doc_span in enumerate(doc_tok_idx_spans): 
+            _tok_score = attention_weights[doc_span[0]:doc_span[1]]
+            doc_scores.append(_tok_score.sum())
+
+            if return_per_doc_results != 'none':
+                _doc_tok_ids = tokenized_input.input_ids[0][doc_span[0]:doc_span[1]]
+                _doc_toks = self.tokenizer.convert_ids_to_tokens(_doc_tok_ids)
+                per_doc_results[i][0] = _doc_toks
+                per_doc_results[i][1] = _tok_score.clone().detach() # sum over layers
+            
+        doc_scores = torch.tensor(doc_scores)
+        gc.collect()
+        torch.cuda.empty_cache()
+
+        if return_cache:
+            return doc_scores, per_doc_results, kv_cache
+        else:
+            return doc_scores, per_doc_results
+
 
     def get_sorted_docs(self, query, retrieval_doc_pool, return_per_doc_results=False, prompt_prefix='', order='desc'):
 
@@ -305,119 +423,6 @@ class InContextReranker():
             print(f"Invalid order: {order}. Please use 'desc', 'asc' or 'none")
             raise NotImplementedError
 
-    def score_documents(
-            self,
-            llm_input,
-            doc_tok_idx_spans,
-            query_start_tok_idx,
-            query_end_tok_idx,
-            context_start_idx=0,
-            return_per_doc_results=False,
-            long_prompt=False,
-            return_cache=False,
-            kv_cache=None,
-        ):
-
-        tokenized_input = self.tokenizer(llm_input,return_tensors='pt').to(self.llm.device)
-        _input_ids = tokenized_input.input_ids[:, context_start_idx:]
-        _query_indices = list(range(query_start_tok_idx-context_start_idx, query_end_tok_idx-context_start_idx+1))
-        
-        if kv_cache is None:
-            if self._use_fa2:
-                kv_cache=DynamicCacheWithQuery(query_indices=_query_indices)
-            else:
-                kv_cache=DynamicCache()
-        else:
-            kv_cache.query_cache = []
-            _query_indices = _query_indices
-            kv_cache._query_indices = _query_indices
-
-        with torch.no_grad():
-            output = self.llm(
-                input_ids=_input_ids,
-                use_cache=True,
-                past_key_values=kv_cache,
-                output_attentions=True
-                )
-
-        if self._use_fa2:
-            # Extract key and query vectors from FA2. Then recompute attention scores for re-ranking.
-            kv_cache = output.past_key_values
-
-            long_prompt = False
-            if len(_input_ids[0]) > 40000:
-                # For sequences that are too long, compute scores on CPU to void GPU OOM.
-                # Adjust the limit here depending on your system configuration.
-                print('Long sequence of more than 40K tokens detected. Computing attention scores on CPU.')
-                long_prompt = True
-            
-            attention_weights = []
-            doc_tok_weights = []
-            
-            if long_prompt:
-                _device = 'cpu'
-            else:
-                _device = 'cuda:0'
-            
-            # loop through all layers and compute attention scores
-            for i in range(self.start_layer, self.end_layer+1):                     
-                attn_weights = self._get_attn_weights(kv_cache.key_cache[i][:,:,:query_end_tok_idx+1], kv_cache.query_cache[i],  use_cpu=long_prompt).to(_device).squeeze(0)
-                attn_weights = attn_weights.mean(1) # average over query tokens
-                attention_weights.append(attn_weights.squeeze(0))
-                
-        else:
-            # Directly extract attention weights from the attention layers of the LLM.
-            attention_weights = [attn[0][:,query_start_tok_idx:query_end_tok_idx+1,:].mean(1) for attn in output.attentions]
-
-        attention_weights = torch.stack(attention_weights, dim=0)
-        
-        if return_per_doc_results != 'none':
-            per_doc_results = [[None, None] for _ in range(len(doc_tok_idx_spans))]
-        else:
-            per_doc_results = None
-    
-        attention_weights = attention_weights.sum(0) # sum attention scores across layers            
-        attention_weights = attention_weights.sum(0) # sum attention scores across attention heads
-        doc_scores = []
-        
-        for i, doc_span in enumerate(doc_tok_idx_spans): 
-            _tok_score = attention_weights[doc_span[0]:doc_span[1]]
-            doc_scores.append(_tok_score.sum())
-
-            if return_per_doc_results != 'none':
-                _doc_tok_ids = tokenized_input.input_ids[0][doc_span[0]:doc_span[1]]
-                _doc_toks = self.tokenizer.convert_ids_to_tokens(_doc_tok_ids)
-                per_doc_results[i][0] = _doc_toks
-                per_doc_results[i][1] = _tok_score.clone().detach() # sum over layers
-            
-        doc_scores = torch.tensor(doc_scores)
-        gc.collect()
-        torch.cuda.empty_cache()
-
-        if return_cache:
-            return doc_scores, per_doc_results, kv_cache
-        else:
-            return doc_scores, per_doc_results
-
-    def _setup_llm_prompts(self, prompt_template, base_llm_name):
-        
-        if prompt_template == '':
-            prompt_template='instruct' if any(x in base_llm_name.lower() for x in ['instruct']) else 'simple'
-        else:
-            assert prompt_template in ['instruct', 'simple', 'simple_instruct']
-        print('ICR is using prompt template [{}] for in-context retrieval'.format(prompt_template))
-        
-        if  'mistral' in base_llm_name.lower():
-            prompt_prefix = '[INST]'
-            prompt_suffix = '[/INST]'
-        elif 'llama-3' in base_llm_name.lower():
-            prompt_prefix = '<|start_header_id|>user<|end_header_id|>'
-            prompt_suffix = '<|eot_id|><|start_header_id|>assistant<|end_header_id|>'
-        else:
-            raise NotImplementedError("Prompt prefix and suffix not defined for the model family of {}.".format(base_llm_name))
-        
-        return prompt_template, prompt_prefix, prompt_suffix
-
     def _prepare_input_for_document_retrieval(self, query, documents, system_prompt='', query_position='last'):
         '''
         Only tested with Mistral and Llama-3.1. Models using other tokenizers may need to modify this function.
@@ -526,14 +531,14 @@ class InContextReranker():
         if query_position == 'last':
             query_end_idx = prompt_length - 1
         return llm_prompt, document_span_intervals, query_start_idx, query_end_idx
-
-    @classmethod
+    
+    # @classmethod
     def __show_tokens(self, string):
         # Shows tokenized string.
         # Mainly used for debugging prompt construction for document retrieval.
         tokenized_string_ids = self.tokenizer(string, return_tensors='pt').input_ids[0]
         print(self.tokenizer.convert_ids_to_tokens(tokenized_string_ids), tokenized_string_ids.size(0))
-             
+                      
     @classmethod
     def _get_attn_weights(cls, key_states, query_states, use_cpu=False):
 

@@ -8,7 +8,7 @@ from rank_bm25 import BM25Okapi
 import torch
 from transformers import PreTrainedTokenizerBase
 
-from .retrievers import Contriever, RankGPT
+from .retrievers import Contriever, RankGPT, ICR
 from .data_types import Profile, PromptGenerator
 
 
@@ -27,6 +27,8 @@ def create_prompt_generator(
         contriever = Contriever(device)
     elif retriever == 'rank_gpt':
         rank_gpt = RankGPT(device)
+    elif retriever == 'icr':
+        icr = ICR(device)
 
     prompt_generator = _create_prompt_generator(task)
 
@@ -51,6 +53,8 @@ def create_prompt_generator(
             retrieved_profiles = contriever(query, corpus, profiles, num_retrieve)
         elif retriever == 'rank_gpt':
             retrieved_profiles = rank_gpt(query, corpus, profiles, num_retrieve)
+        elif retriever == 'icr':
+            retrieved_profiles = icr(query, corpus, profiles, num_retrieve)
         else:
             raise ValueError(f'Invalid retriever: {retriever}')
 
