@@ -12,7 +12,8 @@ class ICR:
         self.icr = InContextReranker(
             'meta-llama/Meta-Llama-3-8B-Instruct',
             scoring_strategy='masked_NA_calibration',
-            retrieval_type='IE'
+            retrieval_type='IE',
+            sliding_window_size=10
         )
         self.icr.llm.to(device)
 
