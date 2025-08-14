@@ -71,44 +71,40 @@ def preprocess() -> None:
 def baseline_results(task: str, retriever: str, llm: str) -> None:
     result_dir = Path(f'logs/{llm}/{retriever}-5/{task}')
     result_file = list(result_dir.rglob('*.out'))[0]
-    result = ''
 
     with open(result_file, 'r') as file:
-        for line in file:
-            if not line.startswith('['):
-                result += line
+        text = file.read()
 
-    results = {key: f'{value:.3f}' for key, value in json.loads(result).items()}
-    print(json.dumps(results, indent=4))
+    results = [json.loads(match) for match in re.findall(r'\{.*?\}', text, flags=re.DOTALL)]
+    assert len(results) == 1
+
+    result = {
+        key: f'{value:.3f}'
+        for key, value in results[0].items()
+        if key in ['accuracy', 'f1', 'mae', 'rmse', 'rouge-1', 'rouge-L']
+    }
+    print(json.dumps(result, indent=4))
 
 
-def bandit_pr_results() -> None:
-    for task in [
-        'LaMP-1', 'LaMP-2', 'LaMP-3', 'LaMP-4', 'LaMP-5', 'LaMP-7',
-        'LongLaMP-2', 'LongLaMP-3', 'LongLaMP-4'
-    ]:
-        for llm in ['phi-4-mini-instruct', 'llama-3-8b-instruct']:
-            for method in ['concat', 'cross_attn']:
-                result_dir = Path(f'logs/{llm}/bandit_pr-5/{method}/{task}')
-                result_file = list(result_dir.rglob('*.out'))[0]
+def bandit_pr_results(task: str, version: str, llm: str) -> None:
+    result_dir = Path(f'logs/{llm}/bandit_pr-5/{version}/{task}')
+    result_file = list(result_dir.rglob('*.out'))[0]
 
-                with open(result_file, 'r') as file:
-                    text = file.read()
+    with open(result_file, 'r') as file:
+        text = file.read()
 
-                results = [json.loads(match) for match in re.findall(r'\{.*?\}', text, flags=re.DOTALL)]
-                key = lambda x: (
-                    x['accuracy'] if 'accuracy' in x else
-                    x['mae'] if 'mae' in x else x['rouge-1']
-                )
-                best_result = max(results, key=key)
-                best_result = {
-                    key: f'{value:.3f}'
-                    for key, value in best_result.items()
-                    if key not in ['reward', 'meteor', 'wer']
-                }
-                print(task, llm, method, best_result)
-
-        print('-' * 100)
+    results = [json.loads(match) for match in re.findall(r'\{.*?\}', text, flags=re.DOTALL)]
+    key = lambda x: (
+        x['accuracy'] if 'accuracy' in x else
+        x['mae'] if 'mae' in x else x['rouge-1']
+    )
+    best_result = max(results, key=key)
+    best_result = {
+        key: f'{value:.3f}'
+        for key, value in best_result.items()
+        if key in ['accuracy', 'f1', 'mae', 'rmse', 'rouge-1', 'rouge-L']
+    }
+    print(json.dumps(best_result, indent=4))
 
 
 if __name__ == '__main__':
