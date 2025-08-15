@@ -5,7 +5,6 @@ from pathlib import Path
 import fire
 
 
-
 def download() -> None:
     import evaluate
     from datasets import load_dataset
