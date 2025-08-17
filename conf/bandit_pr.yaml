@@ -14,17 +14,17 @@ score_model:
   decoder_hidden_size: 100
 
 reinforce:
-  num_samples: 20   # Number of samples, each contains `sample_size` profiles
-  epsilon: 0.1      # Exploration rate
+  num_samples: 32   # Number of samples, each contains `sample_size` profiles
+  epsilon: 0.       # Exploration rate
 
 num_candidates: 20  # Number of candidate profiles for re-ranking
 from_pretrained: null
 
 num_epochs: 10
-batch_size: 4
+batch_size: 32
 gradient_accumulation_steps: 1
 max_grad_norm: 1.0
 lr: 1e-4
 
-eval_every: 1000
-eval_batch_size: 16
+eval_every: 1024
+eval_batch_size: 64

@@ -74,8 +74,8 @@ def main(config: DictConfig) -> None:
         targets.append(target)
 
     # Generate predictions
-    llm = LLM(config.task, verbose=True, **config.llm)
-    predictions = llm.generate(sources)
+    llm = LLM(config.task, **config.llm)
+    predictions = llm.generate(sources, verbose=True)
 
     # Compute metrics
     metric_fn = create_metric(config.task)

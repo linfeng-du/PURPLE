@@ -13,6 +13,7 @@ class ScoreModel(nn.Module):
         super().__init__()
         self.encoder_model = encoder_model
         self.fuse_mode = fuse_mode
+        self.num_layers = num_layers
         self.decoder_hidden_size = decoder_hidden_size
 
         self.encoder = AutoModel.from_pretrained(self.encoder_model)
@@ -45,7 +46,8 @@ class ScoreModel(nn.Module):
                 dim_feedforward=4 * self.encoder_hidden_size,
                 batch_first=True
             ),
-            num_layers
+            num_layers,
+            enable_nested_tensor=False
         )
 
         self.mlp_decoder = nn.Sequential(
@@ -77,6 +79,7 @@ class ScoreModel(nn.Module):
             config = {
                 'encoder_model': self.encoder_model,
                 'fuse_mode': self.fuse_mode,
+                'num_layers': self.num_layers,
                 'decoder_hidden_size': self.decoder_hidden_size
             }
             json.dump(config, file, indent=2)

@@ -69,12 +69,11 @@ SYSTEM_PROMPTS = {
 
 class LLM:
 
-    def __init__(self, task: str, model: str, provider: str, generate_config: dict, verbose: bool = False) -> None:
+    def __init__(self, task: str, model: str, provider: str, generate_config: dict) -> None:
         self.task = task
         self.model = model
         self.provider = provider
         self.generate_config = generate_config
-        self.verbose = verbose
 
         if self.provider == 'local':
             self.device = torch.cuda.device_count() - 1
@@ -94,7 +93,7 @@ class LLM:
         else:
             raise ValueError(f'Invalid provider: {self.provider}')
 
-    def generate(self, prompts: list[str]) -> list[str]:
+    def generate(self, prompts: list[str], verbose: bool = False) -> list[str]:
         if self.provider == 'local':
             responses = []
             dataset = _ChatDataset([self._create_message(prompt) for prompt in prompts])
@@ -103,7 +102,7 @@ class LLM:
                 self.pipeline(dataset, **self.generate_config),
                 desc='Generating responses',
                 total=len(dataset),
-                disable=(not self.verbose)
+                disable=(not verbose)
             ):
                 response = output[0]['generated_text'][-1]['content']
                 responses.append(response)
@@ -134,35 +133,36 @@ class LLM:
 
     @torch.no_grad()
     def compute_target_logps(self, prompts: list[str], targets: list[str]) -> torch.Tensor:
-        full_texts = []
-        target_lengths = []
-
-        for prompt, target in zip(prompts, targets):
-            chat = self.pipeline.tokenizer.apply_chat_template(
-                self._create_message(prompt),
-                add_generation_prompt=True,
-                tokenize=False
-            )
-            full_text = f'{chat} {target}'
-            target_length = len(self.pipeline.tokenizer.encode(target))
-            full_texts.append(full_text)
-            target_lengths.append(target_length)
-
         target_logps = []
+        tokenizer = self.pipeline.tokenizer
 
-        for full_text, target_length in zip(full_texts, target_lengths):
-            inputs = self.pipeline.tokenizer(full_text, padding=True, truncation=True, return_tensors='pt')
-            inputs = inputs.to(self.device)
+        chats_input_ids = tokenizer.apply_chat_template(
+            [self._create_message(prompt) for prompt in prompts],
+            add_generation_prompt=True,
+            tokenize=True
+        )
+        targets_input_ids = tokenizer(targets, add_special_tokens=False)['input_ids']
 
-            labels = inputs['input_ids'].clone()[:, 1:]
-            target_mask = torch.zeros_like(labels)
-            target_mask[:, -target_length:] = 1
+        for chat_input_ids, target_input_ids in zip(chats_input_ids, targets_input_ids):
+            if len(chat_input_ids) + len(target_input_ids) + 1 > tokenizer.model_max_length:
+                target_max_length = tokenizer.model_max_length - len(chat_input_ids) - 1
+                assert target_max_length > 0
+                target_input_ids = target_input_ids[:target_max_length]
 
-            outputs = self.pipeline.model(**inputs)
-            logps = F.log_softmax(outputs.logits, dim=2)
-            token_logps = logps[:, :-1, :].gather(dim=2, index=labels.unsqueeze(dim=2)).squeeze(dim=2)
+            target_length = len(target_input_ids) + 1
+            input_ids = chat_input_ids + target_input_ids + [tokenizer.eos_token_id]
 
-            batch_target_logps = torch.sum(token_logps * target_mask, dim=1)
+            input_ids = torch.tensor([input_ids], device=self.device)
+            attention_mask = torch.ones_like(input_ids)
+            labels = input_ids[:, 1:]
+
+            outputs = self.pipeline.model(input_ids=input_ids, attention_mask=attention_mask)
+            logps = F.log_softmax(outputs.logits[:, :-1, :], dim=2)
+            token_logps = logps.gather(dim=2, index=labels.unsqueeze(dim=2)).squeeze(dim=2)
+            token_mask = torch.zeros_like(token_logps)
+            token_mask[0, -target_length:] = 1.
+
+            batch_target_logps = torch.sum(token_logps * token_mask, dim=1)
             target_logps.append(batch_target_logps)
 
         return torch.cat(target_logps, dim=0)

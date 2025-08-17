@@ -163,7 +163,7 @@ class Trainer:
                 prompts.append(prompt)
                 targets.append(target)
 
-        predictions = self.llm.generate(prompts)
+        predictions = self.llm.generate(prompts, verbose=True)
         rewards = self.reward_fn(predictions, targets)
         results = self.metric_fn(predictions, targets)
         results.update({'reward': rewards.mean().item()})

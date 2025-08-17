@@ -70,5 +70,6 @@ def _sample_without_replacement(
 
 
 def compute_loss(logps: torch.Tensor, rewards: torch.Tensor) -> torch.Tensor:
-    """Compute REINFORCE loss."""
-    return -torch.mean(logps * rewards)
+    """Compute REINFORCE loss with baseline."""
+    baselines = rewards.mean(dim=1, keepdim=True)
+    return -torch.mean(logps * (rewards - baselines))

@@ -71,8 +71,7 @@ def inspect_performance_range(task: str, num_retrieve: int) -> None:
             'num_beams': 1,
             'temperature': 0.7,
             'top_p': 0.8
-        },
-        verbose=True
+        }
     )
     prompt_generator = create_prompt_generator(
         task,
@@ -107,7 +106,7 @@ def inspect_performance_range(task: str, num_retrieve: int) -> None:
             sources.append(source)
             targets.append(target)
 
-        predictions = llm.generate(sources)
+        predictions = llm.generate(sources, verbose=True)
         rouge_results = rouge_metric.compute(
             predictions=[prediction.strip() for prediction in predictions],
             references=[[target.strip()] for target in targets],
