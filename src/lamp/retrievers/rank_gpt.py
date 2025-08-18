@@ -12,7 +12,7 @@ class RankGPT:
     def __init__(self, device: torch.device) -> None:
         self.pipeline = pipeline(
             task='text-generation',
-            model='meta-llama/Llama-3.1-8B-Instruct',
+            model='meta-llama/Meta-Llama-3-8B-Instruct',
             device=device,
             torch_dtype=torch.bfloat16
         )
