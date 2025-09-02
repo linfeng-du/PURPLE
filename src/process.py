@@ -80,7 +80,7 @@ def baseline_results(task: str, retriever: str, llm: str) -> None:
     result = {
         key: f'{value:.3f}'
         for key, value in results[0].items()
-        if key in ['accuracy', 'f1', 'mae', 'rmse', 'rouge-1', 'rouge-L']
+        if key in ['accuracy', 'f1', 'mae', 'rmse', 'rouge-1', 'rouge-L', 'meteor']
     }
     print(json.dumps(result, indent=4))
 
@@ -101,7 +101,7 @@ def bandit_pr_results(task: str, version: str, llm: str) -> None:
     best_result = {
         key: f'{value:.3f}'
         for key, value in best_result.items()
-        if key in ['accuracy', 'f1', 'mae', 'rmse', 'rouge-1', 'rouge-L']
+        if key in ['accuracy', 'f1', 'mae', 'rmse', 'rouge-1', 'rouge-L', 'meteor']
     }
     print(json.dumps(best_result, indent=4))
 
