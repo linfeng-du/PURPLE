@@ -31,17 +31,11 @@ IFS=',' read -ra retrievers <<< "$retrievers"
 for llm in ${llms[@]}; do
     for task in ${tasks[@]}; do
         for retriever in ${retrievers[@]}; do
-            if [[ $api -eq 0 || $retriever == "contriever" ]]; then
-                compute="gres=gpu:$gpu_type:1"
-            else
-                compute="cpus-per-task=1"
-            fi
-
             experiment="$llm/$retriever-$num_retrieve/$task"
             sbatch \
                 --job-name=$experiment \
                 --time=$time \
-                --$compute \
+                --gres=gpu:$gpu_type:1 \
                 --mem=64G \
                 --output=./logs/$experiment/%j.out \
                 --error=./logs/$experiment/%j.err \
