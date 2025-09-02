@@ -9,13 +9,15 @@ preprocessor:
 
 score_model:
   encoder_model: facebook/contriever
-  fuse_mode: concat_hidden
+  fuse_mode: concat_hidden  # Query-document fusion mode (concat_hidden, concat_token, cross_attn)
   num_layers: 12
   decoder_hidden_size: 100
 
 reinforce:
   num_samples: 32   # Number of samples, each contains `sample_size` profiles
   epsilon: 0.       # Exploration rate
+  reward: logp      # Type of reward (metric, logp)
+  loss: baseline    # Type of loss function (reinforce, baseline)
 
 num_candidates: 20  # Number of candidate profiles for re-ranking
 from_pretrained: null
