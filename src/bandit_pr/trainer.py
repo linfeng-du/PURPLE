@@ -67,22 +67,32 @@ class Trainer:
     def train(self) -> None:
         self.score_model.train()
         example_cnt = 0
-        best_eval_reward = float('-inf')
+        best_eval_metric = None
 
         for epoch in range(self.config.num_epochs):
             for step, batch in enumerate(tqdm(self.train_loader, desc=f'Epoch {epoch}')):
                 if (example_cnt > 0) and (example_cnt % self.config.eval_every == 0):
                     eval_results = self.evaluate()
                     self.score_model.train()
-                    self.wandb.log({'eval_reward': eval_results['reward']})
+
+                    metric = (
+                        'accuracy' if 'accuracy' in eval_results else
+                        'mae' if 'mae' in eval_results else 'rouge-1'
+                    )
+                    eval_metric = eval_results[metric]
+                    self.wandb.log({'eval_metric': eval_metric})
                     logger.info(
                         f'Evaluation results after {example_cnt} training examples:\n'
                         f'{json.dumps(eval_results, indent=2)}'
                     )
 
-                    if eval_results['reward'] > best_eval_reward:
-                        logger.info(f'Best evaluation reward achieved: {eval_results["reward"]}')
-                        best_eval_reward = eval_results['reward']
+                    if (
+                        (not best_eval_metric)
+                        or (metric == 'mae' and eval_metric < best_eval_metric)
+                        or (eval_metric > best_eval_metric)
+                    ):
+                        logger.info(f'Best evaluation metric achieved: {eval_metric}')
+                        best_eval_metric = eval_metric
                         self.score_model.save_pretrained(f'{self.config.experiment}')
 
                 likelihoods = self.score_model(
@@ -169,7 +179,4 @@ class Trainer:
                 targets.append(target)
 
         predictions = self.llm.generate(prompts, verbose=True)
-        rewards = self.reward_fn(predictions, targets)
-        results = self.metric_fn(predictions, targets)
-        results.update({'reward': rewards.mean().item()})
-        return results
+        return self.metric_fn(predictions, targets)

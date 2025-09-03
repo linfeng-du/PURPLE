@@ -2,16 +2,15 @@
 
 ARGS=$(getopt \
     --options "" \
-    --long llms:,tasks:,num_retrieve:,fuse_modes:,num_layers_list:,rewards:,losses:,time:,gpu_type: \
+    --long time:,llms:,tasks:,num_retrieve:,fuse_modes:,num_layers_list:,rewards:,losses: \
     --name "$0" \
     -- "$@"
 )
 eval set -- "$ARGS"
 
-api=0
-
 while true; do
     case "$1" in
+        --time) time="$2"; shift 2 ;;
         --llms) llms="$2"; shift 2 ;;
         --tasks) tasks="$2"; shift 2 ;;
         --num_retrieve) num_retrieve="$2"; shift 2 ;;
@@ -19,8 +18,6 @@ while true; do
         --num_layers_list) num_layers_list="$2"; shift 2 ;;
         --rewards) rewards="$2"; shift 2 ;;
         --losses) losses="$2"; shift 2 ;;
-        --time) time="$2"; shift 2 ;;
-        --gpu_type) gpu_type="$2"; shift 2 ;;
         --) shift; break ;;
         *) echo "Unknown option: $1" >&2; exit 1 ;;
     esac
@@ -40,10 +37,11 @@ for llm in ${llms[@]}; do
                 for reward in ${rewards[@]}; do
                     for loss in ${losses[@]}; do
                         experiment="$llm/bandit_pr-$num_retrieve/$fuse_mode-$num_layers-$reward-$loss/$task"
+                        mkdir -p ./logs/$experiment
                         sbatch \
                             --job-name=$experiment \
                             --time=$time \
-                            --gres=gpu:$gpu_type:1 \
+                            --gpus-per-node=1 \
                             --mem=64G \
                             --output=./logs/$experiment/%j.out \
                             --error=./logs/$experiment/%j.err \
