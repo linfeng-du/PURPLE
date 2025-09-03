@@ -1,7 +1,7 @@
 model: meta-llama/Meta-Llama-3-8B-Instruct
 provider: local
 generate_config:
-  batch_size: 8
+  batch_size: 4
   max_new_tokens: 256
   do_sample: true
   num_beams: 1
