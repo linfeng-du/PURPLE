@@ -27,8 +27,7 @@ IFS=',' read -ra retrievers <<< "$retrievers"
 for llm in ${llms[@]}; do
     for task in ${tasks[@]}; do
         for retriever in ${retrievers[@]}; do
-            # experiment="$llm/$retriever-$num_retrieve/$task"
-            experiment=debug
+            experiment="$llm/$retriever-$num_retrieve/$task"
             mkdir -p ./logs/$experiment
             sbatch \
                 --job-name=$experiment \
