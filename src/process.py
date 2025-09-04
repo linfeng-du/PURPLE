@@ -1,6 +1,7 @@
 import re
 import json
 from pathlib import Path
+from collections import defaultdict
 
 import fire
 
@@ -67,6 +68,25 @@ def preprocess() -> None:
         test_dataset.map(preprocessor, batched=True, remove_columns=['query', 'corpus'], num_proc=16)
 
 
+def baseline_results_formatted() -> None:
+    for task in [
+        'LaMP-1', 'LaMP-2', 'LaMP-3', 'LaMP-4', 'LaMP-5', 'LaMP-7',
+        'LongLaMP-2', 'LongLaMP-3', 'LongLaMP-4'
+    ]:
+        metric_results = defaultdict(list)
+
+        for retriever in ['icr', 'rank_gpt', 'contriever', 'bm25']:
+            for llm in ['phi-4-mini-instruct', 'llama-3-8b-instruct']:
+                results = baseline_results(task, retriever, llm)
+
+                for metric, result in results.items():
+                    metric_results[metric].append(result)
+
+        for metric, results in metric_results.items():
+            print(task, metric)
+            print('& ' + '\n& '.join([' & '.join(results[i : i + 2]) for i in range(0, len(results), 2)]) + ' \\\\')
+
+
 def baseline_results(task: str, retriever: str, llm: str) -> None:
     result_dir = Path(f'logs/{llm}/{retriever}-5/{task}')
     result_file = list(result_dir.rglob('*.out'))[0]
@@ -74,15 +94,16 @@ def baseline_results(task: str, retriever: str, llm: str) -> None:
     with open(result_file, 'r') as file:
         text = file.read()
 
-    results = [json.loads(match) for match in re.findall(r'\{.*?\}', text, flags=re.DOTALL)]
-    assert len(results) == 1
+    results_list = [json.loads(match) for match in re.findall(r'\{.*?\}', text, flags=re.DOTALL)]
+    assert len(results_list) == 1
 
-    result = {
+    results = {
         key: f'{value:.3f}'
-        for key, value in results[0].items()
+        for key, value in results_list[0].items()
         if key in ['accuracy', 'f1', 'mae', 'rmse', 'rouge-1', 'rouge-L', 'meteor']
     }
-    print(json.dumps(result, indent=4))
+    return results
+
 
 
 def bandit_pr_results(task: str, version: str, llm: str) -> None:
