@@ -85,6 +85,7 @@ def baseline_results_formatted() -> None:
         for metric, results in metric_results.items():
             print(task, metric)
             print('& ' + '\n& '.join([' & '.join(results[i : i + 2]) for i in range(0, len(results), 2)]) + ' \\\\')
+            print('-' * 100)
 
 
 def baseline_results(task: str, retriever: str, llm: str) -> None:
@@ -105,6 +106,24 @@ def baseline_results(task: str, retriever: str, llm: str) -> None:
     return results
 
 
+def bandit_pr_results_formatted(version: str) -> None:
+    for task in [
+        'LaMP-1', 'LaMP-2', 'LaMP-3', 'LaMP-4', 'LaMP-5', 'LaMP-7',
+        'LongLaMP-2', 'LongLaMP-3', 'LongLaMP-4'
+    ]:
+        metric_results = defaultdict(list)
+
+        for llm in ['phi-4-mini-instruct', 'llama-3-8b-instruct']:
+            results = bandit_pr_results(task, version, llm)
+
+            for metric, result in results.items():
+                metric_results[metric].append(result)
+
+        for metric, results in metric_results.items():
+            print(task, metric)
+            print('& ' + '\n& '.join([' & '.join(results[i : i + 2]) for i in range(0, len(results), 2)]))
+            print('-' * 100)
+
 
 def bandit_pr_results(task: str, version: str, llm: str) -> None:
     result_dir = Path(f'logs/{llm}/bandit_pr-5/{version}/{task}')
@@ -116,15 +135,15 @@ def bandit_pr_results(task: str, version: str, llm: str) -> None:
     results = [json.loads(match) for match in re.findall(r'\{.*?\}', text, flags=re.DOTALL)]
     key = lambda x: (
         x['accuracy'] if 'accuracy' in x else
-        x['mae'] if 'mae' in x else x['rouge-1']
+        -x['mae'] if 'mae' in x else x['rouge-1']
     )
-    best_result = max(results, key=key)
-    best_result = {
+    best_results = max(results, key=key)
+    best_results = {
         key: f'{value:.3f}'
-        for key, value in best_result.items()
+        for key, value in best_results.items()
         if key in ['accuracy', 'f1', 'mae', 'rmse', 'rouge-1', 'rouge-L', 'meteor']
     }
-    print(json.dumps(best_result, indent=4))
+    return best_results
 
 
 if __name__ == '__main__':
