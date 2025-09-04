@@ -90,7 +90,7 @@ class Trainer:
                         self.best_eval_metric = eval_metric
                         self._save_states()
 
-                logits = self.score_model(
+                likelihoods = self.score_model(
                     batch['query_inputs'].to(self.device),
                     [
                         [document_inputs.to(self.device) for document_inputs in document_subbatches]
@@ -99,7 +99,7 @@ class Trainer:
                     batch['profile_mask'].to(self.device)
                 )
                 retrieved_indices, logps = reinforce.sample(
-                    logits,
+                    likelihoods,
                     batch['profile_mask'].to(self.device),
                     self.cfg.reinforce.num_samples,
                     self.cfg.num_retrieve
@@ -123,7 +123,7 @@ class Trainer:
                 if self.cfg.reinforce.reward == 'metric':
                     responses = self.llm.generate(prompts)
                     rewards = self.reward_fn(responses, targets)
-                if self.cfg.reinforce.reward == 'logp':
+                elif self.cfg.reinforce.reward == 'logp':
                     rewards = self.llm.compute_target_logps(prompts, targets)
 
                 rewards = rewards.to(self.device).view_as(logps)
@@ -149,7 +149,7 @@ class Trainer:
         targets = []
 
         for batch in tqdm(self.test_loader, desc='Evaluating'):
-            logits = self.score_model(
+            likelihoods = self.score_model(
                 batch['query_inputs'].to(self.device),
                 [
                     [document_inputs.to(self.device) for document_inputs in document_subbatches]
@@ -157,8 +157,8 @@ class Trainer:
                 ],
                 batch['profile_mask'].to(self.device)
             )
-            num_retrieve = min(self.cfg.num_retrieve, logits.shape[1])
-            _, retrieved_indices = logits.topk(num_retrieve, dim=1)
+            num_retrieve = min(self.cfg.num_retrieve, likelihoods.shape[1])
+            _, retrieved_indices = likelihoods.topk(num_retrieve, dim=1)
 
             for batch_index, batch_retrieved_indices in enumerate(retrieved_indices):
                 retrieved_profiles = [

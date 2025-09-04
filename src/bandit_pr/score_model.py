@@ -35,8 +35,6 @@ class ScoreModel(nn.Module):
                 self.encoder.config.num_attention_heads,
                 batch_first=True
             )
-        else:
-            raise ValueError(f'Invalid fuse mode: {self.fuse_mode}')
 
         self.fuse_norm = nn.LayerNorm(self.encoder_hidden_size)
         self.doc_transformer = nn.TransformerEncoder(
@@ -53,7 +51,8 @@ class ScoreModel(nn.Module):
         self.mlp_decoder = nn.Sequential(
             nn.Linear(self.encoder_hidden_size, self.decoder_hidden_size),
             nn.ReLU(),
-            nn.Linear(self.decoder_hidden_size, 1)
+            nn.Linear(self.decoder_hidden_size, 1),
+            nn.Sigmoid()
         )
 
     @classmethod
@@ -108,13 +107,13 @@ class ScoreModel(nn.Module):
         src_key_padding_mask = ~(fuse_mask if self.fuse_mode == 'concat_token' else profile_mask)
         transformer_out = self.doc_transformer(fuse_embeds, src_key_padding_mask=src_key_padding_mask)
 
-        # Compute profile logits
-        logits = self.mlp_decoder(transformer_out).squeeze(dim=2)
+        # Compute profile likelihoods
+        likelihoods = self.mlp_decoder(transformer_out).squeeze(dim=2)
 
         if self.fuse_mode == 'concat_token':
-            logits = logits[:, 1:]
+            likelihoods = likelihoods[:, 1:]
 
-        return logits.masked_fill(~profile_mask, value=float('-inf'))
+        return likelihoods.masked_fill(~profile_mask, value=0.)
 
     def _fuse_concat_hidden(
         self,
