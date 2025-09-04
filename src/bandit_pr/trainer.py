@@ -1,7 +1,6 @@
+import os
 import json
 import logging
-
-from datasets import Dataset
 
 import torch
 import torch.nn as nn
@@ -16,7 +15,7 @@ from lamp.data_types import PromptGenerator, Metric
 
 from . import reinforce
 from .score_model import ScoreModel
-from .data_types import Collator, Reward
+from .data_types import Reward
 
 
 logger = logging.getLogger(__name__)
@@ -26,52 +25,48 @@ class Trainer:
 
     def __init__(
         self,
-        config: DictConfig,
+        cfg: DictConfig,
         score_model: ScoreModel,
         llm: LLM,
-        train_dataset: Dataset,
-        test_dataset: Dataset,
-        collate_fn: Collator,
+        train_loader: DataLoader,
+        test_loader: DataLoader,
         prompt_generator: PromptGenerator,
         reward_fn: Reward,
-        metric_fn: Metric
+        metric_fn: Metric,
+        from_pretrained: bool
     ) -> None:
-        self.config = config
+        self.cfg = cfg
         self.score_model = score_model
         self.llm = llm
+        self.train_loader = train_loader
+        self.test_loader = test_loader
         self.prompt_generator = prompt_generator
         self.reward_fn = reward_fn
         self.metric_fn = metric_fn
 
-        self.wandb = wandb.init(project='BanditPR', dir='logs', name=f'{config.experiment}')
+        # Trainer states
+        self.example_cnt = 0
+        self.best_eval_metric = None
+        self.optimizer = torch.optim.Adam(
+            [param for param in self.score_model.parameters() if param.requires_grad],
+            lr=self.cfg.lr
+        )
+
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.score_model.to(self.device)
 
-        self.train_loader = DataLoader(
-            train_dataset,
-            batch_size=self.config.batch_size,
-            shuffle=True,
-            collate_fn=collate_fn,
-            drop_last=True
-        )
-        self.test_loader = DataLoader(
-            test_dataset,
-            batch_size=self.config.eval_batch_size,
-            collate_fn=collate_fn
-        )
-        self.optimizer = torch.optim.Adam(
-            [param for param in self.score_model.parameters() if param.requires_grad],
-            lr=self.config.lr
-        )
+        if from_pretrained:
+            self._load_states(f'./models/{self.cfg.exp_name}')
+
+        self.wandb = wandb.init(project='BanditPR', dir='logs', name=f'{self.cfg.exp_name}')
 
     def train(self) -> None:
         self.score_model.train()
         example_cnt = 0
-        best_eval_metric = None
 
-        for epoch in range(self.config.num_epochs):
+        for epoch in range(self.cfg.num_epochs):
             for step, batch in enumerate(tqdm(self.train_loader, desc=f'Epoch {epoch}')):
-                if (example_cnt > 0) and (example_cnt % self.config.eval_every == 0):
+                if (example_cnt > 0) and (example_cnt % self.cfg.eval_every == 0):
                     eval_results = self.evaluate()
                     self.score_model.train()
 
@@ -87,15 +82,15 @@ class Trainer:
                     )
 
                     if (
-                        (not best_eval_metric)
-                        or (metric == 'mae' and eval_metric < best_eval_metric)
-                        or (eval_metric > best_eval_metric)
+                        (not self.best_eval_metric)
+                        or (metric == 'mae' and eval_metric < self.best_eval_metric)
+                        or (eval_metric > self.best_eval_metric)
                     ):
                         logger.info(f'Best evaluation metric achieved: {eval_metric}')
-                        best_eval_metric = eval_metric
-                        self.score_model.save_pretrained(f'{self.config.experiment}')
+                        self.best_eval_metric = eval_metric
+                        self._save_states()
 
-                likelihoods = self.score_model(
+                logits = self.score_model(
                     batch['query_inputs'].to(self.device),
                     [
                         [document_inputs.to(self.device) for document_inputs in document_subbatches]
@@ -104,11 +99,10 @@ class Trainer:
                     batch['profile_mask'].to(self.device)
                 )
                 retrieved_indices, logps = reinforce.sample(
-                    likelihoods,
+                    logits,
                     batch['profile_mask'].to(self.device),
-                    self.config.reinforce.num_samples,
-                    self.config.num_retrieve,
-                    self.config.reinforce.epsilon
+                    self.cfg.reinforce.num_samples,
+                    self.cfg.num_retrieve
                 )
 
                 prompts = []
@@ -126,20 +120,20 @@ class Trainer:
                         prompts.append(prompt)
                         targets.append(target)
 
-                if self.config.reinforce.reward == 'metric':
+                if self.cfg.reinforce.reward == 'metric':
                     responses = self.llm.generate(prompts)
                     rewards = self.reward_fn(responses, targets)
-                if self.config.reinforce.reward == 'logp':
+                if self.cfg.reinforce.reward == 'logp':
                     rewards = self.llm.compute_target_logps(prompts, targets)
 
                 rewards = rewards.to(self.device).view_as(logps)
 
-                loss = reinforce.compute_loss(logps, rewards, self.config.reinforce.loss)
-                loss = loss / self.config.gradient_accumulation_steps
+                loss = reinforce.compute_loss(logps, rewards, self.cfg.reinforce.loss)
+                loss = loss / self.cfg.gradient_accumulation_steps
                 loss.backward()
 
-                if (step + 1) % self.config.gradient_accumulation_steps == 0:
-                    nn.utils.clip_grad_norm_(self.score_model.parameters(), self.config.max_grad_norm)
+                if (step + 1) % self.cfg.gradient_accumulation_steps == 0:
+                    nn.utils.clip_grad_norm_(self.score_model.parameters(), self.cfg.max_grad_norm)
                     self.optimizer.step()
                     self.optimizer.zero_grad()
 
@@ -155,7 +149,7 @@ class Trainer:
         targets = []
 
         for batch in tqdm(self.test_loader, desc='Evaluating'):
-            likelihoods = self.score_model(
+            logits = self.score_model(
                 batch['query_inputs'].to(self.device),
                 [
                     [document_inputs.to(self.device) for document_inputs in document_subbatches]
@@ -163,8 +157,8 @@ class Trainer:
                 ],
                 batch['profile_mask'].to(self.device)
             )
-            num_retrieve = min(self.config.num_retrieve, likelihoods.shape[1])
-            _, retrieved_indices = likelihoods.topk(num_retrieve, dim=1)
+            num_retrieve = min(self.cfg.num_retrieve, logits.shape[1])
+            _, retrieved_indices = logits.topk(num_retrieve, dim=1)
 
             for batch_index, batch_retrieved_indices in enumerate(retrieved_indices):
                 retrieved_profiles = [
@@ -180,3 +174,19 @@ class Trainer:
 
         predictions = self.llm.generate(prompts, verbose=True)
         return self.metric_fn(predictions, targets)
+
+    def _load_states(self, ckpt_dir: str) -> None:
+        ckpt = torch.load(f'{ckpt_dir}/trainer.pt', map_location=self.device)
+        self.example_cnt = ckpt['example_cnt']
+        self.best_eval_metric = ckpt['best_eval_metric']
+        self.optimizer.load_state_dict(ckpt['optimizer_state_dict'])
+
+    def _save_states(self) -> None:
+        ckpt_dir = f'./models/{self.cfg.exp_name}'
+        os.makedirs(f'./{ckpt_dir}', exist_ok=True)
+        self.score_model.save_pretrained(ckpt_dir)
+        torch.save({
+            'example_cnt': self.example_cnt,
+            'best_eval_metric': self.best_eval_metric,
+            'optimizer_state_dict': self.optimizer.state_dict()
+        }, f'{ckpt_dir}/trainer.pt')

@@ -36,17 +36,16 @@ for llm in ${llms[@]}; do
             for num_layers in ${num_layers_list[@]}; do
                 for reward in ${rewards[@]}; do
                     for loss in ${losses[@]}; do
-                        experiment="$llm/bandit_pr-$num_retrieve/$fuse_mode-$num_layers-$reward-$loss/$task"
-                        mkdir -p ./logs/$experiment
+                        exp_name="$llm/bandit_pr-$num_retrieve/$fuse_mode-$num_layers-$reward-$loss/$task"
+                        mkdir -p ./logs/$exp_name
                         sbatch \
-                            --job-name=$experiment \
+                            --job-name=$exp_name \
                             --time=$time \
                             --gpus-per-node=1 \
-                            --mem=64G \
-                            --output=./logs/$experiment/%j.out \
-                            --error=./logs/$experiment/%j.err \
+                            --output=./logs/$exp_name/%j.out \
+                            --error=./logs/$exp_name/%j.err \
                             --wrap="source ~/.bashrc; activate bandit_pr; python src/train.py \
-                                experiment=$experiment \
+                                exp_name=$exp_name \
                                 llm=$llm \
                                 task=$task \
                                 num_retrieve=$num_retrieve \

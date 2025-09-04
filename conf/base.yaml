@@ -2,8 +2,8 @@ defaults:
   - llm: phi-4-mini-instruct
   - _self_
 
-experiment: debug
-run_dir: ./logs/${experiment}/${now:%Y-%m-%d_%H-%M-%S_%f}
+exp_name: debug
+run_dir: ./logs/${exp_name}/${now:%Y-%m-%d_%H-%M-%S_%f}
 
 hydra:
   run:

@@ -6,6 +6,7 @@ import nltk
 import numpy as np
 
 import torch
+from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
 import hydra
@@ -55,8 +56,8 @@ def main(cfg: DictConfig) -> None:
     # Prepare models
     score_model = ScoreModel(**cfg.score_model)
 
-    if cfg.from_pretrained is not None:
-        score_model.from_pretrained(cfg.from_pretrained)
+    if cfg.from_pretrained:
+        score_model.from_pretrained(f'./models/{cfg.exp_name}')
 
     llm = LLM(cfg.task, **cfg.llm)
 
@@ -75,12 +76,26 @@ def main(cfg: DictConfig) -> None:
     test_dataset = test_dataset.map(preprocessor, batched=True, remove_columns=['query', 'corpus'], num_proc=16)
 
     collate_fn = create_collator(tokenizer)
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=cfg.batch_size,
+        shuffle=True,
+        collate_fn=collate_fn,
+        drop_last=True
+    )
+    from torch.utils.data import Subset
+    test_dataset = Subset(test_dataset, range(100))
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=cfg.eval_batch_size,
+        collate_fn=collate_fn
+    )
 
     # Prepare LaMP components
     tokenizer = (
         AutoTokenizer.from_pretrained(cfg.llm.model)
-        if cfg.llm.provider == 'local'
-        else AutoTokenizer.from_pretrained('gpt2')
+        if cfg.llm.provider == 'local' else
+        AutoTokenizer.from_pretrained('gpt2')
     )
     prompt_generator = create_prompt_generator(
         cfg.task,
@@ -96,8 +111,9 @@ def main(cfg: DictConfig) -> None:
     trainer = Trainer(
         cfg,
         score_model, llm,
-        train_dataset, test_dataset, collate_fn,
-        prompt_generator, reward_fn, metric_fn
+        train_loader, test_loader,
+        prompt_generator, reward_fn, metric_fn,
+        cfg.from_pretrained
     )
     trainer.train()
 

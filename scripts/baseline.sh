@@ -27,18 +27,17 @@ IFS=',' read -ra retrievers <<< "$retrievers"
 for llm in ${llms[@]}; do
     for task in ${tasks[@]}; do
         for retriever in ${retrievers[@]}; do
-            experiment="$llm/$retriever-$num_retrieve/$task"
-            mkdir -p ./logs/$experiment
+            exp_name="$llm/$retriever-$num_retrieve/$task"
+            mkdir -p ./logs/$exp_name
             sbatch \
-                --job-name=$experiment \
+                --job-name=$exp_name \
                 --time=$time \
                 --gpus-per-node=1 \
-                --mem=64G \
-                --output=./logs/$experiment/%j.out \
-                --error=./logs/$experiment/%j.err \
+                --output=./logs/$exp_name/%j.out \
+                --error=./logs/$exp_name/%j.err \
                 --wrap="source ~/.bashrc; activate bandit_pr; python src/baseline.py \
                     llm=$llm \
-                    experiment=$experiment \
+                    exp_name=$exp_name \
                     task=$task \
                     retriever=$retriever \
                     num_retrieve=$num_retrieve"
