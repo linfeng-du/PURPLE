@@ -83,8 +83,6 @@ def main(cfg: DictConfig) -> None:
         collate_fn=collate_fn,
         drop_last=True
     )
-    from torch.utils.data import Subset
-    test_dataset = Subset(test_dataset, range(100))
     test_loader = DataLoader(
         test_dataset,
         batch_size=cfg.eval_batch_size,
