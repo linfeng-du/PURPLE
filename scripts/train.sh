@@ -23,6 +23,14 @@ while true; do
     esac
 done
 
+: "${llms:=phi-4-mini-instruct,llama-3-8b-instruct}"
+: "${tasks:=LaMP-1,LaMP-2,LaMP-3,LaMP-4,LaMP-5,LaMP-7,LongLaMP-2,LongLaMP-3,LongLaMP-4}"
+: "${num_retrieve:=5}"
+: "${fuse_modes:=cross_attn}"
+: "${num_layers_list:=12}"
+: "${rewards:=logp}"
+: "${losses:=baseline}"
+
 IFS=',' read -ra llms <<< "$llms"
 IFS=',' read -ra tasks <<< "$tasks"
 IFS=',' read -ra fuse_modes <<< "$fuse_modes"
