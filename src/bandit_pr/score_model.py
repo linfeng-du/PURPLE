@@ -53,14 +53,13 @@ class ScoreModel(nn.Module):
         self.mlp_decoder = nn.Sequential(
             nn.Linear(self.encoder_hidden_size, self.decoder_hidden_size),
             nn.ReLU(),
-            nn.Linear(self.decoder_hidden_size, 1),
-            nn.Sigmoid()
+            nn.Linear(self.decoder_hidden_size, 1)
         )
 
     @classmethod
-    def from_pretrained(cls, model_name: str) -> 'ScoreModel':
-        config_path = f'./models/{model_name}/config.json'
-        state_dict_path = f'./models/{model_name}/model.bin'
+    def from_pretrained(cls, ckpt_dir: str) -> 'ScoreModel':
+        config_path = f'{ckpt_dir}/config.json'
+        state_dict_path = f'{ckpt_dir}/model.pt'
 
         with open(config_path, 'r') as file:
             config = json.load(file)
@@ -70,10 +69,10 @@ class ScoreModel(nn.Module):
         model.load_state_dict(state_dict, strict=False)
         return model
 
-    def save_pretrained(self, model_name: str) -> None:
-        os.makedirs(f'./models/{model_name}', exist_ok=True)
-        config_path = f'./models/{model_name}/config.json'
-        state_dict_path = f'./models/{model_name}/model.bin'
+    def save_pretrained(self, ckpt_dir: str) -> None:
+        os.makedirs(f'{ckpt_dir}', exist_ok=True)
+        config_path = f'{ckpt_dir}/config.json'
+        state_dict_path = f'{ckpt_dir}/model.pt'
 
         with open(config_path, 'w') as file:
             config = {
@@ -96,7 +95,7 @@ class ScoreModel(nn.Module):
         query_inputs: BatchEncoding,
         corpus_inputs: list[list[BatchEncoding]],
         profile_mask: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> torch.Tensor:
         if self.fuse_mode == 'concat_hidden':
             fuse_embeds = self._fuse_concat_hidden(query_inputs, corpus_inputs, profile_mask)
         elif self.fuse_mode == 'concat_token':
@@ -109,13 +108,13 @@ class ScoreModel(nn.Module):
         src_key_padding_mask = ~(fuse_mask if self.fuse_mode == 'concat_token' else profile_mask)
         transformer_out = self.doc_transformer(fuse_embeds, src_key_padding_mask=src_key_padding_mask)
 
-        # Compute profile likelihoods
-        likelihoods = self.mlp_decoder(transformer_out).squeeze(dim=2)
+        # Compute profile logits
+        logits = self.mlp_decoder(transformer_out).squeeze(dim=2)
 
         if self.fuse_mode == 'concat_token':
-            likelihoods = likelihoods[:, 1:]
+            logits = logits[:, 1:]
 
-        return likelihoods.masked_fill(~profile_mask, value=0.)
+        return logits.masked_fill(~profile_mask, value=float('-inf'))
 
     def _fuse_concat_hidden(
         self,
