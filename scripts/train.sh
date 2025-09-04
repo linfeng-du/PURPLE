@@ -50,6 +50,7 @@ for llm in ${llms[@]}; do
                             --job-name=$exp_name \
                             --time=$time \
                             --gpus-per-node=1 \
+                            --mem=64G \
                             --output=./logs/$exp_name/%j.out \
                             --error=./logs/$exp_name/%j.err \
                             --wrap="source ~/.bashrc; activate bandit_pr; python src/train.py \
