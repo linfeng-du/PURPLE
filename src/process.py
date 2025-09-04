@@ -126,13 +126,15 @@ def bandit_pr_results_formatted(version: str) -> None:
 
 
 def bandit_pr_results(task: str, version: str, llm: str) -> None:
+    results = []
     result_dir = Path(f'logs/{llm}/bandit_pr-5/{version}/{task}')
-    result_file = list(result_dir.rglob('*.out'))[0]
 
-    with open(result_file, 'r') as file:
-        text = file.read()
+    for result_file in result_dir.rglob('*.out'):
+        with open(result_file, 'r') as file:
+            text = file.read()
 
-    results = [json.loads(match) for match in re.findall(r'\{.*?\}', text, flags=re.DOTALL)]
+        results.extend([json.loads(match) for match in re.findall(r'\{.*?\}', text, flags=re.DOTALL)])
+
     key = lambda x: (
         x['accuracy'] if 'accuracy' in x else
         -x['mae'] if 'mae' in x else x['rouge-1']
