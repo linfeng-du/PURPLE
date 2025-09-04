@@ -176,10 +176,11 @@ class Trainer:
         return self.metric_fn(predictions, targets)
 
     def _load_states(self, ckpt_dir: str) -> None:
-        ckpt = torch.load(f'{ckpt_dir}/trainer.pt', map_location=self.device)
+        ckpt = torch.load(f'{ckpt_dir}/trainer.pt', map_location=self.device, weights_only=False)
         self.example_cnt = ckpt['example_cnt']
         self.best_eval_metric = ckpt['best_eval_metric']
         self.optimizer.load_state_dict(ckpt['optimizer_state_dict'])
+        logger.info(f'Loaded trainer states from {ckpt_dir}')
 
     def _save_states(self) -> None:
         ckpt_dir = f'./models/{self.cfg.exp_name}'

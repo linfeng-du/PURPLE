@@ -2,7 +2,7 @@
 
 ARGS=$(getopt \
     --options "" \
-    --long time:,llms:,tasks:,num_retrieve:,fuse_modes:,num_layers_list:,rewards:,losses: \
+    --long time:,from_pretrained,llms:,tasks:,num_retrieve:,fuse_modes:,num_layers_list:,rewards:,losses: \
     --name "$0" \
     -- "$@"
 )
@@ -11,6 +11,7 @@ eval set -- "$ARGS"
 while true; do
     case "$1" in
         --time) time="$2"; shift 2 ;;
+        --from_pretrained) from_pretrained=1; shift 1 ;;
         --llms) llms="$2"; shift 2 ;;
         --tasks) tasks="$2"; shift 2 ;;
         --num_retrieve) num_retrieve="$2"; shift 2 ;;
@@ -23,6 +24,7 @@ while true; do
     esac
 done
 
+: "${from_pretrained:=0}"
 : "${llms:=phi-4-mini-instruct,llama-3-8b-instruct}"
 : "${tasks:=LaMP-1,LaMP-2,LaMP-3,LaMP-4,LaMP-5,LaMP-7,LongLaMP-2,LongLaMP-3,LongLaMP-4}"
 : "${num_retrieve:=5}"
@@ -30,6 +32,12 @@ done
 : "${num_layers_list:=12}"
 : "${rewards:=logp}"
 : "${losses:=baseline}"
+
+from_pretrained_args=""
+
+if [ "$from_pretrained" -eq 1 ]; then
+    from_pretrained_args="from_pretrained=true"
+fi
 
 IFS=',' read -ra llms <<< "$llms"
 IFS=',' read -ra tasks <<< "$tasks"
@@ -57,6 +65,7 @@ for llm in ${llms[@]}; do
                                 exp_name=$exp_name \
                                 llm=$llm \
                                 task=$task \
+                                $from_pretrained_args \
                                 num_retrieve=$num_retrieve \
                                 score_model.fuse_mode=$fuse_mode \
                                 score_model.num_layers=$num_layers \
