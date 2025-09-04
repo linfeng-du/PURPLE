@@ -22,10 +22,10 @@ num_candidates: 20  # Number of candidate profiles for re-ranking
 from_pretrained: false
 
 num_epochs: 10
-batch_size: 32
+batch_size: 16
 gradient_accumulation_steps: 1
 max_grad_norm: 1.0
 lr: 1e-4
 
 eval_every: 1024
-eval_batch_size: 64
+eval_batch_size: 32
