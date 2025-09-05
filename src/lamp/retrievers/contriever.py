@@ -19,16 +19,23 @@ class Contriever:
         query: str,
         corpus: list[str],
         profiles: list[Profile],
-        num_retrieve: int
-    ) -> list[Profile]:
+        num_retrieve: int,
+        return_probs: bool = False
+    ) -> list[Profile] | tuple[list[Profile], torch.Tensor]:
         num_retrieve = min(num_retrieve, len(profiles))
 
         query_embed = self._compute_sentence_embedding([query])
         corpus_embeds = self._compute_sentence_embedding(corpus)
         scores = (query_embed @ corpus_embeds.T).squeeze(dim=0)
 
-        _, indices = scores.topk(num_retrieve, dim=0)
-        return [profiles[index] for index in indices]
+        values, indices = scores.topk(num_retrieve, dim=0)
+        retrieved_profiles = [profiles[index] for index in indices]
+
+        if return_probs:
+            probs = torch.softmax(values, dim=0)
+            return retrieved_profiles, probs
+
+        return retrieved_profiles
 
     def _compute_sentence_embedding(self, sentences: list[str]) -> torch.Tensor:
         inputs = self.tokenizer(sentences, padding=True, truncation=True, return_tensors='pt')

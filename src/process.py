@@ -3,14 +3,16 @@ import json
 from pathlib import Path
 from collections import defaultdict
 
+import evaluate
+from datasets import load_dataset
+from transformers import AutoTokenizer, AutoModel, AutoModelForCausalLM
+
 import fire
+
+from bandit_pr import load_retrieved_lamp_dataset, create_preprocessor
 
 
 def download() -> None:
-    import evaluate
-    from datasets import load_dataset
-    from transformers import AutoTokenizer, AutoModel, AutoModelForCausalLM
-
     print('Downloading tokenizers...')
     AutoTokenizer.from_pretrained('facebook/contriever')
     AutoTokenizer.from_pretrained('meta-llama/Meta-Llama-3-8B-Instruct')
@@ -36,9 +38,6 @@ def download() -> None:
 
 
 def preprocess() -> None:
-    from transformers import AutoTokenizer
-    from bandit_pr import load_retrieved_lamp_dataset, create_preprocessor
-
     for task in [
         'LaMP-1', 'LaMP-2', 'LaMP-3', 'LaMP-4', 'LaMP-5', 'LaMP-7',
         'LongLaMP-2', 'LongLaMP-3', 'LongLaMP-4'
@@ -114,7 +113,7 @@ def bandit_pr_results_formatted(version: str) -> None:
         metric_results = defaultdict(list)
 
         for llm in ['phi-4-mini-instruct', 'llama-3-8b-instruct']:
-            results = bandit_pr_results(task, version, llm)
+            results = bandit_pr_results(llm, task, version)
 
             for metric, result in results.items():
                 metric_results[metric].append(result)
@@ -125,7 +124,7 @@ def bandit_pr_results_formatted(version: str) -> None:
             print('-' * 100)
 
 
-def bandit_pr_results(task: str, version: str, llm: str) -> None:
+def bandit_pr_results(llm: str, task: str, version: str) -> None:
     results = []
     result_dir = Path(f'logs/{llm}/bandit_pr-5/{version}/{task}')
 

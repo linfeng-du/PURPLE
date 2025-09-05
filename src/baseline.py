@@ -14,7 +14,7 @@ from omegaconf import OmegaConf, DictConfig
 from tqdm import tqdm
 
 from llm import LLM
-from lamp import load_lamp_dataset, load_long_lamp_dataset, create_prompt_generator, create_metric
+from lamp import load_lamp_dataset, create_prompt_generator, create_metric
 
 
 if os.getenv('HF_EVALUATE_OFFLINE') == '1':
@@ -27,41 +27,33 @@ logger = logging.getLogger(__name__)
 
 
 @hydra.main(config_path='../conf', config_name='baseline', version_base=None)
-def main(config: DictConfig) -> None:
+def main(cfg: DictConfig) -> None:
     # Check for missing keys
-    missing_keys = OmegaConf.missing_keys(config)
+    missing_keys = OmegaConf.missing_keys(cfg)
 
     if missing_keys:
         raise ValueError(f'Missing keys in config:\n{missing_keys}')
 
     # Seed everything for reproducibility
-    random.seed(config.seed)
-    np.random.seed(config.seed)
-    torch.manual_seed(config.seed)
-    torch.cuda.manual_seed(config.seed)
+    random.seed(cfg.seed)
+    np.random.seed(cfg.seed)
+    torch.manual_seed(cfg.seed)
+    torch.cuda.manual_seed(cfg.seed)
 
     # Prepare dataset
     tokenizer = (
-        AutoTokenizer.from_pretrained(config.llm.model)
-        if config.llm.provider == 'local'
+        AutoTokenizer.from_pretrained(cfg.llm.model)
+        if cfg.llm.provider == 'local'
         else AutoTokenizer.from_pretrained('gpt2')
     )
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     prompt_generator = create_prompt_generator(
-        config.task,
-        config.retriever,
-        config.num_retrieve,
-        config.prompt_generator.max_length,
-        tokenizer,
-        device=device
+        cfg.task, cfg.retriever, cfg.num_retrieve,
+        cfg.prompt_generator.max_length, tokenizer,
+        device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     )
 
-    if config.task.startswith('LaMP'):
-        test_dataset = load_lamp_dataset(config.task, 'dev')
-    elif config.task.startswith('LongLaMP'):
-        test_dataset = load_long_lamp_dataset(config.task, 'test')
-    else:
-        raise ValueError(f'Invalid task: {config.task}')
+    test_split = 'dev' if cfg.task.startswith('LaMP') else 'test'
+    test_dataset = load_lamp_dataset(cfg.task, test_split)
 
     # Collect sources and targets
     sources = []
@@ -74,11 +66,11 @@ def main(config: DictConfig) -> None:
         targets.append(target)
 
     # Generate predictions
-    llm = LLM(config.task, **config.llm)
+    llm = LLM(cfg.task, **cfg.llm)
     predictions = llm.generate(sources, verbose=True)
 
     # Compute metrics
-    metric_fn = create_metric(config.task)
+    metric_fn = create_metric(cfg.task)
     test_results = metric_fn(predictions, targets)
     logger.info(f'Evaluation results:\n{json.dumps(test_results, indent=2)}')
 

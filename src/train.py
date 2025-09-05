@@ -96,11 +96,8 @@ def main(cfg: DictConfig) -> None:
         AutoTokenizer.from_pretrained('gpt2')
     )
     prompt_generator = create_prompt_generator(
-        cfg.task,
-        'first_k',
-        cfg.num_retrieve,
-        cfg.prompt_generator.max_length,
-        tokenizer
+        cfg.task, 'first_k', cfg.num_retrieve,
+        cfg.prompt_generator.max_length, tokenizer
     )
     reward_fn = create_reward(cfg.task)
     metric_fn = create_metric(cfg.task)

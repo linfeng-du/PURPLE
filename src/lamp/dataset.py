@@ -10,80 +10,84 @@ def load_lamp_dataset(task: str, split: str) -> Dataset:
     dataset_dir = f'./dataset/{task}/{split}'
 
     if not os.path.exists(dataset_dir):
-        with open(f'./dataset/{task}/{split}_questions.json', 'r') as file:
-            questions = json.load(file)
-
-        with open(f'./dataset/{task}/{split}_outputs.json', 'r') as file:
-            outputs = {gold['id']: gold['output'] for gold in json.load(file)['golds']}
-
-        query_corpus_generator = {
-            'LaMP-1': _generate_query_corpus_classification_citation,
-            'LaMP-2': _generate_query_corpus_classification_movies,
-            'LaMP-3': _generate_query_corpus_regression_review,
-            'LaMP-4': _generate_query_corpus_generation_news,
-            'LaMP-5': _generate_query_corpus_generation_paper,
-            'LaMP-6': _generate_query_corpus_generation_avocado,
-            'LaMP-7': _generate_query_corpus_generation_tweet
-        }[task]
-        examples = []
-
-        for question in questions:
-            source = question['input']
-            profiles = question['profile']
-            target = outputs[question['id']]
-            query, corpus = query_corpus_generator(source, profiles)
-
-            example = {
-                'source': source,
-                'profiles': profiles,
-                'query': query,
-                'corpus': corpus,
-                'target': target
-            }
-            examples.append(example)
-
-        Dataset.from_list(examples).save_to_disk(dataset_dir)
+        if task.startswith('LaMP'):
+            _process_lamp_dataset(task, split, dataset_dir)
+        elif task.startswith('LongLaMP'):
+            _process_long_lamp_dataset(task, split, dataset_dir)
+        else:
+            raise ValueError(f'Invalid task: {task}')
 
     return load_from_disk(dataset_dir)
 
 
-def load_long_lamp_dataset(task: str, split: str) -> Dataset:
-    dataset_dir = f'./dataset/{task}/{split}'
+def _process_lamp_dataset(task: str, split: str, cache_dir: str) -> None:
+    with open(f'./dataset/{task}/{split}_questions.json', 'r') as file:
+        questions = json.load(file)
 
-    if not os.path.exists(dataset_dir):
-        name = {
-            'LongLaMP-2': 'abstract_generation_user',
-            'LongLaMP-3': 'topic_writing_user',
-            'LongLaMP-4': 'product_review_user'
-        }[task]
-        dataset = load_dataset('LongLaMP/LongLaMP', name=name, split=split)
+    with open(f'./dataset/{task}/{split}_outputs.json', 'r') as file:
+        outputs = {gold['id']: gold['output'] for gold in json.load(file)['golds']}
 
-        query_corpus_generator = {
-            'LongLaMP-1': _generate_query_corpus_generation_email,
-            'LongLaMP-2': _generate_query_corpus_generation_abstract,
-            'LongLaMP-3': _generate_query_corpus_generation_topic,
-            'LongLaMP-4': _generate_query_corpus_generation_review
-        }[task]
-        examples = []
+    query_corpus_generator = {
+        'LaMP-1': _generate_query_corpus_classification_citation,
+        'LaMP-2': _generate_query_corpus_classification_movies,
+        'LaMP-3': _generate_query_corpus_regression_review,
+        'LaMP-4': _generate_query_corpus_generation_news,
+        'LaMP-5': _generate_query_corpus_generation_paper,
+        'LaMP-6': _generate_query_corpus_generation_avocado,
+        'LaMP-7': _generate_query_corpus_generation_tweet
+    }[task]
+    examples = []
 
-        for row in dataset:
-            source = row['input']
-            profiles = row['profile']
-            target = row['output']
-            query, corpus = query_corpus_generator(source, profiles)
+    for question in questions:
+        source = question['input']
+        profiles = question['profile']
+        target = outputs[question['id']]
+        query, corpus = query_corpus_generator(source, profiles)
 
-            example = {
-                'source': source,
-                'profiles': profiles,
-                'query': query,
-                'corpus': corpus,
-                'target': target
-            }
-            examples.append(example)
+        example = {
+            'source': source,
+            'profiles': profiles,
+            'query': query,
+            'corpus': corpus,
+            'target': target
+        }
+        examples.append(example)
 
-        Dataset.from_list(examples).save_to_disk(dataset_dir)
+    Dataset.from_list(examples).save_to_disk(cache_dir)
 
-    return load_from_disk(dataset_dir)
+
+def _process_long_lamp_dataset(task: str, split: str, cache_dir: str) -> None:
+    name = {
+        'LongLaMP-2': 'abstract_generation_user',
+        'LongLaMP-3': 'topic_writing_user',
+        'LongLaMP-4': 'product_review_user'
+    }[task]
+    dataset = load_dataset('LongLaMP/LongLaMP', name=name, split=split)
+
+    query_corpus_generator = {
+        'LongLaMP-1': _generate_query_corpus_generation_email,
+        'LongLaMP-2': _generate_query_corpus_generation_abstract,
+        'LongLaMP-3': _generate_query_corpus_generation_topic,
+        'LongLaMP-4': _generate_query_corpus_generation_review
+    }[task]
+    examples = []
+
+    for row in dataset:
+        source = row['input']
+        profiles = row['profile']
+        target = row['output']
+        query, corpus = query_corpus_generator(source, profiles)
+
+        example = {
+            'source': source,
+            'profiles': profiles,
+            'query': query,
+            'corpus': corpus,
+            'target': target
+        }
+        examples.append(example)
+
+    Dataset.from_list(examples).save_to_disk(cache_dir)
 
 
 # ==================================   LaMP 1: Personalized Citation Identification   ==================================

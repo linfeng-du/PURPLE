@@ -3,7 +3,6 @@ import logging
 from typing import TypeAlias
 
 import torch
-import torch.nn.functional as F
 from torch.utils.data import Dataset
 
 from transformers import pipeline
@@ -157,7 +156,7 @@ class LLM:
             labels = input_ids[:, 1:]
 
             outputs = self.pipeline.model(input_ids=input_ids, attention_mask=attention_mask)
-            logps = F.log_softmax(outputs.logits[:, :-1, :], dim=2)
+            logps = torch.log_softmax(outputs.logits[:, :-1, :], dim=2)
             token_logps = logps.gather(dim=2, index=labels.unsqueeze(dim=2)).squeeze(dim=2)
             token_mask = torch.zeros_like(token_logps)
             token_mask[0, -target_length:] = 1.
