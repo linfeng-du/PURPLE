@@ -1,10 +1,14 @@
 # Adapted from https://github.com/sunnweiwei/RankGPT/blob/main/rank_gpt.py
-from rank_bm25 import BM25Okapi
+from typing import TypeAlias
 
 import torch
+from rank_bm25 import BM25Okapi
 from transformers import pipeline
 
-from ..data_types import Profile, Message
+from ..data_types import Profile
+
+
+Message: TypeAlias = list[dict[str, str]]
 
 
 class RankGPT:
@@ -17,8 +21,10 @@ class RankGPT:
             torch_dtype=torch.bfloat16
         )
         self.pipeline.tokenizer.padding_side = 'left'
-        self.pipeline.tokenizer.pad_token = self.pipeline.tokenizer.eos_token
-        self.pipeline.model.generation_config.pad_token_id = self.pipeline.tokenizer.eos_token_id
+
+        if self.pipeline.tokenizer.pad_token is None:
+            self.pipeline.tokenizer.pad_token = self.pipeline.tokenizer.eos_token
+            self.pipeline.model.generation_config.pad_token_id = self.pipeline.tokenizer.eos_token_id
 
     def __call__(
         self,
@@ -43,7 +49,10 @@ class RankGPT:
 
         while rank_start >= 0:
             message = _create_ranking_instruction(query, retrieved_corpus, rank_start, rank_end)
-            output = self.pipeline(message, max_new_tokens=256, do_sample=False, temperature=None, top_p=None)
+            output = self.pipeline(
+                message, max_new_tokens=256,
+                do_sample=False, temperature=None, top_p=None
+            )
             response = output[0]['generated_text'][-1]['content']
 
             indices = _receive_ranking(indices, response, rank_start, rank_end)
@@ -101,7 +110,7 @@ def _create_postfix_prompt(query: str, num_passages: int) -> str:
 
 
 def _receive_ranking(indices: list[int], response: str, rank_start: int, rank_end: int) -> list[int]:
-    ranking = ''.join(char if char.isdigit() else ' ' for char in response)
+    ranking = ''.join((char if char.isdigit() else ' ') for char in response)
     ranking = [int(char) - 1 for char in ranking.strip().split()]
     ranking = list(dict.fromkeys(ranking))
 

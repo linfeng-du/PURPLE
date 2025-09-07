@@ -1,21 +1,21 @@
-import os
 import json
 import logging
+import os
 
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
 import wandb
-from tqdm import tqdm
 from omegaconf import DictConfig
+from tqdm import tqdm
 
 from llm import LLM
-from lamp.data_types import PromptGenerator, Metric
+from lamp.data_types import Metric, PromptGenerator
 
 from . import reinforce
-from .score_model import ScoreModel
 from .data_types import Reward
+from .score_model import ScoreModel
 
 
 logger = logging.getLogger(__name__)
@@ -45,28 +45,30 @@ class Trainer:
         self.metric_fn = metric_fn
 
         # Trainer states
+        self.epoch = 0
         self.example_cnt = 0
-        self.best_eval_metric = None
+        self.best_eval_result = None
         self.optimizer = torch.optim.Adam(
             [param for param in self.score_model.parameters() if param.requires_grad],
             lr=self.cfg.lr
         )
 
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.device = torch.device(('cuda' if torch.cuda.is_available() else 'cpu'))
         self.score_model.to(self.device)
 
         if from_pretrained:
             self._load_states(f'./models/{self.cfg.exp_name}')
+            logger.info(f'Loaded trainer states from {f"./models/{self.cfg.exp_name}"}')
 
         self.wandb = wandb.init(project='BanditPR', dir='logs', name=f'{self.cfg.exp_name}')
 
     def train(self) -> None:
         self.score_model.train()
-        example_cnt = 0
+        start_flag = True
 
-        for epoch in range(self.cfg.num_epochs):
-            for step, batch in enumerate(tqdm(self.train_loader, desc=f'Epoch {epoch}')):
-                if (example_cnt > 0) and (example_cnt % self.cfg.eval_every == 0):
+        for _ in range(self.cfg.num_epochs):
+            for step, batch in enumerate(tqdm(self.train_loader, desc=f'Epoch {self.epoch}')):
+                if (not start_flag) and (self.example_cnt % self.cfg.eval_every == 0):
                     eval_results = self.evaluate()
                     self.score_model.train()
 
@@ -74,20 +76,20 @@ class Trainer:
                         'accuracy' if 'accuracy' in eval_results else
                         'mae' if 'mae' in eval_results else 'rouge-1'
                     )
-                    eval_metric = eval_results[metric]
-                    self.wandb.log({'eval_metric': eval_metric})
+                    eval_result = eval_results[metric]
+                    self.wandb.log({f'eval_{metric}': eval_result})
                     logger.info(
-                        f'Evaluation results after {example_cnt} training examples:\n'
+                        f'Evaluation results after {self.example_cnt} training examples:\n'
                         f'{json.dumps(eval_results, indent=2)}'
                     )
 
                     if (
-                        (not self.best_eval_metric)
-                        or (metric == 'mae' and eval_metric < self.best_eval_metric)
-                        or (eval_metric > self.best_eval_metric)
+                        (not self.best_eval_result)
+                        or (metric == 'mae' and eval_result < self.best_eval_result)
+                        or (eval_result > self.best_eval_result)
                     ):
-                        logger.info(f'Best evaluation metric achieved: {eval_metric}')
-                        self.best_eval_metric = eval_metric
+                        logger.info(f'Best evaluation {metric} achieved: {eval_result}')
+                        self.best_eval_result = eval_result
                         self._save_states()
 
                 likelihoods = self.score_model(
@@ -125,6 +127,8 @@ class Trainer:
                     rewards = self.reward_fn(responses, targets)
                 elif self.cfg.reinforce.reward == 'logp':
                     rewards = self.llm.compute_target_logps(prompts, targets)
+                else:
+                    raise ValueError(f'Invalid reward: {self.cfg.reinforce.reward}')
 
                 rewards = rewards.to(self.device).view_as(logps)
 
@@ -137,14 +141,18 @@ class Trainer:
                     self.optimizer.step()
                     self.optimizer.zero_grad()
 
-                example_cnt += len(batch['source'])
+                start_flag = False
+                self.example_cnt += len(batch['source'])
                 self.wandb.log({'reward': rewards.mean().item(), 'loss': loss.item()})
+
+            self.epoch += 1
 
         self.wandb.finish()
 
     @torch.no_grad()
     def evaluate(self) -> dict[str, float]:
         self.score_model.eval()
+
         prompts = []
         targets = []
 
@@ -177,17 +185,18 @@ class Trainer:
 
     def _load_states(self, ckpt_dir: str) -> None:
         ckpt = torch.load(f'{ckpt_dir}/trainer.pt', map_location=self.device, weights_only=False)
+        self.epoch = ckpt['epoch'] + 1
         self.example_cnt = ckpt['example_cnt']
-        self.best_eval_metric = ckpt['best_eval_metric']
+        self.best_eval_result = ckpt['best_eval_result']
         self.optimizer.load_state_dict(ckpt['optimizer_state_dict'])
-        logger.info(f'Loaded trainer states from {ckpt_dir}')
 
     def _save_states(self) -> None:
         ckpt_dir = f'./models/{self.cfg.exp_name}'
         os.makedirs(f'./{ckpt_dir}', exist_ok=True)
         self.score_model.save_pretrained(ckpt_dir)
         torch.save({
+            'epoch': self.epoch,
             'example_cnt': self.example_cnt,
-            'best_eval_metric': self.best_eval_metric,
+            'best_eval_result': self.best_eval_result,
             'optimizer_state_dict': self.optimizer.state_dict()
         }, f'{ckpt_dir}/trainer.pt')

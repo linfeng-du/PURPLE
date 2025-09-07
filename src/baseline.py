@@ -1,7 +1,7 @@
-import os
 import json
-import random
 import logging
+import os
+import random
 
 import nltk
 import numpy as np
@@ -10,11 +10,11 @@ import torch
 from transformers import AutoTokenizer
 
 import hydra
-from omegaconf import OmegaConf, DictConfig
+from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
 
+from lamp import create_metric, create_prompt_generator, load_lamp_dataset
 from llm import LLM
-from lamp import load_lamp_dataset, create_prompt_generator, create_metric
 
 
 if os.getenv('HF_EVALUATE_OFFLINE') == '1':
@@ -49,10 +49,10 @@ def main(cfg: DictConfig) -> None:
     prompt_generator = create_prompt_generator(
         cfg.task, cfg.retriever, cfg.num_retrieve,
         cfg.prompt_generator.max_length, tokenizer,
-        device=torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        device=torch.device(('cuda' if torch.cuda.is_available() else 'cpu'))
     )
 
-    test_split = 'dev' if cfg.task.startswith('LaMP') else 'test'
+    test_split = ('dev' if cfg.task.startswith('LaMP') else 'test')
     test_dataset = load_lamp_dataset(cfg.task, test_split)
 
     # Collect sources and targets
@@ -60,7 +60,10 @@ def main(cfg: DictConfig) -> None:
     targets = []
 
     for example in tqdm(test_dataset, desc='Generating Prompts'):
-        source = prompt_generator(example['source'], example['profiles'], example['query'], example['corpus'])
+        source = prompt_generator(
+            example['source'], example['profiles'],
+            example['query'], example['corpus']
+        )
         target = example['target']
         sources.append(source)
         targets.append(target)

@@ -1,14 +1,13 @@
-import os
 import logging
+import os
 from typing import TypeAlias
 
 import torch
 from torch.utils.data import Dataset
-
 from transformers import pipeline
 from transformers.pipelines.text_generation import Chat
-from openai import OpenAI, OpenAIError
 
+from openai import OpenAI, OpenAIError
 from tqdm import tqdm
 
 from lamp import get_labels
@@ -16,54 +15,6 @@ from lamp import get_labels
 
 logger = logging.getLogger(__name__)
 Message: TypeAlias = list[dict[str, str]]
-
-
-SYSTEM_PROMPTS = {
-    'LaMP-1': (
-        f'You are a personalized citation identification chatbot '
-        f'who responds with one of the following: {get_labels("LaMP-1")} based on the given examples.'
-    ),
-    'LaMP-2': (
-        f'You are a personalized movie tagging chatbot '
-        f'who responds with one of the following: {get_labels("LaMP-2")} based on the given examples.'
-    ),
-    'LaMP-3': (
-        f'You are a personalized product rating chatbot '
-        f'who responds with one of the following: {get_labels("LaMP-3")} based on the given examples.'
-    ),
-    'LaMP-4': (
-        f'You are a personalized news headline generation chatbot '
-        f'who generates a news headline in a style similar to the given examples without any additional text.'
-    ),
-    'LaMP-5': (
-        f'You are a personalized scholarly title generation chatbot '
-        f'who generates a scholarly title in a style similar to the given examples without any additional text.'
-    ),
-    'LaMP-6': (
-        f'You are a personalized email subject generation chatbot '
-        f'who generates an email subject in a style similar to the given examples without any additional text.'
-    ),
-    'LaMP-7': (
-        f'You are a personalized tweet paraphrasing chatbot '
-        f'who paraphrases a tweet in a style similar to the given examples without any additional text.'
-    ),
-    'LongLaMP-1': (
-        f'You are a personalized email completion chatbot '
-        f'who completes an email in a style similar to the given examples without any additional text.'
-    ),
-    'LongLaMP-2': (
-        f'You are a personalized abstract generation chatbot '
-        f'who generates an abstract in a style similar to the given examples without any additional text.'
-    ),
-    'LongLaMP-3': (
-        f'You are a personalized topic generation chatbot '
-        f'who generates a topic in a style similar to the given examples without any additional text.'
-    ),
-    'LongLaMP-4': (
-        f'You are a personalized product review generation chatbot '
-        f'who generates a product review in a style similar to the given examples without any additional text.'
-    )
-}
 
 
 class LLM:
@@ -75,7 +26,7 @@ class LLM:
         self.generate_config = generate_config
 
         if self.provider == 'local':
-            self.device = torch.cuda.device_count() - 1
+            self.device = torch.device(f'cuda:{torch.cuda.device_count() - 1}')
             self.pipeline = pipeline(
                 task='text-generation',
                 model=self.model,
@@ -92,19 +43,23 @@ class LLM:
         else:
             raise ValueError(f'Invalid provider: {self.provider}')
 
-    def generate(self, prompts: list[str], verbose: bool = False) -> list[str]:
+    def generate(self, prompts: list[str], verbose: bool = False) -> list[str] | list[list[str]]:
         if self.provider == 'local':
             responses = []
             dataset = _ChatDataset([self._create_message(prompt) for prompt in prompts])
 
-            for output in tqdm(
+            for outputs in tqdm(
                 self.pipeline(dataset, **self.generate_config),
                 desc='Generating responses',
                 total=len(dataset),
                 disable=(not verbose)
             ):
-                response = output[0]['generated_text'][-1]['content']
-                responses.append(response)
+                if len(outputs) == 1:
+                    response = outputs[0]['generated_text'][-1]['content']
+                    responses.append(response)
+                elif len(outputs) > 1:
+                    all_responses = [output['generated_text'][-1]['content'] for output in outputs]
+                    responses.append(all_responses)
 
             return responses
         elif self.provider == 'openai':
@@ -115,7 +70,7 @@ class LLM:
                 for index in tqdm(
                     list(remaining_prompts),
                     desc='Requesting responses',
-                    disable=(not self.verbose)
+                    disable=(not verbose)
                 ):
                     try:
                         completion = self.client.chat.completions.create(
@@ -183,3 +138,51 @@ class _ChatDataset(Dataset):
 
     def __getitem__(self, index: int) -> Chat:
         return self.chats[index]
+
+
+SYSTEM_PROMPTS = {
+    'LaMP-1': (
+        f'You are a personalized citation identification chatbot '
+        f'who responds with one of the following: {get_labels("LaMP-1")} based on the given examples.'
+    ),
+    'LaMP-2': (
+        f'You are a personalized movie tagging chatbot '
+        f'who responds with one of the following: {get_labels("LaMP-2")} based on the given examples.'
+    ),
+    'LaMP-3': (
+        f'You are a personalized product rating chatbot '
+        f'who responds with one of the following: {get_labels("LaMP-3")} based on the given examples.'
+    ),
+    'LaMP-4': (
+        f'You are a personalized news headline generation chatbot '
+        f'who generates a news headline in a style similar to the given examples without any additional text.'
+    ),
+    'LaMP-5': (
+        f'You are a personalized scholarly title generation chatbot '
+        f'who generates a scholarly title in a style similar to the given examples without any additional text.'
+    ),
+    'LaMP-6': (
+        f'You are a personalized email subject generation chatbot '
+        f'who generates an email subject in a style similar to the given examples without any additional text.'
+    ),
+    'LaMP-7': (
+        f'You are a personalized tweet paraphrasing chatbot '
+        f'who paraphrases a tweet in a style similar to the given examples without any additional text.'
+    ),
+    'LongLaMP-1': (
+        f'You are a personalized email completion chatbot '
+        f'who completes an email in a style similar to the given examples without any additional text.'
+    ),
+    'LongLaMP-2': (
+        f'You are a personalized abstract generation chatbot '
+        f'who generates an abstract in a style similar to the given examples without any additional text.'
+    ),
+    'LongLaMP-3': (
+        f'You are a personalized topic generation chatbot '
+        f'who generates a topic in a style similar to the given examples without any additional text.'
+    ),
+    'LongLaMP-4': (
+        f'You are a personalized product review generation chatbot '
+        f'who generates a product review in a style similar to the given examples without any additional text.'
+    )
+}

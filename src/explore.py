@@ -1,21 +1,20 @@
-import os
-import math
 import itertools
-
-import matplotlib.pyplot as plt
+import json
+import math
+import os
 
 import torch
 from torch.utils.data import ConcatDataset
-import evaluate
 from transformers import AutoTokenizer
 
-from llm import LLM
-from lamp.retrievers import Contriever
-from lamp import load_lamp_dataset, create_prompt_generator
-from bandit_pr import load_retrieved_lamp_dataset
-
 import fire
+import matplotlib.pyplot as plt
 from tqdm import tqdm
+
+from bandit_pr import create_reward, load_retrieved_lamp_dataset
+from lamp import create_metric, create_prompt_generator, load_lamp_dataset
+from lamp.retrievers import Contriever
+from llm import LLM
 
 
 def dataset_stats() -> None:
@@ -29,10 +28,9 @@ def dataset_stats() -> None:
         document_lengths = []
         target_lengths = []
 
-        test_split = 'dev' if task.startswith('LaMP') else 'test'
         dataset = ConcatDataset([
             load_lamp_dataset(task, 'train'),
-            load_lamp_dataset(task, test_split)
+            load_lamp_dataset(task, ('dev' if task.startswith('LaMP') else 'test'))
         ])
 
         for example in tqdm(dataset, desc=task):
@@ -54,13 +52,15 @@ def dataset_stats() -> None:
         print('-' * 100)
 
 
-def performance_range(task: str, num_retrieve: int) -> None:
-    test_dataset = load_lamp_dataset(task, 'dev')
-    contriever = Contriever(torch.device('cuda'))
-
+def performance_range(llm: str, task: str, num_retrieve: int) -> None:
+    model = (
+        'microsoft/Phi-4-mini-instruct'
+        if llm == 'phi-4-mini-instruct' else
+        'meta-llama/Meta-Llama-3-8B-Instruct'
+    )
     llm = LLM(
         task,
-        model='microsoft/Phi-4-mini-instruct',
+        model=model,
         provider='local',
         generate_config={
             'batch_size': 1,
@@ -71,48 +71,38 @@ def performance_range(task: str, num_retrieve: int) -> None:
             'top_p': 0.8
         }
     )
-    prompt_generator = create_prompt_generator(
-        task,
-        'first_k',
-        num_retrieve,
-        max_length=2048,
-        tokenizer=AutoTokenizer.from_pretrained('microsoft/Phi-4-mini-instruct')
-    )
-    rouge_metric = evaluate.load('rouge')
 
-    save_dir = f'logs/debug/{task}-{num_retrieve}'
+    test_split = ('dev' if task.startswith('LaMP') else 'test')
+    test_dataset = load_retrieved_lamp_dataset(task, test_split, num_candidates=20)
+
+    prompt_generator = create_prompt_generator(
+        task, 'first_k', num_retrieve,
+        max_length=2048, tokenizer=AutoTokenizer.from_pretrained(model)
+    )
+    reward_fn = create_reward(task)
+
+    save_dir = f'./logs/explore/{llm}/{task}-5/'
     os.makedirs(save_dir, exist_ok=True)
 
     for index, example in enumerate(test_dataset):
         sources = []
         targets = []
-        retrieved_profiles = contriever(
-            example['query'],
-            example['corpus'],
-            example['profiles'],
-            num_retrieve=20
-        )
 
         for profiles in tqdm(
-            itertools.combinations(retrieved_profiles, r=num_retrieve),
+            itertools.combinations(example['profiles'], r=num_retrieve),
             desc=f'Generating Prompts: {index + 1}/{len(test_dataset)}',
-            total=math.comb(len(retrieved_profiles), num_retrieve)
+            total=math.comb(len(example['profiles']), num_retrieve)
         ):
             source = prompt_generator(example['source'], profiles)
             target = example['target']
-
             sources.append(source)
             targets.append(target)
 
         predictions = llm.generate(sources, verbose=True)
-        rouge_results = rouge_metric.compute(
-            predictions=[prediction.strip() for prediction in predictions],
-            references=[[target.strip()] for target in targets],
-            rouge_types=['rouge1'],
-            use_aggregator=False
-        )
+        reward = reward_fn(predictions, targets)
+        reward = reward.cpu().numpy()
 
-        plt.scatter(range(len(rouge_results['rouge1'])), rouge_results['rouge1'], s=4)
+        plt.scatter(range(len(reward)), reward, s=4)
         plt.savefig(f'{save_dir}/{index}.png')
         plt.clf()
 
@@ -124,37 +114,52 @@ def marginalization(llm: str, task: str, num_retrieve: int) -> None:
         'meta-llama/Meta-Llama-3-8B-Instruct'
     )
     contriever = Contriever(torch.device('cuda'))
-    prompt_generator = create_prompt_generator(
-        task, retriever='first_k', num_retrieve=1, max_length=2048,
-        tokenizer=AutoTokenizer.from_pretrained(model)
-    )
     llm = LLM(
         task, model, provider='local',
         generate_config={
             'batch_size': 1,
             'max_new_tokens': 256,
             'do_sample': False,
-            'num_beams': 4
+            'num_beams': 4,
+            'num_return_sequences': 4
         }
     )
 
-    test_split = 'dev' if task.startswith('LaMP') else 'test'
-    test_dataset = load_retrieved_lamp_dataset(task, test_split, num_retrieve)
+    test_split = ('dev' if task.startswith('LaMP') else 'test')
+    test_dataset = load_retrieved_lamp_dataset(task, test_split, num_candidates=20)
 
-    for index, example in enumerate(test_dataset):
-        profiles, probs = contriever(
-            example['query'],
-            example['corpus'],
-            example['profiles'],
-            num_retrieve,
-            return_probs=True
+    prompt_generator = create_prompt_generator(
+        task, retriever='first_k', num_retrieve=1,
+        max_length=2048, tokenizer=AutoTokenizer.from_pretrained(model)
+    )
+    metric_fn = create_metric(task)
+
+    predictions = []
+    targets = []
+
+    for example in tqdm(test_dataset, desc='Evaluating marginalization'):
+        profiles, retriever_logps = contriever(
+            example['query'], example['corpus'], example['profiles'],
+            num_retrieve, return_logps=True
         )
 
-        for profile, prob in zip(profiles, probs):
-            source = prompt_generator(example['source'], [profile])
-            predictions = llm.generate([source])
+        sources = [prompt_generator(example['source'], [profile]) for profile in profiles]
+        prediction_beams = llm.generate(sources)
+        all_predictions = list(itertools.chain.from_iterable(prediction_beams))
 
-        print(probs)
+        expanded_sources = [source for _ in range(len(all_predictions)) for source in sources]
+        expanded_predictions = [prediction for prediction in all_predictions for _ in range(len(sources))]
+        llm_logps = llm.compute_target_logps(expanded_sources, expanded_predictions)
+
+        logps = llm_logps.view(len(all_predictions), len(sources)) + retriever_logps
+        marginal_logps = torch.logsumexp(logps, dim=1)
+        index = marginal_logps.argmax().item()
+        prediction = all_predictions[index]
+
+        predictions.append(prediction)
+        targets.append(example['target'])
+
+    print(json.dumps(metric_fn(predictions, targets), indent=2))
 
 
 if __name__ == '__main__':

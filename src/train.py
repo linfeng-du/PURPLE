@@ -1,6 +1,6 @@
+import logging
 import os
 import random
-import logging
 
 import nltk
 import numpy as np
@@ -10,18 +10,18 @@ from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
 import hydra
-from omegaconf import OmegaConf, DictConfig
+from omegaconf import DictConfig, OmegaConf
 
-from llm import LLM
-from lamp import create_prompt_generator, create_metric
 from bandit_pr import (
-    ScoreModel,
-    Trainer,
-    load_retrieved_lamp_dataset,
-    create_preprocessor,
     create_collator,
-    create_reward
+    create_preprocessor,
+    create_reward,
+    load_retrieved_lamp_dataset,
+    ScoreModel,
+    Trainer
 )
+from lamp import create_metric, create_prompt_generator
+from llm import LLM
 
 
 if os.getenv('HF_EVALUATE_OFFLINE') == '1':
@@ -35,17 +35,17 @@ logger = logging.getLogger(__name__)
 
 @hydra.main(config_path='../conf', config_name='bandit_pr', version_base=None)
 def main(cfg: DictConfig) -> None:
-    # Check config validity
+    # Check for missing keys
     missing_keys = OmegaConf.missing_keys(cfg)
 
     if missing_keys:
         raise ValueError(f'Missing keys in config:\n{missing_keys}')
 
+    # Check config validity
     effective_batch_size = cfg.batch_size * cfg.gradient_accumulation_steps
 
     if cfg.eval_every % effective_batch_size != 0:
-        cfg.eval_every = cfg.eval_every - cfg.eval_every % effective_batch_size
-        logger.warning(f'eval_every changed to {cfg.eval_every} to be divisible by effective batch size')
+        raise ValueError(f'eval_every must be divisible by effective batch size')
 
     # Seed everything for reproducibility
     random.seed(cfg.seed)
@@ -58,22 +58,29 @@ def main(cfg: DictConfig) -> None:
 
     if cfg.from_pretrained:
         score_model.from_pretrained(f'./models/{cfg.exp_name}')
+        logger.info(f'Loaded model from {f"./models/{cfg.exp_name}"}')
 
     llm = LLM(cfg.task, **cfg.llm)
 
     # Prepare datasets
-    test_split = 'dev' if cfg.task.startswith('LaMP') else 'test'
+    test_split = ('dev' if cfg.task.startswith('LaMP') else 'test')
     train_dataset = load_retrieved_lamp_dataset(cfg.task, 'train', cfg.num_candidates)
     test_dataset = load_retrieved_lamp_dataset(cfg.task, test_split, cfg.num_candidates)
 
     tokenizer = AutoTokenizer.from_pretrained(cfg.score_model.encoder_model)
     preprocessor = create_preprocessor(tokenizer=tokenizer, **cfg.preprocessor)
-    train_dataset = train_dataset.map(preprocessor, batched=True, remove_columns=['query', 'corpus'], num_proc=16)
+    train_dataset = train_dataset.map(
+        preprocessor, batched=True,
+        remove_columns=['query', 'corpus'], num_proc=16
+    )
 
     # Re-initialize tokenizer to ensure consistent hashing
     tokenizer = AutoTokenizer.from_pretrained(cfg.score_model.encoder_model)
     preprocessor = create_preprocessor(tokenizer=tokenizer, **cfg.preprocessor)
-    test_dataset = test_dataset.map(preprocessor, batched=True, remove_columns=['query', 'corpus'], num_proc=16)
+    test_dataset = test_dataset.map(
+        preprocessor, batched=True,
+        remove_columns=['query', 'corpus'], num_proc=16
+    )
 
     collate_fn = create_collator(tokenizer)
     train_loader = DataLoader(
@@ -104,8 +111,7 @@ def main(cfg: DictConfig) -> None:
 
     # Initialize trainer and start training
     trainer = Trainer(
-        cfg,
-        score_model, llm,
+        cfg, score_model, llm,
         train_loader, test_loader,
         prompt_generator, reward_fn, metric_fn,
         cfg.from_pretrained

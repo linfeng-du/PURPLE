@@ -1,16 +1,15 @@
+import torch
 from rank_bm25 import BM25Okapi
 
-import torch
-
-from .in_context_reranker import InContextReranker
 from ...data_types import Profile
+from .in_context_reranker import InContextReranker
 
 
 class ICR:
 
     def __init__(self, device: torch.device) -> None:
         self.icr = InContextReranker(
-            'meta-llama/Meta-Llama-3-8B-Instruct',
+            base_llm_name='meta-llama/Meta-Llama-3-8B-Instruct',
             scoring_strategy='masked_NA_calibration',
             retrieval_type='IE',
             sliding_window_size=10
@@ -31,6 +30,6 @@ class ICR:
         retrieved_corpus = [corpus[index].strip() for index in retrieved_indices]
         retrieved_profiles = [profiles[index] for index in retrieved_indices]
 
-        # Re-rank retrieved profiles
+        # Rerank retrieved profiles
         (ranking, _), _ = self.icr.rerank(query, retrieved_corpus)
         return [retrieved_profiles[rank] for rank in ranking[:num_retrieve]]

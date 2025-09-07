@@ -1,5 +1,7 @@
-import os
+# Adapted from https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/data/datasets.py
+# and https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/prompts/prompts.py
 import json
+import os
 
 from datasets import Dataset, load_dataset, load_from_disk
 

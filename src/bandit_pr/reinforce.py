@@ -28,11 +28,11 @@ def _sample_without_replacement(
     mask: torch.Tensor,
     sample_size: int
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Generate a sample of `sample_size` items from Plackett-Luce distribution defined by `likelihoods`."""
+    """Generate sample of `sample_size` items from Plackett-Luce distribution defined by `likelihoods`."""
     indices = torch.full_like(likelihoods[:, :sample_size], fill_value=-1, dtype=torch.long)
     logps = torch.zeros_like(likelihoods[:, :sample_size], dtype=torch.float)
 
-    # Create a copy of the mask to avoid in-place operations
+    # Create copy of `mask` to avoid in-place operations
     mask = mask.clone()
     batch_indices = torch.arange(likelihoods.shape[0], device=likelihoods.device).unsqueeze(dim=1)
 
@@ -53,12 +53,14 @@ def _sample_without_replacement(
 
 
 def compute_loss(logps: torch.Tensor, rewards: torch.Tensor, loss: str) -> torch.Tensor:
-    """Compute REINFORCE loss with baseline."""
+    """Compute REINFORCE loss."""
     if loss == 'reinforce':
         loss = -torch.mean(logps * rewards)
     elif loss == 'baseline':
         mean = rewards.mean(dim=1, keepdim=True)
         std = rewards.std(dim=1, keepdim=True)
         loss = -torch.mean(logps * (rewards - mean) / (std + 1e-9))
+    else:
+        raise ValueError(f'Invalid loss: {loss}')
 
     return loss

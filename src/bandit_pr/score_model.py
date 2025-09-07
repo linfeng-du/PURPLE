@@ -1,5 +1,5 @@
-import os
 import json
+import os
 from collections import OrderedDict
 
 import torch
@@ -9,7 +9,13 @@ from transformers import AutoModel, BatchEncoding
 
 class ScoreModel(nn.Module):
 
-    def __init__(self, encoder_model: str, fuse_mode: str, num_layers: int, decoder_hidden_size: int) -> None:
+    def __init__(
+        self,
+        encoder_model: str,
+        fuse_mode: str,
+        num_layers: int,
+        decoder_hidden_size: int
+    ) -> None:
         super().__init__()
         self.encoder_model = encoder_model
         self.fuse_mode = fuse_mode
@@ -35,6 +41,8 @@ class ScoreModel(nn.Module):
                 self.encoder.config.num_attention_heads,
                 batch_first=True
             )
+        else:
+            raise ValueError(f'Invalid fuse mode: {self.fuse_mode}')
 
         self.fuse_norm = nn.LayerNorm(self.encoder_hidden_size)
         self.doc_transformer = nn.TransformerEncoder(
@@ -138,7 +146,7 @@ class ScoreModel(nn.Module):
         ).to_dense()
 
         query_embed = query_embed.expand(-1, num_profiles, -1)
-        return self.fuse_mlp(torch.cat((query_embed, corpus_embeds), dim=2))
+        return self.fuse_mlp(torch.cat([query_embed, corpus_embeds], dim=2))
 
     def _fuse_concat_token(
         self,

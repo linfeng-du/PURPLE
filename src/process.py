@@ -1,15 +1,14 @@
-import re
 import json
-from pathlib import Path
+import re
 from collections import defaultdict
-
-import evaluate
-from datasets import load_dataset
-from transformers import AutoTokenizer, AutoModel, AutoModelForCausalLM
+from pathlib import Path
 
 import fire
+import evaluate
+from datasets import load_dataset
+from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
 
-from bandit_pr import load_retrieved_lamp_dataset, create_preprocessor
+from bandit_pr import create_preprocessor, load_retrieved_lamp_dataset
 
 
 def download() -> None:
@@ -43,7 +42,7 @@ def preprocess() -> None:
         'LongLaMP-2', 'LongLaMP-3', 'LongLaMP-4'
     ]:
         print(f'Preprocessing {task}...')
-        test_split = 'dev' if task.startswith('LaMP') else 'test'
+        test_split = ('dev' if task.startswith('LaMP') else 'test')
         train_dataset = load_retrieved_lamp_dataset(task, 'train', num_candidates=20)
         test_dataset = load_retrieved_lamp_dataset(task, test_split, num_candidates=20)
 
@@ -83,11 +82,11 @@ def baseline_results_formatted() -> None:
 
         for metric, results in metric_results.items():
             print(task, metric)
-            print('& ' + '\n& '.join([' & '.join(results[i : i + 2]) for i in range(0, len(results), 2)]) + ' \\\\')
+            print('& ' + '\n& '.join([' & '.join(results[i:i+2]) for i in range(0, len(results), 2)]) + ' \\\\')
             print('-' * 100)
 
 
-def baseline_results(task: str, retriever: str, llm: str) -> None:
+def baseline_results(task: str, retriever: str, llm: str) -> dict[str, str]:
     result_dir = Path(f'logs/{llm}/{retriever}-5/{task}')
     result_file = list(result_dir.rglob('*.out'))[0]
 
@@ -100,7 +99,7 @@ def baseline_results(task: str, retriever: str, llm: str) -> None:
     results = {
         key: f'{value:.3f}'
         for key, value in results_list[0].items()
-        if key in ['accuracy', 'f1', 'mae', 'rmse', 'rouge-1', 'rouge-L', 'meteor']
+        if key in {'accuracy', 'f1', 'mae', 'rmse', 'rouge-1', 'rouge-L', 'meteor'}
     }
     return results
 
@@ -120,11 +119,11 @@ def bandit_pr_results_formatted(version: str) -> None:
 
         for metric, results in metric_results.items():
             print(task, metric)
-            print('& ' + '\n& '.join([' & '.join(results[i : i + 2]) for i in range(0, len(results), 2)]))
+            print('& ' + '\n& '.join([' & '.join(results[i:i+2]) for i in range(0, len(results), 2)]))
             print('-' * 100)
 
 
-def bandit_pr_results(llm: str, task: str, version: str) -> None:
+def bandit_pr_results(llm: str, task: str, version: str) -> dict[str, str]:
     results = []
     result_dir = Path(f'logs/{llm}/bandit_pr-5/{version}/{task}')
 
@@ -142,7 +141,7 @@ def bandit_pr_results(llm: str, task: str, version: str) -> None:
     best_results = {
         key: f'{value:.3f}'
         for key, value in best_results.items()
-        if key in ['accuracy', 'f1', 'mae', 'rmse', 'rouge-1', 'rouge-L', 'meteor']
+        if key in {'accuracy', 'f1', 'mae', 'rmse', 'rouge-1', 'rouge-L', 'meteor'}
     }
     return best_results
 

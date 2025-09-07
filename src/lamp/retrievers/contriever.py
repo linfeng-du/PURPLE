@@ -1,6 +1,6 @@
 # Adapted from https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/prompts/contriever_retriever.py
 import torch
-from transformers import AutoTokenizer, AutoModel
+from transformers import AutoModel, AutoTokenizer
 
 from ..data_types import Profile
 
@@ -20,7 +20,7 @@ class Contriever:
         corpus: list[str],
         profiles: list[Profile],
         num_retrieve: int,
-        return_probs: bool = False
+        return_logps: bool = False
     ) -> list[Profile] | tuple[list[Profile], torch.Tensor]:
         num_retrieve = min(num_retrieve, len(profiles))
 
@@ -31,9 +31,9 @@ class Contriever:
         values, indices = scores.topk(num_retrieve, dim=0)
         retrieved_profiles = [profiles[index] for index in indices]
 
-        if return_probs:
-            probs = torch.softmax(values, dim=0)
-            return retrieved_profiles, probs
+        if return_logps:
+            logps = torch.log_softmax(values, dim=0)
+            return retrieved_profiles, logps
 
         return retrieved_profiles
 

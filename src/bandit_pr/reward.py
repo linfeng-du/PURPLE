@@ -1,5 +1,5 @@
-import torch
 import evaluate
+import torch
 
 from .data_types import Reward
 

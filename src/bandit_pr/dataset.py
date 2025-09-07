@@ -1,9 +1,9 @@
 import os
 from typing import Callable
 
-from rank_bm25 import BM25Okapi
 from datasets import Dataset, load_from_disk
 from datasets.formatting.formatting import LazyBatch
+from rank_bm25 import BM25Okapi
 
 import torch
 from transformers import PreTrainedTokenizerBase
@@ -11,7 +11,7 @@ from transformers import PreTrainedTokenizerBase
 from tqdm import tqdm
 
 from lamp import load_lamp_dataset
-from .data_types import Batch, Example, Collator
+from .data_types import Batch, Collator, Example
 
 
 def load_retrieved_lamp_dataset(task: str, split: str, num_candidates: int) -> Dataset:
@@ -79,7 +79,7 @@ def create_collator(tokenizer: PreTrainedTokenizerBase) -> Collator:
         corpus_inputs = [example['corpus_inputs'] for example in examples]
 
         # Create profile mask
-        max_num_profiles = max(len(example_profiles) for example_profiles in profiles)
+        max_num_profiles = max(map(len, profiles))
         profile_mask = torch.ones(len(profiles), max_num_profiles, dtype=torch.bool)
 
         for index, example_profiles in enumerate(profiles):

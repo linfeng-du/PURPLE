@@ -1,3 +1,4 @@
+# Source: https://github.com/OSU-NLP-Group/In-Context-Reranking/blob/main/src/in_context_reranker.py
 import math
 
 import transformers
@@ -532,7 +533,7 @@ class InContextReranker():
             query_end_idx = prompt_length - 1
         return llm_prompt, document_span_intervals, query_start_idx, query_end_idx
     
-    # @classmethod
+    @classmethod
     def __show_tokens(self, string):
         # Shows tokenized string.
         # Mainly used for debugging prompt construction for document retrieval.

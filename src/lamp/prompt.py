@@ -1,15 +1,14 @@
 # Adapted from https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/prompts/prompts.py
-import random
 import logging
+import random
 from typing import Callable
 
-from rank_bm25 import BM25Okapi
-
 import torch
+from rank_bm25 import BM25Okapi
 from transformers import PreTrainedTokenizerBase
 
-from .retrievers import Contriever, RankGPT, ICR
 from .data_types import Profile, PromptGenerator
+from .retrievers import Contriever, ICR, RankGPT
 
 
 logger = logging.getLogger(__name__)
