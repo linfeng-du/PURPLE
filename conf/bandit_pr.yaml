@@ -9,16 +9,16 @@ preprocessor:
 
 score_model:
   encoder_model: facebook/contriever
-  fuse_mode: cross_attn     # Query-document fusion mode (concat_hidden, concat_token, cross_attn)
-  num_layers: 12            # Number of Transformer layers
+  fuse_mode: cross_attn  # Strategy for query-document fusion (concat_hidden, concat_token, cross_attn)
+  num_layers: 12         # Number of document Transformer layers
   decoder_hidden_size: 256
 
 reinforce:
-  num_samples: 32   # Number of samples, each contains `sample_size` profiles
-  reward: logp      # Type of reward (metric, logp)
-  loss: baseline    # Type of loss function (reinforce, baseline)
+  num_samples: 32  # Number of samples, each contains `num_retrieve` profiles
+  reward: logp     # Type of reward (metric, logp)
+  loss: baseline   # Type of loss function (reinforce, baseline)
 
-num_candidates: 20  # Number of candidate profiles for re-ranking
+num_candidates: 20  # Number of candidate profiles to rerank
 from_pretrained: false
 
 num_epochs: 10
