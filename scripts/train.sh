@@ -28,7 +28,7 @@ done
 : "${from_pretrained:=false}"
 : "${llms:=phi-4-mini-instruct,llama-3-8b-instruct}"
 : "${tasks:=LaMP-1,LaMP-2,LaMP-3,LaMP-4,LaMP-5,LaMP-7,LongLaMP-2,LongLaMP-3,LongLaMP-4}"
-: "${retrievers:=contriever,bm25}"
+: "${retrievers:=bm25}"
 : "${num_retrieve:=5}"
 : "${fuse_modes:=cross_attn}"
 : "${num_layers_list:=12}"
