@@ -52,15 +52,8 @@ def _sample_without_replacement(
     return indices, logp
 
 
-def compute_loss(logps: torch.Tensor, rewards: torch.Tensor, loss: str) -> torch.Tensor:
+def compute_loss(logps: torch.Tensor, rewards: torch.Tensor) -> torch.Tensor:
     """Compute REINFORCE loss."""
-    if loss == 'reinforce':
-        loss = -torch.mean(logps * rewards)
-    elif loss == 'baseline':
-        mean = rewards.mean(dim=1, keepdim=True)
-        std = rewards.std(dim=1, keepdim=True)
-        loss = -torch.mean(logps * (rewards - mean) / (std + 1e-9))
-    else:
-        raise ValueError(f'Invalid loss: {loss}')
-
-    return loss
+    mean = rewards.mean(dim=1, keepdim=True)
+    std = rewards.std(dim=1, keepdim=True)
+    return -torch.mean(logps * (rewards - mean) / (std + 1e-9))

@@ -86,7 +86,7 @@ class Trainer:
                     if (
                         (not self.best_eval_result)
                         or (metric == 'mae' and eval_result < self.best_eval_result)
-                        or (eval_result > self.best_eval_result)
+                        or (metric in {'accuracy', 'rouge-1'} and eval_result > self.best_eval_result)
                     ):
                         logger.info(f'Best evaluation {metric} achieved: {eval_result}')
                         self.best_eval_result = eval_result
@@ -132,7 +132,7 @@ class Trainer:
 
                 rewards = rewards.to(self.device).view_as(logps)
 
-                loss = reinforce.compute_loss(logps, rewards, self.cfg.reinforce.loss)
+                loss = reinforce.compute_loss(logps, rewards)
                 loss = loss / self.cfg.gradient_accumulation_steps
                 loss.backward()
 

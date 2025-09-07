@@ -16,8 +16,8 @@ score_model:
 reinforce:
   num_samples: 32  # Number of samples, each contains `num_retrieve` profiles
   reward: logp     # Type of reward (metric, logp)
-  loss: baseline   # Type of loss function (reinforce, baseline)
 
+retriever: bm25
 num_candidates: 20  # Number of candidate profiles to rerank
 from_pretrained: false
 

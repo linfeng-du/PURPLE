@@ -91,7 +91,7 @@ class ScoreModel(nn.Module):
             json.dump(config, file, indent=2)
 
         state_dict = OrderedDict({
-            key: value.cpu()
+            key: value
             for key, value in self.state_dict().items()
             if not key.startswith('encoder.')}
         )

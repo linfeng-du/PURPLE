@@ -48,8 +48,7 @@ def main(cfg: DictConfig) -> None:
     )
     prompt_generator = create_prompt_generator(
         cfg.task, cfg.retriever, cfg.num_retrieve,
-        cfg.prompt_generator.max_length, tokenizer,
-        device=torch.device(('cuda' if torch.cuda.is_available() else 'cpu'))
+        cfg.prompt_generator.max_length, tokenizer
     )
 
     test_split = ('dev' if cfg.task.startswith('LaMP') else 'test')

@@ -64,8 +64,8 @@ def main(cfg: DictConfig) -> None:
 
     # Prepare datasets
     test_split = ('dev' if cfg.task.startswith('LaMP') else 'test')
-    train_dataset = load_retrieved_lamp_dataset(cfg.task, 'train', cfg.num_candidates)
-    test_dataset = load_retrieved_lamp_dataset(cfg.task, test_split, cfg.num_candidates)
+    train_dataset = load_retrieved_lamp_dataset(cfg.task, 'train', cfg.retriever, cfg.num_candidates)
+    test_dataset = load_retrieved_lamp_dataset(cfg.task, test_split, cfg.retriever, cfg.num_candidates)
 
     tokenizer = AutoTokenizer.from_pretrained(cfg.score_model.encoder_model)
     preprocessor = create_preprocessor(tokenizer=tokenizer, **cfg.preprocessor)

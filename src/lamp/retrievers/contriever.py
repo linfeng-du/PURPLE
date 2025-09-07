@@ -24,10 +24,15 @@ class Contriever:
     ) -> list[Profile] | tuple[list[Profile], torch.Tensor]:
         num_retrieve = min(num_retrieve, len(profiles))
 
+        scores = []
         query_embed = self._compute_sentence_embedding([query])
-        corpus_embeds = self._compute_sentence_embedding(corpus)
-        scores = (query_embed @ corpus_embeds.T).squeeze(dim=0)
 
+        for batch_corpus in [corpus[i:i+128] for i in range(0, len(corpus), 128)]:
+            batch_corpus_embeds = self._compute_sentence_embedding(batch_corpus)
+            batch_scores = (query_embed @ batch_corpus_embeds.T).squeeze(dim=0)
+            scores.append(batch_scores)
+
+        scores = torch.cat(scores, dim=0)
         values, indices = scores.topk(num_retrieve, dim=0)
         retrieved_profiles = [profiles[index] for index in indices]
 

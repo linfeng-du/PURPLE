@@ -19,15 +19,14 @@ def create_prompt_generator(
     retriever: str,
     num_retrieve: int,
     max_length: int,
-    tokenizer: PreTrainedTokenizerBase,
-    device: torch.device | None = None
+    tokenizer: PreTrainedTokenizerBase
 ) -> PromptGenerator:
     if retriever == 'contriever':
-        contriever = Contriever(device)
+        contriever = Contriever(torch.device('cuda'))
     elif retriever == 'rank_gpt':
-        rank_gpt = RankGPT(device)
+        rank_gpt = RankGPT(torch.device('cuda'))
     elif retriever == 'icr':
-        icr = ICR(device)
+        icr = ICR(torch.device('cuda'))
 
     prompt_generator = _create_prompt_generator(task)
 

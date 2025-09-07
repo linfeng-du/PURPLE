@@ -11,31 +11,41 @@ from transformers import PreTrainedTokenizerBase
 from tqdm import tqdm
 
 from lamp import load_lamp_dataset
+from lamp.retrievers import Contriever
 from .data_types import Batch, Collator, Example
 
 
-def load_retrieved_lamp_dataset(task: str, split: str, num_candidates: int) -> Dataset:
-    dataset_dir = f'./dataset/{task}/bm25-{num_candidates}/{split}'
+def load_retrieved_lamp_dataset(task: str, split: str, retriever: str, num_candidates: int) -> Dataset:
+    if retriever == 'contriever':
+        contriever = Contriever(torch.device('cuda'))
 
-    if not os.path.exists(dataset_dir):
-        examples = []
-        dataset = load_lamp_dataset(task, split)
+    def process_dataset() -> Dataset:
+        dataset_dir = f'./dataset/{task}/{retriever}-{num_candidates}/{split}'
 
-        for example in tqdm(dataset, desc='Retrieving'):
-            query = example['query']
-            corpus = example['corpus']
-            profiles = example['profiles']
+        if not os.path.exists(dataset_dir):
+            examples = []
+            dataset = load_lamp_dataset(task, split)
 
-            bm25 = BM25Okapi([document.split() for document in corpus])
-            retrieved_indices = bm25.get_top_n(query.split(), range(len(corpus)), n=num_candidates)
+            for example in tqdm(dataset, desc='Retrieving'):
+                query = example['query']
+                corpus = example['corpus']
+                profiles = example['profiles']
 
-            example['corpus'] = [corpus[index] for index in retrieved_indices]
-            example['profiles'] = [profiles[index] for index in retrieved_indices]
-            examples.append(example)
+                if retriever == 'bm25':
+                    bm25 = BM25Okapi([document.split() for document in corpus])
+                    retrieved_indices = bm25.get_top_n(query.split(), range(len(corpus)), n=num_candidates)
+                elif retriever == 'contriever':
+                    retrieved_indices = contriever(query, corpus, range(len(corpus)), num_candidates)
 
-        Dataset.from_list(examples).save_to_disk(dataset_dir)
+                example['corpus'] = [corpus[index] for index in retrieved_indices]
+                example['profiles'] = [profiles[index] for index in retrieved_indices]
+                examples.append(example)
 
-    return load_from_disk(dataset_dir)
+            Dataset.from_list(examples).save_to_disk(dataset_dir)
+
+        return load_from_disk(dataset_dir)
+
+    return process_dataset()
 
 
 def create_preprocessor(

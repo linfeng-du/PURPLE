@@ -36,34 +36,31 @@ def download() -> None:
     evaluate.load('meteor')
 
 
-def preprocess() -> None:
-    for task in [
-        'LaMP-1', 'LaMP-2', 'LaMP-3', 'LaMP-4', 'LaMP-5', 'LaMP-7',
-        'LongLaMP-2', 'LongLaMP-3', 'LongLaMP-4'
-    ]:
-        print(f'Preprocessing {task}...')
-        test_split = ('dev' if task.startswith('LaMP') else 'test')
-        train_dataset = load_retrieved_lamp_dataset(task, 'train', num_candidates=20)
-        test_dataset = load_retrieved_lamp_dataset(task, test_split, num_candidates=20)
+def preprocess(task: str, retriever: str, num_candidates: int) -> None:
+    print(f'Preprocessing {task}...')
 
-        tokenizer = AutoTokenizer.from_pretrained('facebook/contriever')
-        preprocessor = create_preprocessor(
-            max_num_profiles=-1,
-            max_query_length=512,
-            max_document_length=512,
-            tokenizer=tokenizer
-        )
-        train_dataset.map(preprocessor, batched=True, remove_columns=['query', 'corpus'], num_proc=16)
+    test_split = ('dev' if task.startswith('LaMP') else 'test')
+    train_dataset = load_retrieved_lamp_dataset(task, 'train', retriever, num_candidates)
+    test_dataset = load_retrieved_lamp_dataset(task, test_split, retriever, num_candidates)
 
-        # Re-initialize tokenizer to ensure consistent hashing
-        tokenizer = AutoTokenizer.from_pretrained('facebook/contriever')
-        preprocessor = create_preprocessor(
-            max_num_profiles=-1,
-            max_query_length=512,
-            max_document_length=512,
-            tokenizer=tokenizer
-        )
-        test_dataset.map(preprocessor, batched=True, remove_columns=['query', 'corpus'], num_proc=16)
+    tokenizer = AutoTokenizer.from_pretrained('facebook/contriever')
+    preprocessor = create_preprocessor(
+        max_num_profiles=-1,
+        max_query_length=512,
+        max_document_length=512,
+        tokenizer=tokenizer
+    )
+    train_dataset.map(preprocessor, batched=True, remove_columns=['query', 'corpus'], num_proc=16)
+
+    # Re-initialize tokenizer to ensure consistent hashing
+    tokenizer = AutoTokenizer.from_pretrained('facebook/contriever')
+    preprocessor = create_preprocessor(
+        max_num_profiles=-1,
+        max_query_length=512,
+        max_document_length=512,
+        tokenizer=tokenizer
+    )
+    test_dataset.map(preprocessor, batched=True, remove_columns=['query', 'corpus'], num_proc=16)
 
 
 def baseline_results_formatted() -> None:
