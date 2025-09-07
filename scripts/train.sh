@@ -2,7 +2,7 @@
 
 ARGS=$(getopt \
     --options "" \
-    --long time:,from_pretrained,llms:,tasks:,num_retrieve:,fuse_modes:,num_layers_list:,rewards:,losses: \
+    --long time:,from_pretrained,llms:,tasks:,retrievers:,num_retrieve:,fuse_modes:,num_layers_list:,rewards: \
     --name "$0" \
     -- "$@"
 )
@@ -14,11 +14,11 @@ while true; do
         --from_pretrained) from_pretrained=true; shift 1 ;;
         --llms) llms="$2"; shift 2 ;;
         --tasks) tasks="$2"; shift 2 ;;
+        --retrievers) retrievers="$2"; shift 2 ;;
         --num_retrieve) num_retrieve="$2"; shift 2 ;;
         --fuse_modes) fuse_modes="$2"; shift 2 ;;
         --num_layers_list) num_layers_list="$2"; shift 2 ;;
         --rewards) rewards="$2"; shift 2 ;;
-        --losses) losses="$2"; shift 2 ;;
         --) shift; break ;;
         *) echo "Unknown option: $1" >&2; exit 1 ;;
     esac
@@ -28,26 +28,26 @@ done
 : "${from_pretrained:=false}"
 : "${llms:=phi-4-mini-instruct,llama-3-8b-instruct}"
 : "${tasks:=LaMP-1,LaMP-2,LaMP-3,LaMP-4,LaMP-5,LaMP-7,LongLaMP-2,LongLaMP-3,LongLaMP-4}"
+: "${retrievers:=contriever,bm25}"
 : "${num_retrieve:=5}"
 : "${fuse_modes:=cross_attn}"
 : "${num_layers_list:=12}"
 : "${rewards:=logp}"
-: "${losses:=baseline}"
 
 IFS=',' read -ra llms <<< "$llms"
 IFS=',' read -ra tasks <<< "$tasks"
+IFS=',' read -ra retrievers <<< "$retrievers"
 IFS=',' read -ra fuse_modes <<< "$fuse_modes"
 IFS=',' read -ra num_layers_list <<< "$num_layers_list"
 IFS=',' read -ra rewards <<< "$rewards"
-IFS=',' read -ra losses <<< "$losses"
 
 for llm in ${llms[@]}; do
-    for task in ${tasks[@]}; do
+    for retriever in ${retrievers[@]}; do
         for fuse_mode in ${fuse_modes[@]}; do
             for num_layers in ${num_layers_list[@]}; do
                 for reward in ${rewards[@]}; do
-                    for loss in ${losses[@]}; do
-                        exp_name="$llm/bandit_pr-$num_retrieve/$fuse_mode-$num_layers-$reward-$loss/$task"
+                    for task in ${tasks[@]}; do
+                        exp_name="$llm/bandit_pr-$num_retrieve/$retriever/$fuse_mode-$num_layers-$reward/$task"
                         mkdir -p "./logs/$exp_name"
                         sbatch \
                             --job-name="$exp_name" \
@@ -60,12 +60,12 @@ for llm in ${llms[@]}; do
                                 exp_name=\"$exp_name\" \
                                 llm=\"$llm\" \
                                 task=\"$task\" \
+                                retriever=\"$retriever\" \
                                 from_pretrained=\"$from_pretrained\" \
                                 num_retrieve=\"$num_retrieve\" \
                                 score_model.fuse_mode=\"$fuse_mode\" \
                                 score_model.num_layers=\"$num_layers\" \
-                                reinforce.reward=\"$reward\" \
-                                reinforce.loss=\"$loss\""
+                                reinforce.reward=\"$reward\""
                     done
                 done
             done
