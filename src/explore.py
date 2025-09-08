@@ -121,6 +121,8 @@ def marginalization(llm: str, task: str, num_retrieve: int) -> None:
             'max_new_tokens': 256,
             'do_sample': False,
             'num_beams': 4,
+            'temperature': None,
+            'top_p': None,
             'num_return_sequences': 4
         }
     )
