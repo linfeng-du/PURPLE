@@ -73,7 +73,7 @@ def performance_range(llm: str, task: str, num_retrieve: int) -> None:
     )
 
     test_split = ('dev' if task.startswith('LaMP') else 'test')
-    test_dataset = load_retrieved_lamp_dataset(task, test_split, num_candidates=20)
+    test_dataset = load_retrieved_lamp_dataset(task, test_split, retriever='bm25', num_candidates=20)
 
     prompt_generator = create_prompt_generator(
         task, 'first_k', num_retrieve,
@@ -126,7 +126,7 @@ def marginalization(llm: str, task: str, num_retrieve: int) -> None:
     )
 
     test_split = ('dev' if task.startswith('LaMP') else 'test')
-    test_dataset = load_retrieved_lamp_dataset(task, test_split, num_candidates=20)
+    test_dataset = load_retrieved_lamp_dataset(task, test_split, retriever='bm25', num_candidates=20)
 
     prompt_generator = create_prompt_generator(
         task, retriever='first_k', num_retrieve=1,
