@@ -45,16 +45,18 @@ class ScoreModel(nn.Module):
             raise ValueError(f'Invalid fuse mode: {self.fuse_mode}')
 
         self.fuse_norm = nn.LayerNorm(self.encoder_hidden_size)
-        self.doc_transformer = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(
-                self.encoder_hidden_size,
-                self.encoder.config.num_attention_heads,
-                dim_feedforward=4 * self.encoder_hidden_size,
-                batch_first=True
-            ),
-            num_layers,
-            enable_nested_tensor=False
-        )
+
+        if self.num_layers > 0:
+            self.doc_transformer = nn.TransformerEncoder(
+                nn.TransformerEncoderLayer(
+                    self.encoder_hidden_size,
+                    self.encoder.config.num_attention_heads,
+                    dim_feedforward=4 * self.encoder_hidden_size,
+                    batch_first=True
+                ),
+                self.num_layers,
+                enable_nested_tensor=False
+            )
 
         self.mlp_decoder = nn.Sequential(
             nn.Linear(self.encoder_hidden_size, self.decoder_hidden_size),
@@ -112,11 +114,13 @@ class ScoreModel(nn.Module):
 
         # Model candidate profile dependencies
         fuse_embeds = self.fuse_norm(fuse_embeds)
-        src_key_padding_mask = ~(fuse_mask if self.fuse_mode == 'concat_token' else profile_mask)
-        transformer_out = self.doc_transformer(fuse_embeds, src_key_padding_mask=src_key_padding_mask)
+
+        if self.num_layers > 0:
+            src_key_padding_mask = ~(fuse_mask if self.fuse_mode == 'concat_token' else profile_mask)
+            fuse_embeds = self.doc_transformer(fuse_embeds, src_key_padding_mask=src_key_padding_mask)
 
         # Compute profile likelihoods
-        likelihoods = self.mlp_decoder(transformer_out).squeeze(dim=2)
+        likelihoods = self.mlp_decoder(fuse_embeds).squeeze(dim=2)
 
         if self.fuse_mode == 'concat_token':
             likelihoods = likelihoods[:, 1:]
