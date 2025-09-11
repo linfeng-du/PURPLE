@@ -42,7 +42,7 @@ for llm in ${llms[@]}; do
                 --mem=64G \
                 --output="./logs/$exp_name/%j.out" \
                 --error="./logs/$exp_name/%j.err" \
-                --wrap="source ~/.bashrc; activate bandit_pr; python src/baseline.py \
+                --wrap="source ~/.bashrc; activate bandit_pr; python src/baseline_retriever.py \
                     llm=\"$llm\" \
                     exp_name=\"$exp_name\" \
                     task=\"$task\" \

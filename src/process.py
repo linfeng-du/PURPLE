@@ -70,7 +70,7 @@ def baseline_results_formatted() -> None:
     ]:
         metric_results = defaultdict(list)
 
-        for retriever in ['icr', 'rank_gpt', 'contriever', 'bm25']:
+        for retriever in ['icr', 'rank_gpt', 'replug', 'contriever', 'bm25']:
             for llm in ['phi-4-mini-instruct', 'llama-3-8b-instruct']:
                 results = baseline_results(task, retriever, llm)
 
