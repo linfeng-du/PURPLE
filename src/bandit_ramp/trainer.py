@@ -14,7 +14,7 @@ from llm import LLM
 from lamp.data_types import Metric, PromptGenerator
 
 from . import reinforce
-from .data_types import Reward
+from .data_types import Batch, Reward
 from .score_model import ScoreModel
 
 
@@ -92,29 +92,26 @@ class Trainer:
                         self.best_eval_result = eval_result
                         self._save_states()
 
+                batch = self._move_to_device(batch)
                 likelihoods = self.score_model(
-                    batch['query_inputs'].to(self.device),
-                    [
-                        [document_inputs.to(self.device) for document_inputs in document_subbatches]
-                        for document_subbatches in batch['corpus_inputs']
-                    ],
-                    batch['profile_mask'].to(self.device)
+                    batch['query_inputs'],
+                    batch['corpus_inputs'],
+                    batch['profile_mask']
                 )
-                retrieved_indices, logps = reinforce.sample(
+                reranked_indices, logps = reinforce.sample(
                     likelihoods,
-                    batch['profile_mask'].to(self.device),
                     self.cfg.reinforce.num_samples,
-                    self.cfg.num_retrieve
+                    self.cfg.num_rerank
                 )
 
                 prompts = []
                 targets = []
 
-                for batch_index, batch_retrieved_indices in enumerate(retrieved_indices):
-                    for sample_retrieved_indices in batch_retrieved_indices:
+                for batch_index, batch_reranked_indices in enumerate(reranked_indices):
+                    for sample_reranked_indices in batch_reranked_indices:
                         profiles = [
-                            batch['profiles'][batch_index][retrieved_index]
-                            for retrieved_index in sample_retrieved_indices
+                            batch['profiles'][batch_index][reranked_index]
+                            for reranked_index in sample_reranked_indices
                         ]
                         prompt = self.prompt_generator(batch['source'][batch_index], profiles)
                         target = batch['target'][batch_index]
@@ -131,7 +128,6 @@ class Trainer:
                     raise ValueError(f'Invalid reward: {self.cfg.reinforce.reward}')
 
                 rewards = rewards.to(self.device).view_as(logps)
-
                 loss = reinforce.compute_loss(logps, rewards)
                 loss = loss / self.cfg.gradient_accumulation_steps
                 loss.backward()
@@ -157,24 +153,22 @@ class Trainer:
         targets = []
 
         for batch in tqdm(self.test_loader, desc='Evaluating'):
+            batch = self._move_to_device(batch)
             likelihoods = self.score_model(
-                batch['query_inputs'].to(self.device),
-                [
-                    [document_inputs.to(self.device) for document_inputs in document_subbatches]
-                    for document_subbatches in batch['corpus_inputs']
-                ],
-                batch['profile_mask'].to(self.device)
+                batch['query_inputs'],
+                batch['corpus_inputs'],
+                batch['profile_mask']
             )
-            num_retrieve = min(self.cfg.num_retrieve, likelihoods.shape[1])
-            _, retrieved_indices = likelihoods.topk(num_retrieve, dim=1)
+            num_rerank = min(self.cfg.num_rerank, likelihoods.shape[1])
+            _, reranked_indices = likelihoods.topk(num_rerank, dim=1)
 
-            for batch_index, batch_retrieved_indices in enumerate(retrieved_indices):
-                retrieved_profiles = [
-                    batch['profiles'][batch_index][retrieved_index]
-                    for retrieved_index in batch_retrieved_indices
-                    if batch['profile_mask'][batch_index][retrieved_index]
+            for batch_index, batch_reranked_indices in enumerate(reranked_indices):
+                reranked_profiles = [
+                    batch['profiles'][batch_index][reranked_index]
+                    for reranked_index in batch_reranked_indices
+                    if batch['profile_mask'][batch_index][reranked_index]
                 ]
-                prompt = self.prompt_generator(batch['source'][batch_index], retrieved_profiles)
+                prompt = self.prompt_generator(batch['source'][batch_index], reranked_profiles)
                 target = batch['target'][batch_index]
 
                 prompts.append(prompt)
@@ -182,6 +176,15 @@ class Trainer:
 
         predictions = self.llm.generate(prompts, verbose=True)
         return self.metric_fn(predictions, targets)
+
+    def _move_to_device(self, batch: Batch) -> Batch:
+        batch['query_inputs'] = batch['query_inputs'].to(self.device)
+        batch['corpus_inputs'] = [
+            [document_inputs.to(self.device) for document_inputs in document_subbatches]
+            for document_subbatches in batch['corpus_inputs']
+        ]
+        batch['profile_mask'] = batch['profile_mask'].to(self.device)
+        return batch
 
     def _load_states(self, ckpt_dir: str) -> None:
         ckpt = torch.load(f'{ckpt_dir}/trainer.pt', map_location=self.device, weights_only=False)

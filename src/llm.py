@@ -35,6 +35,12 @@ class LLM:
             )
             self.pipeline.tokenizer.padding_side = 'left'
 
+            if self.model == 'microsoft/Phi-4-mini-instruct':
+                eos_token = '<|end|>'
+                eos_token_id = self.pipeline.tokenizer.encode(eos_token)[0]
+                self.pipeline.tokenizer.eos_token = eos_token
+                self.pipeline.tokenizer.eos_token_id = eos_token_id
+
             if self.pipeline.tokenizer.pad_token is None:
                 self.pipeline.tokenizer.pad_token = self.pipeline.tokenizer.eos_token
                 self.pipeline.model.generation_config.pad_token_id = self.pipeline.tokenizer.eos_token_id
@@ -85,41 +91,46 @@ class LLM:
 
             return responses
 
-    @torch.no_grad()
     def compute_target_logps(self, prompts: list[str], targets: list[str]) -> torch.Tensor:
+        inputs_ids = self.apply_chat_template(prompts)
+        targets_ids = self.pipeline.tokenizer(targets, add_special_tokens=False)['input_ids']
+        targets_ids = [target_ids + [self.pipeline.tokenizer.eos_token_id] for target_ids in targets_ids]
+        return self.compute_target_id_logps(inputs_ids, targets_ids)
+
+    @torch.no_grad()
+    def compute_target_id_logps(self, inputs_ids: list[list[int]], targets_ids: list[list[int]]) -> torch.Tensor:
         target_logps = []
-        tokenizer = self.pipeline.tokenizer
+        model_max_length = self.pipeline.tokenizer.model_max_length
 
-        chats_input_ids = tokenizer.apply_chat_template(
-            [self._create_message(prompt) for prompt in prompts],
-            add_generation_prompt=True,
-            tokenize=True
-        )
-        targets_input_ids = tokenizer(targets, add_special_tokens=False)['input_ids']
-
-        for chat_input_ids, target_input_ids in zip(chats_input_ids, targets_input_ids):
-            if len(chat_input_ids) + len(target_input_ids) + 1 > tokenizer.model_max_length:
-                target_max_length = tokenizer.model_max_length - len(chat_input_ids) - 1
+        for input_ids, target_ids in zip(inputs_ids, targets_ids):
+            if len(input_ids) + len(target_ids) > model_max_length:
+                target_max_length = model_max_length - len(input_ids)
                 assert target_max_length > 0
-                target_input_ids = target_input_ids[:target_max_length]
+                target_ids = target_ids[:target_max_length]
 
-            target_length = len(target_input_ids) + 1
-            input_ids = chat_input_ids + target_input_ids + [tokenizer.eos_token_id]
+            target_length = len(target_ids)
+            concat_ids = input_ids + target_ids
 
-            input_ids = torch.tensor([input_ids], device=self.device)
-            attention_mask = torch.ones_like(input_ids)
-            labels = input_ids[:, 1:]
+            concat_ids = torch.tensor([concat_ids], device=self.device)
+            labels = concat_ids[:, 1:]
+            outputs = self.pipeline.model(input_ids=concat_ids)
 
-            outputs = self.pipeline.model(input_ids=input_ids, attention_mask=attention_mask)
             logps = torch.log_softmax(outputs.logits[:, :-1, :], dim=2)
             token_logps = logps.gather(dim=2, index=labels.unsqueeze(dim=2)).squeeze(dim=2)
             token_mask = torch.zeros_like(token_logps)
             token_mask[0, -target_length:] = 1.
 
-            batch_target_logps = torch.sum(token_logps * token_mask, dim=1)
-            target_logps.append(batch_target_logps)
+            target_logp = torch.sum(token_logps * token_mask, dim=1)
+            target_logps.append(target_logp)
 
         return torch.cat(target_logps, dim=0)
+
+    def apply_chat_template(self, prompts: list[str]) -> list[list[int]]:
+        return self.pipeline.tokenizer.apply_chat_template(
+            [self._create_message(prompt) for prompt in prompts],
+            add_generation_prompt=True,
+            tokenize=True
+        )
 
     def _create_message(self, prompt: str) -> Message:
         return [

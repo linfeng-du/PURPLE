@@ -14,11 +14,9 @@ score_model:
   decoder_hidden_size: 256
 
 reinforce:
-  num_samples: 32  # Number of samples, each contains `num_retrieve` profiles
+  num_samples: 32  # Number of samples, each contains `num_rerank` profiles
   reward: logp     # Type of reward (metric, logp)
 
-retriever: bm25
-num_candidates: 20  # Number of candidate profiles to rerank
 from_pretrained: false
 
 num_epochs: 10

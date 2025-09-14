@@ -12,7 +12,7 @@ from transformers import AutoTokenizer
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
-from bandit_pr import (
+from bandit_ramp import (
     create_collator,
     create_preprocessor,
     create_reward,
@@ -33,7 +33,7 @@ logging.getLogger('httpx').setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 
-@hydra.main(config_path='../conf', config_name='bandit_pr', version_base=None)
+@hydra.main(config_path='../conf', config_name='bandit_ramp', version_base=None)
 def main(cfg: DictConfig) -> None:
     # Check for missing keys
     missing_keys = OmegaConf.missing_keys(cfg)
@@ -103,7 +103,7 @@ def main(cfg: DictConfig) -> None:
         AutoTokenizer.from_pretrained('gpt2')
     )
     prompt_generator = create_prompt_generator(
-        cfg.task, 'first_k', cfg.num_retrieve,
+        cfg.task, 'first_k', cfg.num_rerank,
         cfg.prompt_generator.max_length, tokenizer
     )
     reward_fn = create_reward(cfg.task)

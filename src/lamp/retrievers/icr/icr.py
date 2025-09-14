@@ -1,5 +1,4 @@
 import torch
-from rank_bm25 import BM25Okapi
 
 from ...data_types import Profile
 from .in_context_reranker import InContextReranker
@@ -21,15 +20,8 @@ class ICR:
         query: str,
         corpus: list[str],
         profiles: list[Profile],
-        num_retrieve: int
+        num_rerank: int
     ) -> list[Profile]:
-        # Retrieve 20 profiles using BM25
-        bm25 = BM25Okapi([document.split() for document in corpus])
-        retrieved_indices = bm25.get_top_n(query.split(), range(len(profiles)), n=min(20, len(profiles)))
-
-        retrieved_corpus = [corpus[index].strip() for index in retrieved_indices]
-        retrieved_profiles = [profiles[index] for index in retrieved_indices]
-
-        # Rerank retrieved profiles
-        (ranking, _), _ = self.icr.rerank(query, retrieved_corpus)
-        return [retrieved_profiles[rank] for rank in ranking[:num_retrieve]]
+        corpus = [document.strip() for document in corpus]
+        (ranking, _), _ = self.icr.rerank(query, corpus)
+        return [profiles[rank] for rank in ranking[:num_rerank]]

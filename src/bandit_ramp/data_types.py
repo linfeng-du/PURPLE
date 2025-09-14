@@ -21,7 +21,7 @@ class Batch(TypedDict):
     profiles: list[list[Profile]]
     target: list[str]
     query_inputs: BatchEncoding
-    corpus_inputs: list[BatchEncoding]
+    corpus_inputs: list[list[BatchEncoding]]
     profile_mask: torch.Tensor
 
 

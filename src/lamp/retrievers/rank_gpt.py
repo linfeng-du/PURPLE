@@ -2,7 +2,6 @@
 from typing import TypeAlias
 
 import torch
-from rank_bm25 import BM25Okapi
 from transformers import pipeline
 
 from ..data_types import Profile
@@ -31,24 +30,16 @@ class RankGPT:
         query: str,
         corpus: list[str],
         profiles: list[Profile],
-        num_retrieve: int,
+        num_rerank: int,
         window_size: int = 20,
         step: int = 10
     ) -> list[Profile]:
-        # Retrieve 20 profiles using BM25
-        bm25 = BM25Okapi([document.split() for document in corpus])
-        retrieved_indices = bm25.get_top_n(query.split(), range(len(profiles)), n=min(20, len(profiles)))
-
-        indices = list(range(len(retrieved_indices)))
-        retrieved_corpus = [corpus[index] for index in retrieved_indices]
-        retrieved_profiles = [profiles[index] for index in retrieved_indices]
-
-        # Re-rank retrieved profiles
         rank_start = len(profiles) - window_size
         rank_end = len(profiles)
+        indices = list(range(len(profiles)))
 
         while rank_start >= 0:
-            message = _create_ranking_instruction(query, retrieved_corpus, rank_start, rank_end)
+            message = _create_ranking_instruction(query, corpus, rank_start, rank_end)
             output = self.pipeline(
                 message, max_new_tokens=256,
                 do_sample=False, temperature=None, top_p=None
@@ -56,13 +47,13 @@ class RankGPT:
             response = output[0]['generated_text'][-1]['content']
 
             indices = _receive_ranking(indices, response, rank_start, rank_end)
-            retrieved_corpus = [retrieved_corpus[index] for index in indices]
-            retrieved_profiles = [retrieved_profiles[index] for index in indices]
+            corpus = [corpus[index] for index in indices]
+            profiles = [profiles[index] for index in indices]
 
             rank_start -= step
             rank_end -= step
 
-        return retrieved_profiles[:num_retrieve]
+        return profiles[:num_rerank]
 
 
 def _create_ranking_instruction(

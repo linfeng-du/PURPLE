@@ -1,10 +1,11 @@
 #!/bin/bash
 
-ARGS=$(getopt \
-    --options "" \
-    --long time:,tasks:,retrievers:,num_candidates: \
-    --name "$0" \
-    -- "$@"
+ARGS=$(
+    getopt \
+        --options "" \
+        --long time:,tasks:,retrievers:,num_candidates: \
+        --name "$0" \
+        -- "$@"
 )
 eval set -- "$ARGS"
 
@@ -27,9 +28,10 @@ done
 IFS=',' read -ra tasks <<< "$tasks"
 IFS=',' read -ra retrievers <<< "$retrievers"
 
-for task in ${tasks[@]}; do
-    for retriever in ${retrievers[@]}; do
-        exp_name="process/$task/$retriever-$num_candidates"
+
+for retriever in ${retrievers[@]}; do
+    for task in ${tasks[@]}; do
+        exp_name="preprocess/$retriever-$num_candidates/$task"
         mkdir -p "./logs/$exp_name"
         sbatch \
             --job-name="$exp_name" \
@@ -38,10 +40,12 @@ for task in ${tasks[@]}; do
             --mem=64G \
             --output="./logs/$exp_name/%j.out" \
             --error="./logs/$exp_name/%j.err" \
-            --wrap="source ~/.bashrc; activate bandit_pr; python src/process.py \
-                preprocess \
-                --task=\"$task\" \
-                --retriever=\"$retriever\" \
-                --num_candidates=\"$num_candidates\""
+            --wrap="$(
+                echo -n "source ~/.bashrc; activate bandit_ramp; "
+                echo -n "python src/process.py preprocess "
+                echo -n "--task=\"$task\" "
+                echo -n "--retriever=\"$retriever\" "
+                echo -n "--num_candidates=\"$num_candidates\""
+            )"
     done
 done

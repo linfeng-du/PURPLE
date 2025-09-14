@@ -3,18 +3,18 @@ import torch
 
 def sample(
     likelihoods: torch.Tensor,
-    mask: torch.Tensor,
     num_samples: int,
     sample_size: int
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Generate `num_samples` samples from Plackett-Luce distribution defined by `likelihoods`."""
-    sample_size = min(sample_size, mask.sum(dim=1).min().item())
+    valid_cnt = (likelihoods > 0).sum(dim=1).min().item()
+    sample_size = min(sample_size, valid_cnt)
 
     indices = []
     logps = []
 
     for _ in range(num_samples):
-        sample_indices, sample_logp = _sample_without_replacement(likelihoods, mask, sample_size)
+        sample_indices, sample_logp = _sample_without_replacement(likelihoods, sample_size)
         indices.append(sample_indices)
         logps.append(sample_logp)
 
@@ -25,28 +25,21 @@ def sample(
 
 def _sample_without_replacement(
     likelihoods: torch.Tensor,
-    mask: torch.Tensor,
     sample_size: int
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Generate sample of `sample_size` items from Plackett-Luce distribution defined by `likelihoods`."""
     indices = torch.full_like(likelihoods[:, :sample_size], fill_value=-1, dtype=torch.long)
     logps = torch.zeros_like(likelihoods[:, :sample_size], dtype=torch.float)
 
-    # Create copy of `mask` to avoid in-place operations
-    mask = mask.clone()
-    batch_indices = torch.arange(likelihoods.shape[0], device=likelihoods.device).unsqueeze(dim=1)
-
     for i in range(sample_size):
         # Sample based on `likelihoods`
         probs = likelihoods / likelihoods.sum(dim=1, keepdim=True)
-        likelihood_indices = torch.multinomial(probs, num_samples=1)
-        likelihood_probs = probs.gather(dim=1, index=likelihood_indices)
+        item_indices = torch.multinomial(probs, num_samples=1)
+        item_probs = probs.gather(dim=1, index=item_indices)
 
-        indices[:, i] = likelihood_indices.squeeze(dim=1)
-        logps[:, i] = torch.log(likelihood_probs).squeeze(dim=1)
-
-        mask[batch_indices, likelihood_indices] = 0
-        likelihoods = likelihoods.masked_fill(~mask, value=0.)
+        indices[:, i] = item_indices.squeeze(dim=1)
+        logps[:, i] = torch.log(item_probs).squeeze(dim=1)
+        likelihoods = likelihoods.scatter(dim=1, index=item_indices, value=0.)
 
     logp = logps.sum(dim=1)
     return indices, logp

@@ -36,6 +36,8 @@ def load_retrieved_lamp_dataset(task: str, split: str, retriever: str, num_candi
                     retrieved_indices = bm25.get_top_n(query.split(), range(len(corpus)), n=num_candidates)
                 elif retriever == 'contriever':
                     retrieved_indices = contriever(query, corpus, range(len(corpus)), num_candidates)
+                else:
+                    raise ValueError(f'Invalid retriever: {retriever}')
 
                 example['corpus'] = [corpus[index] for index in retrieved_indices]
                 example['profiles'] = [profiles[index] for index in retrieved_indices]

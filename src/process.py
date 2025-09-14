@@ -1,3 +1,4 @@
+import itertools
 import json
 import re
 from collections import defaultdict
@@ -8,7 +9,7 @@ import evaluate
 from datasets import load_dataset
 from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
 
-from bandit_pr import create_preprocessor, load_retrieved_lamp_dataset
+from bandit_ramp import create_preprocessor, load_retrieved_lamp_dataset
 
 
 def download() -> None:
@@ -63,28 +64,73 @@ def preprocess(task: str, retriever: str, num_candidates: int) -> None:
     test_dataset.map(preprocessor, batched=True, remove_columns=['query', 'corpus'], num_proc=16)
 
 
-def baseline_results_formatted() -> None:
+def results_formatted(
+    version: str,
+    retriever: str = 'bm25', num_candidates: int = 20, num_rerank: int = 5
+) -> None:
+    def label_results(results: list[str], higher_is_better: bool = True) -> str:
+        best, second_best = sorted(set(map(float, results)), reverse=higher_is_better)[:2]
+        labeled_results = [
+            f'\\textbf{{{result}}}'
+            if float(result) == best else
+            f'\\underline{{{result}}}'
+            if float(result) == second_best else
+            result
+            for result in results
+        ]
+        return labeled_results
+
     for task in [
         'LaMP-1', 'LaMP-2', 'LaMP-3', 'LaMP-4', 'LaMP-5', 'LaMP-7',
         'LongLaMP-2', 'LongLaMP-3', 'LongLaMP-4'
     ]:
-        metric_results = defaultdict(list)
+        metric_results = defaultdict(lambda: defaultdict(list))
 
-        for retriever in ['icr', 'rank_gpt', 'replug', 'contriever', 'bm25']:
-            for llm in ['phi-4-mini-instruct', 'llama-3-8b-instruct']:
-                results = baseline_results(task, retriever, llm)
+        for llm in ['phi-4-mini-instruct', 'llama-3-8b-instruct']:
+            results = bandit_ramp_results(task, llm, retriever, num_candidates, num_rerank, version)
 
-                for metric, result in results.items():
-                    metric_results[metric].append(result)
+            for metric, result in results.items():
+                metric_results[metric][llm].append(result)
 
-        for metric, results in metric_results.items():
-            print(task, metric)
-            print('& ' + '\n& '.join([' & '.join(results[i:i+2]) for i in range(0, len(results), 2)]) + ' \\\\')
-            print('-' * 100)
+            for reranker in ['icr', 'rank_gpt', 'contriever', 'bm25']:
+                try:
+                    results = baseline_results(task, llm, retriever, num_candidates, reranker, num_rerank)
+
+                    for metric, result in results.items():
+                        metric_results[metric][llm].append(result)
+                except IndexError:
+                    print(f'{reranker} not found')
+                    continue
+
+        for metric, llm_results in metric_results.items():
+            for llm, results in llm_results.items():
+                metric_results[metric][llm] = label_results(results, higher_is_better=(task != 'LaMP-3'))
+
+        print(f'{task}')
+
+        for metric, llm_results in metric_results.items():
+            results = list(itertools.chain.from_iterable(zip(*llm_results.values())))
+            fmetric = (
+                'Accuracy $\\uparrow$' if metric == 'accuracy' else
+                'F1 $\\uparrow$' if metric == 'f1' else
+                'MAE $\\downarrow$' if metric == 'mae' else
+                'RMSE $\\downarrow$' if metric == 'rmse' else
+                'ROUGE-1 $\\uparrow$' if metric == 'rouge-1' else
+                'ROUGE-L $\\uparrow$' if metric == 'rouge-L' else
+                'METEOR $\\uparrow$' if metric == 'meteor' else None
+            )
+            fresults = f'\n{" " * 12}& '.join([' & '.join(results[i:i+2]) for i in range(0, len(results), 2)])
+            print(f'{" " * 8}& {fmetric}')
+            print(f'{" " * 12}& {fresults} \\\\')
+
+        print('-' * 100)
 
 
-def baseline_results(task: str, retriever: str, llm: str) -> dict[str, str]:
-    result_dir = Path(f'logs/{llm}/{retriever}-5/{task}')
+def baseline_results(
+    task: str, llm: str,
+    retriever: str, num_candidates: int, reranker: str, num_rerank: int
+) -> dict[str, str]:
+    result_dir = Path(f'logs/{llm}/{retriever}-{num_candidates}/{reranker}-{num_rerank}/{task}')
     result_file = list(result_dir.rglob('*.out'))[0]
 
     with open(result_file, 'r') as file:
@@ -101,28 +147,13 @@ def baseline_results(task: str, retriever: str, llm: str) -> dict[str, str]:
     return results
 
 
-def bandit_pr_results_formatted(version: str) -> None:
-    for task in [
-        'LaMP-1', 'LaMP-2', 'LaMP-3', 'LaMP-4', 'LaMP-5', 'LaMP-7',
-        'LongLaMP-2', 'LongLaMP-3', 'LongLaMP-4'
-    ]:
-        metric_results = defaultdict(list)
-
-        for llm in ['phi-4-mini-instruct', 'llama-3-8b-instruct']:
-            results = bandit_pr_results(llm, task, version)
-
-            for metric, result in results.items():
-                metric_results[metric].append(result)
-
-        for metric, results in metric_results.items():
-            print(task, metric)
-            print('& ' + '\n& '.join([' & '.join(results[i:i+2]) for i in range(0, len(results), 2)]))
-            print('-' * 100)
-
-
-def bandit_pr_results(llm: str, task: str, version: str) -> dict[str, str]:
+def bandit_ramp_results(
+    task: str, llm: str,
+    retriever: str, num_candidates: int, num_rerank: int,
+    version: str
+) -> dict[str, str]:
     results = []
-    result_dir = Path(f'logs/{llm}/bandit_pr-5/{version}/{task}')
+    result_dir = Path(f'logs/{llm}/{retriever}-{num_candidates}/bandit_ramp-{num_rerank}/{version}/{task}')
 
     for result_file in result_dir.rglob('*.out'):
         with open(result_file, 'r') as file:

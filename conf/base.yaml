@@ -14,4 +14,7 @@ prompt_generator:
 
 seed: 42
 task: ???
-num_retrieve: 5
+
+retriever: contriever
+num_candidates: 20  # Number of candidate profiles to rerank
+num_rerank: 5

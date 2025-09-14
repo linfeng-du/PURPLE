@@ -9,7 +9,7 @@ import fire
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-from bandit_pr import create_reward, load_retrieved_lamp_dataset
+from bandit_ramp import create_reward, load_retrieved_lamp_dataset
 from lamp import create_prompt_generator, load_lamp_dataset
 from llm import LLM
 
@@ -49,7 +49,7 @@ def dataset_stats() -> None:
         print('-' * 100)
 
 
-def performance_range(llm: str, task: str, num_retrieve: int) -> None:
+def performance_range(llm: str, task: str, num_rerank: int) -> None:
     model = (
         'microsoft/Phi-4-mini-instruct'
         if llm == 'phi-4-mini-instruct' else
@@ -70,10 +70,10 @@ def performance_range(llm: str, task: str, num_retrieve: int) -> None:
     )
 
     test_split = ('dev' if task.startswith('LaMP') else 'test')
-    test_dataset = load_retrieved_lamp_dataset(task, test_split, retriever='bm25', num_candidates=20)
+    test_dataset = load_retrieved_lamp_dataset(task, test_split, retriever='contriever', num_candidates=20)
 
     prompt_generator = create_prompt_generator(
-        task, 'first_k', num_retrieve,
+        task, 'first_k', num_rerank,
         max_length=2048, tokenizer=AutoTokenizer.from_pretrained(model)
     )
     reward_fn = create_reward(task)
@@ -82,20 +82,20 @@ def performance_range(llm: str, task: str, num_retrieve: int) -> None:
     os.makedirs(save_dir, exist_ok=True)
 
     for index, example in enumerate(test_dataset):
-        sources = []
+        prompts = []
         targets = []
 
         for profiles in tqdm(
-            itertools.combinations(example['profiles'], r=num_retrieve),
+            itertools.combinations(example['profiles'], r=num_rerank),
             desc=f'Generating Prompts: {index + 1}/{len(test_dataset)}',
-            total=math.comb(len(example['profiles']), num_retrieve)
+            total=math.comb(len(example['profiles']), num_rerank)
         ):
-            source = prompt_generator(example['source'], profiles)
+            prompt = prompt_generator(example['source'], profiles)
             target = example['target']
-            sources.append(source)
+            prompts.append(prompt)
             targets.append(target)
 
-        predictions = llm.generate(sources, verbose=True)
+        predictions = llm.generate(prompts, verbose=True)
         reward = reward_fn(predictions, targets)
         reward = reward.cpu().numpy()
 
