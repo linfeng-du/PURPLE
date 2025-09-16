@@ -1,0 +1,9 @@
+model: Qwen/Qwen3-Next-80B-A3B-Instruct
+provider: vllm
+generate_config:
+  batch_size: 4
+  max_new_tokens: 256
+  do_sample: true
+  num_beams: 1
+  temperature: 0.7
+  top_p: 0.8

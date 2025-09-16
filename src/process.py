@@ -14,14 +14,21 @@ from bandit_ramp import create_preprocessor, load_retrieved_lamp_dataset
 
 def download() -> None:
     print('Downloading tokenizers...')
+    AutoTokenizer.from_pretrained('gpt2')
     AutoTokenizer.from_pretrained('facebook/contriever')
     AutoTokenizer.from_pretrained('meta-llama/Meta-Llama-3-8B-Instruct')
+    AutoTokenizer.from_pretrained('meta-llama/Meta-Llama-3-70B-Instruct')
     AutoTokenizer.from_pretrained('microsoft/Phi-4-mini-instruct')
+    AutoTokenizer.from_pretrained('microsoft/phi-4')
+    AutoTokenizer.from_pretrained('Qwen/Qwen3-Next-80B-A3B-Instruct')
 
     print('Downloading models...')
     AutoModel.from_pretrained('facebook/contriever')
     AutoModelForCausalLM.from_pretrained('meta-llama/Meta-Llama-3-8B-Instruct')
+    AutoModelForCausalLM.from_pretrained('meta-llama/Meta-Llama-3-70B-Instruct')
     AutoModelForCausalLM.from_pretrained('microsoft/Phi-4-mini-instruct')
+    AutoModelForCausalLM.from_pretrained('microsoft/phi-4')
+    AutoModelForCausalLM.from_pretrained('Qwen/Qwen3-Next-80B-A3B-Instruct')
 
     print('Downloading LongLaMP datasets...')
     load_dataset('LongLaMP/LongLaMP', name='abstract_generation_user')
