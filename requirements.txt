@@ -12,6 +12,6 @@ evaluate==0.4.3
 accelerate==1.10.0
 flash_attn==2.8.3
 flash-linear-attention==0.3.2
-flashinfer==0.2.6.post1
+flashinfer-python==0.2.6.post1
 vllm==0.10.1.1
 openai==1.99.1
