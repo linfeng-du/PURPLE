@@ -63,7 +63,8 @@ for llm in ${llms[@]}; do
                         --output="./logs/$exp_name/%j.out" \
                         --error="./logs/$exp_name/%j.err" \
                         --wrap="$(
-                            echo -n "source ~/.bashrc; activate bandit_ramp; "
+                            echo -n "source ~/.bashrc; "
+                            echo -n "activate bandit_ramp; "
                             echo -n "python src/train.py "
                             echo -n "exp_name=\"$exp_name\" "
                             echo -n "task=\"$task\" "

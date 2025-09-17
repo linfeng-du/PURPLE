@@ -41,7 +41,8 @@ for retriever in ${retrievers[@]}; do
             --output="./logs/$exp_name/%j.out" \
             --error="./logs/$exp_name/%j.err" \
             --wrap="$(
-                echo -n "source ~/.bashrc; activate bandit_ramp; "
+                echo -n "source ~/.bashrc; "
+                echo -n "activate bandit_ramp; "
                 echo -n "python src/process.py preprocess "
                 echo -n "--task=\"$task\" "
                 echo -n "--retriever=\"$retriever\" "
