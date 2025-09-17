@@ -1,5 +1,5 @@
+import asyncio
 import logging
-import os
 from typing import TypeAlias
 
 import torch
@@ -7,7 +7,7 @@ from torch.utils.data import Dataset
 from transformers import AutoTokenizer, pipeline
 from transformers.pipelines.text_generation import Chat
 
-from openai import OpenAI, OpenAIError
+from openai import AsyncOpenAI, OpenAIError
 from tqdm import tqdm
 
 from lamp import get_labels
@@ -19,87 +19,145 @@ Message: TypeAlias = list[dict[str, str]]
 
 class LLM:
 
-    def __init__(self, task: str, model: str, provider: str, generate_config: dict) -> None:
+    def __init__(self, task: str, model: str, provider: str, generate_config: dict, node: str = None) -> None:
         self.task = task
         self.model = model
         self.provider = provider
         self.generate_config = generate_config
 
+        self.pipeline = None
+        self.tokenizer = None
+        self.end_tokens = None
+        self.end_token_ids = None
+
         if self.provider == 'local':
-            self.pipeline = pipeline(
-                task='text-generation',
-                model=self.model,
-                device_map='auto',
-                dtype='bfloat16'
-            )
-            self.pipeline.tokenizer.padding_side = 'left'
-
-            if self.model in {'microsoft/Phi-4-mini-instruct', 'microsoft/phi-4'}:
-                eos_token = '<|end|>'
-                eos_token_id = self.pipeline.tokenizer.encode(eos_token)[0]
-                self.pipeline.tokenizer.eos_token = eos_token
-                self.pipeline.tokenizer.eos_token_id = eos_token_id
-
-            if self.pipeline.tokenizer.pad_token is None:
-                self.pipeline.tokenizer.pad_token = self.pipeline.tokenizer.eos_token
-                self.pipeline.model.generation_config.pad_token_id = self.pipeline.tokenizer.eos_token_id
+            self.pipeline = pipeline('text-generation', model=self.model, device_map='auto', dtype='bfloat16')
+            self.tokenizer = self.pipeline.tokenizer
+            self._setup_tokenizer()
+        elif self.provider == 'vllm':
+            self.client = AsyncOpenAI(base_url='http://:8000/v1')
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model)
+            self._setup_tokenizer()
         elif self.provider == 'openai':
-            self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'), base_url='https://api.openai.com/v1')
+            self.client = AsyncOpenAI(base_url='https://api.openai.com/v1')
         else:
             raise ValueError(f'Invalid provider: {self.provider}')
 
+    def _setup_tokenizer(self) -> None:
+        if self.model == 'microsoft/Phi-4-mini-instruct':
+            self.end_tokens = ['<|end|>', '<|endoftext|>']
+            self.end_token_ids = self.tokenizer.encode(self.end_tokens)
+        else:
+            self.end_tokens = [self.tokenizer.eos_token]
+            self.end_token_ids = [self.tokenizer.eos_token_id]
+
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+            self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
+
+            if self.provider == 'local':
+                self.pipeline.model.generation_config.pad_token_id = self.tokenizer.pad_token_id
+
+        self.tokenizer.padding_side = 'left'
+
     def generate(self, prompts: list[str], verbose: bool = False) -> list[str] | list[list[str]]:
         if self.provider == 'local':
-            responses = []
-            dataset = _ChatDataset([self._create_message(prompt) for prompt in prompts])
-
-            for outputs in tqdm(
-                self.pipeline(dataset, **self.generate_config),
-                desc='Generating responses',
-                total=len(dataset),
-                disable=(not verbose)
-            ):
-                if len(outputs) == 1:
-                    response = outputs[0]['generated_text'][-1]['content']
-                    responses.append(response)
-                elif len(outputs) > 1:
-                    all_responses = [output['generated_text'][-1]['content'] for output in outputs]
-                    responses.append(all_responses)
-
-            return responses
+            return self._generate_local(prompts, verbose)
         elif self.provider == 'openai':
-            responses = [None] * len(prompts)
-            remaining_prompts = set(range(len(prompts)))
+            return asyncio.run(self._generate_openai(prompts, verbose))
 
-            while remaining_prompts:
-                for index in tqdm(
-                    list(remaining_prompts),
-                    desc='Requesting responses',
-                    disable=(not verbose)
-                ):
-                    try:
-                        completion = self.client.chat.completions.create(
-                            model=self.model,
-                            messages=self._create_message(prompts[index]),
-                            **self.generate_config
-                        )
-                        responses[index] = completion.choices[0].message.content
-                        remaining_prompts.remove(index)
-                    except OpenAIError as err:
-                        logger.error(f'OpenAI API error: {err}', exc_info=True)
+    def _generate_local(self, prompts: list[str], verbose: bool) -> list[str] | list[list[str]]:
+        responses = []
+        dataset = _ChatDataset([self._create_message(prompt) for prompt in prompts])
 
-            return responses
+        for outputs in tqdm(
+            self.pipeline(dataset, **self.generate_config),
+            desc='Generating responses',
+            total=len(dataset),
+            disable=(not verbose)
+        ):
+            if len(outputs) == 1:
+                response = outputs[0]['generated_text'][-1]['content']
+                responses.append(response)
+            elif len(outputs) > 1:
+                all_responses = [output['generated_text'][-1]['content'] for output in outputs]
+                responses.append(all_responses)
+
+        return responses
+
+    async def _generate_openai(self, prompts: list[str], verbose: bool) -> list[str]:
+        async def _request_response(prompt: str) -> str:
+            response = None
+            num_retries = 0
+
+            while response is None:
+                try:
+                    output = await self.client.chat.completions.create(
+                        messages=self._create_message(prompt),
+                        model=self.model,
+                        **self.generate_config
+                    )
+                    response = output.choices[0].message.content
+                except OpenAIError as err:
+                    logger.error(f'OpenAI API error: {err}', exc_info=True)
+                    num_retries += 1
+                    await asyncio.sleep(min(2 ** num_retries, 60))
+
+            return response
+
+        tqdm_prompts = tqdm(prompts, desc='Generating responses', disable=(not verbose))
+        tasks = [asyncio.create_task(_request_response(prompt)) for prompt in tqdm_prompts]
+        return await asyncio.gather(*tasks)
 
     def compute_target_logps(self, prompts: list[str], targets: list[str]) -> torch.Tensor:
+        if self.provider == 'local':
+            return self._compute_target_logps_local(prompts, targets)
+        elif self.provider == 'vllm':
+            return asyncio.run(self._compute_target_logps_vllm(prompts, targets))
+        else:
+            raise ValueError(f'Invalid provider for computing target logps: {self.provider}')
+
+    def _compute_target_logps_local(self, prompts: list[str], targets: list[str]) -> torch.Tensor:
         inputs_ids = self.apply_chat_template(prompts)
-        targets_ids = self.pipeline.tokenizer(targets, add_special_tokens=False)['input_ids']
-        targets_ids = [target_ids + [self.pipeline.tokenizer.eos_token_id] for target_ids in targets_ids]
+        targets_ids = self.tokenizer(targets, add_special_tokens=False)['input_ids']
+        targets_ids = [target_ids + self.end_token_ids for target_ids in targets_ids]
         return self.compute_target_id_logps(inputs_ids, targets_ids)
+
+    async def _compute_target_logps_vllm(self, prompts: list[str], targets: list[str]) -> torch.Tensor:
+        async def _request_logp(prompt: str) -> float:
+            logp = None
+            num_retries = 0
+
+            while logp is None:
+                try:
+                    output = await self.client.completions.create(
+                        model=self.model,
+                        prompt=prompt,
+                        echo=True,
+                        logprobs=0,
+                        max_tokens=0
+                    )
+                    logps = output.choices[0].logprobs.token_logprobs
+                    logp = sum(logps[1:])
+                except OpenAIError as err:
+                    logger.error(f'VLLM API error: {err}', exc_info=True)
+                    num_retries += 1
+                    await asyncio.sleep(min(2 ** num_retries, 60))
+
+            return logp
+
+        chat_prompts = self.apply_chat_template(prompts, tokenize=False)
+        targets = [target + ''.join(self.end_tokens) for target in targets]
+        chat_prompts = [chat_prompt + target for chat_prompt, target in zip(chat_prompts, targets)]
+
+        tasks = [asyncio.create_task(_request_logp(chat_prompt)) for chat_prompt in chat_prompts]
+        logps = await asyncio.gather(*tasks)
+        return torch.tensor(logps)
 
     @torch.no_grad()
     def compute_target_id_logps(self, inputs_ids: list[list[int]], targets_ids: list[list[int]]) -> torch.Tensor:
         target_logps = []
-        model_max_length = self.pipeline.tokenizer.model_max_length
+        model_max_length = self.tokenizer.model_max_length
 
         for input_ids, target_ids in zip(inputs_ids, targets_ids):
             if len(input_ids) + len(target_ids) > model_max_length:
@@ -124,11 +182,11 @@ class LLM:
 
         return torch.cat(target_logps, dim=0)
 
-    def apply_chat_template(self, prompts: list[str]) -> list[list[int]]:
-        return self.pipeline.tokenizer.apply_chat_template(
+    def apply_chat_template(self, prompts: list[str], tokenize: bool = True) -> list[str] | list[list[int]]:
+        return self.tokenizer.apply_chat_template(
             [self._create_message(prompt) for prompt in prompts],
             add_generation_prompt=True,
-            tokenize=True
+            tokenize=tokenize
         )
 
     def _create_message(self, prompt: str) -> Message:
