@@ -16,9 +16,9 @@ sbatch \
     --job-name="$llm" \
     --time="$time" \
     --gres=gpu:h100:4 \
-    --mem=64G \
-    --output="./logs/$llm/%j.out" \
-    --error="./logs/$llm/%j.err" \
+    --mem=256G \
+    --output="./logs/serve_llm/$llm/%j.out" \
+    --error="./logs/serve_llm/$llm/%j.err" \
     --wrap="$(
         echo -n "source ~/.bashrc; activate bandit_ramp; "
         echo -n "python -m vllm.entrypoints.openai.api_server "
