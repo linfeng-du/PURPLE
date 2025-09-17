@@ -2,7 +2,7 @@
 
 ARGS=$(getopt \
     --options "" \
-    --long time:,tasks:,llms:,retrievers:,rerankers:,num_rerank: \
+    --long time:,tasks:,llms:,retrievers:,num_candidates:,rerankers:,num_rerank: \
     --name "$0" \
     -- "$@"
 )
@@ -14,6 +14,7 @@ while true; do
         --tasks) tasks="$2"; shift 2 ;;
         --llms) llms="$2"; shift 2 ;;
         --retrievers) retrievers="$2"; shift 2 ;;
+        --num_candidates) num_candidates="$2"; shift 2 ;;
         --rerankers) rerankers="$2"; shift 2 ;;
         --num_rerank) num_rerank="$2"; shift 2 ;;
         --) shift; break ;;
@@ -25,7 +26,8 @@ done
 : "${tasks:=LaMP-1,LaMP-2,LaMP-3,LaMP-4,LaMP-5,LaMP-7,LongLaMP-2,LongLaMP-3,LongLaMP-4}"
 : "${llms:=phi-4-mini-instruct,llama-3-8b-instruct}"
 : "${retrievers:=contriever}"
-: "${rerankers:=icr,rank_gpt}"
+: "${num_candidates:=20}"
+: "${rerankers:=icr,rank_gpt,replug,icralm}"
 : "${num_rerank:=5}"
 
 IFS=',' read -ra tasks <<< "$tasks"
@@ -37,7 +39,7 @@ for llm in ${llms[@]}; do
     for retriever in ${retrievers[@]}; do
         for reranker in ${rerankers[@]}; do
             for task in ${tasks[@]}; do
-                exp_name="$llm/$retriever/$reranker-$num_rerank/$task"
+                exp_name="$llm/$retriever-$num_candidates/$reranker-$num_rerank/$task"
                 mkdir -p "./logs/$exp_name"
                 sbatch \
                     --job-name="$exp_name" \
@@ -46,13 +48,17 @@ for llm in ${llms[@]}; do
                     --mem=64G \
                     --output="./logs/$exp_name/%j.out" \
                     --error="./logs/$exp_name/%j.err" \
-                    --wrap="source ~/.bashrc; activate bandit_ramp; python src/baseline_reranker.py \
-                        llm=\"$llm\" \
-                        exp_name=\"$exp_name\" \
-                        task=\"$task\" \
-                        retriever=\"$retriever\" \
-                        reranker=\"$reranker\" \
-                        num_rerank=\"$num_rerank\""
+                    --wrap="$(
+                        echo -n "source ~/.bashrc; activate bandit_ramp; "
+                        echo -n "python src/baseline.py "
+                        echo -n "exp_name=\"$exp_name\" "
+                        echo -n "task=\"$task\" "
+                        echo -n "llm=\"$llm\" "
+                        echo -n "retriever=\"$retriever\" "
+                        echo -n "num_candidates=\"$num_candidates\" "
+                        echo -n "reranker=\"$reranker\" "
+                        echo -n "num_rerank=\"$num_rerank\""
+                    )"
             done
         done
     done
