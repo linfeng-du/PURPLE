@@ -4,7 +4,7 @@ from typing import TypeAlias
 
 import torch
 from torch.utils.data import Dataset
-from transformers import pipeline
+from transformers import AutoTokenizer, pipeline
 from transformers.pipelines.text_generation import Chat
 
 from openai import OpenAI, OpenAIError
@@ -26,16 +26,15 @@ class LLM:
         self.generate_config = generate_config
 
         if self.provider == 'local':
-            self.device = torch.device(f'cuda:{torch.cuda.device_count() - 1}')
             self.pipeline = pipeline(
                 task='text-generation',
                 model=self.model,
-                device=self.device,
-                torch_dtype=torch.bfloat16
+                device_map='auto',
+                dtype='bfloat16'
             )
             self.pipeline.tokenizer.padding_side = 'left'
 
-            if self.model == 'microsoft/Phi-4-mini-instruct':
+            if self.model in {'microsoft/Phi-4-mini-instruct', 'microsoft/phi-4'}:
                 eos_token = '<|end|>'
                 eos_token_id = self.pipeline.tokenizer.encode(eos_token)[0]
                 self.pipeline.tokenizer.eos_token = eos_token
@@ -111,7 +110,7 @@ class LLM:
             target_length = len(target_ids)
             concat_ids = input_ids + target_ids
 
-            concat_ids = torch.tensor([concat_ids], device=self.device)
+            concat_ids = torch.tensor([concat_ids], device=self.pipeline.device)
             labels = concat_ids[:, 1:]
             outputs = self.pipeline.model(input_ids=concat_ids)
 
