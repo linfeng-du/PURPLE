@@ -19,23 +19,18 @@ Message: TypeAlias = list[dict[str, str]]
 
 class LLM:
 
-    def __init__(self, task: str, model: str, provider: str, generate_config: dict, node: str = None) -> None:
+    def __init__(self, task: str, model: str, provider: str, generate_config: dict, endpoint: str = None) -> None:
         self.task = task
         self.model = model
         self.provider = provider
         self.generate_config = generate_config
-
-        self.pipeline = None
-        self.tokenizer = None
-        self.end_tokens = None
-        self.end_token_ids = None
 
         if self.provider == 'local':
             self.pipeline = pipeline('text-generation', model=self.model, device_map='auto', dtype='bfloat16')
             self.tokenizer = self.pipeline.tokenizer
             self._setup_tokenizer()
         elif self.provider == 'vllm':
-            self.client = AsyncOpenAI(base_url='http://:8000/v1')
+            self.client = AsyncOpenAI(api_key='EMPTY', base_url=f'http://{endpoint}/v1')
             self.tokenizer = AutoTokenizer.from_pretrained(self.model)
             self._setup_tokenizer()
         elif self.provider == 'openai':
@@ -86,17 +81,21 @@ class LLM:
         return responses
 
     async def _generate_openai(self, prompts: list[str], verbose: bool) -> list[str]:
+        semaphore = asyncio.Semaphore(value=10)
+
         async def _request_response(prompt: str) -> str:
             response = None
             num_retries = 0
 
             while response is None:
                 try:
-                    output = await self.client.chat.completions.create(
-                        messages=self._create_message(prompt),
-                        model=self.model,
-                        **self.generate_config
-                    )
+                    async with semaphore:
+                        output = await self.client.chat.completions.create(
+                            messages=self._create_message(prompt),
+                            model=self.model,
+                            **self.generate_config
+                        )
+
                     response = output.choices[0].message.content
                 except OpenAIError as err:
                     logger.error(f'OpenAI API error: {err}', exc_info=True)
@@ -124,19 +123,23 @@ class LLM:
         return self.compute_target_id_logps(inputs_ids, targets_ids)
 
     async def _compute_target_logps_vllm(self, prompts: list[str], targets: list[str]) -> torch.Tensor:
+        semaphore = asyncio.Semaphore(value=10)
+
         async def _request_logp(prompt: str) -> float:
             logp = None
             num_retries = 0
 
             while logp is None:
                 try:
-                    output = await self.client.completions.create(
-                        model=self.model,
-                        prompt=prompt,
-                        echo=True,
-                        logprobs=0,
-                        max_tokens=0
-                    )
+                    async with semaphore:
+                        output = await self.client.completions.create(
+                            model=self.model,
+                            prompt=prompt,
+                            echo=True,
+                            logprobs=0,
+                            max_tokens=0
+                        )
+
                     logps = output.choices[0].logprobs.token_logprobs
                     logp = sum(logps[1:])
                 except OpenAIError as err:
