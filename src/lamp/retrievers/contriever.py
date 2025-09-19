@@ -7,10 +7,10 @@ from ..data_types import Profile
 
 class Contriever:
 
-    def __init__(self, device: torch.device) -> None:
+    def __init__(self) -> None:
         self.tokenizer = AutoTokenizer.from_pretrained('facebook/contriever')
         self.contriever = AutoModel.from_pretrained('facebook/contriever')
-        self.contriever.to(device)
+        self.contriever.to('cuda')
         self.contriever.eval()
 
     @torch.no_grad()

@@ -64,6 +64,7 @@ for llm in ${llms[@]}; do
                         --error="./logs/$exp_name/%j.err" \
                         --wrap="$(
                             echo -n "source ~/.bashrc; "
+                            echo -n "export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True; "
                             echo -n "activate bandit_ramp; "
                             echo -n "python src/train.py "
                             echo -n "exp_name=\"$exp_name\" "

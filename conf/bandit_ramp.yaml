@@ -17,6 +17,7 @@ reinforce:
   num_samples: 32  # Number of samples, each contains `num_rerank` profiles
   reward: logp     # Type of reward (metric, logp)
 
+wandb_mode: offline
 from_pretrained: false
 
 num_epochs: 10

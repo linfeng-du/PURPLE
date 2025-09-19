@@ -1,5 +1,6 @@
 model: microsoft/Phi-4-mini-instruct
 provider: local
+endpoint: null
 generate_config:
   batch_size: 4
   max_new_tokens: 256

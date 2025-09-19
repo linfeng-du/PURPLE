@@ -1,6 +1,6 @@
 import json
 import logging
-import os
+from pathlib import Path
 
 import torch
 import torch.nn as nn
@@ -24,15 +24,10 @@ logger = logging.getLogger(__name__)
 class Trainer:
 
     def __init__(
-        self,
-        cfg: DictConfig,
-        score_model: ScoreModel,
-        llm: LLM,
-        train_loader: DataLoader,
-        test_loader: DataLoader,
-        prompt_generator: PromptGenerator,
-        reward_fn: Reward,
-        metric_fn: Metric,
+        self, cfg: DictConfig,
+        score_model: ScoreModel, llm: LLM,
+        train_loader: DataLoader, test_loader: DataLoader,
+        prompt_generator: PromptGenerator, reward_fn: Reward, metric_fn: Metric,
         from_pretrained: bool
     ) -> None:
         self.cfg = cfg
@@ -53,14 +48,18 @@ class Trainer:
             lr=self.cfg.lr
         )
 
-        self.device = torch.device(('cuda' if torch.cuda.is_available() else 'cpu'))
+        self.device = torch.device('cuda')
         self.score_model.to(self.device)
 
         if from_pretrained:
             self._load_states(f'./models/{self.cfg.exp_name}')
             logger.info(f'Loaded trainer states from {f"./models/{self.cfg.exp_name}"}')
 
-        self.wandb = wandb.init(project='BanditPR', dir='logs', name=f'{self.cfg.exp_name}')
+        self.wandb = wandb.init(
+            dir='./logs',
+            project='BanditRAMP', name=f'{self.cfg.exp_name}',
+            mode=self.cfg.wandb_mode
+        )
 
     def train(self) -> None:
         self.score_model.train()
@@ -74,7 +73,8 @@ class Trainer:
 
                     metric = (
                         'accuracy' if 'accuracy' in eval_results else
-                        'mae' if 'mae' in eval_results else 'rouge-1'
+                        'mae' if 'mae' in eval_results else
+                        'rouge-1'
                     )
                     eval_result = eval_results[metric]
                     self.wandb.log({f'eval_{metric}': eval_result})
@@ -129,7 +129,7 @@ class Trainer:
 
                 rewards = rewards.to(self.device).view_as(logps)
                 loss = reinforce.compute_loss(logps, rewards)
-                loss = loss / self.cfg.gradient_accumulation_steps
+                loss /= self.cfg.gradient_accumulation_steps
                 loss.backward()
 
                 if (step + 1) % self.cfg.gradient_accumulation_steps == 0:
@@ -187,19 +187,19 @@ class Trainer:
         return batch
 
     def _load_states(self, ckpt_dir: str) -> None:
-        ckpt = torch.load(f'{ckpt_dir}/trainer.pt', map_location=self.device, weights_only=False)
+        ckpt = torch.load(Path(ckpt_dir) / 'trainer.pt', map_location=self.device, weights_only=False)
         self.epoch = ckpt['epoch'] + 1
         self.example_cnt = ckpt['example_cnt']
         self.best_eval_result = ckpt['best_eval_result']
         self.optimizer.load_state_dict(ckpt['optimizer_state_dict'])
 
     def _save_states(self) -> None:
-        ckpt_dir = f'./models/{self.cfg.exp_name}'
-        os.makedirs(f'./{ckpt_dir}', exist_ok=True)
+        ckpt_dir = Path('./models') / f'{self.cfg.exp_name}'
+        ckpt_dir.mkdir(parents=True, exist_ok=True)
         self.score_model.save_pretrained(ckpt_dir)
         torch.save({
             'epoch': self.epoch,
             'example_cnt': self.example_cnt,
             'best_eval_result': self.best_eval_result,
             'optimizer_state_dict': self.optimizer.state_dict()
-        }, f'{ckpt_dir}/trainer.pt')
+        }, ckpt_dir / 'trainer.pt')

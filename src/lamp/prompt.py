@@ -3,7 +3,6 @@ import logging
 import random
 from typing import Callable
 
-import torch
 from rank_bm25 import BM25Okapi
 from transformers import PreTrainedTokenizerBase
 
@@ -22,11 +21,11 @@ def create_prompt_generator(
     tokenizer: PreTrainedTokenizerBase
 ) -> PromptGenerator:
     if retriever == 'contriever':
-        contriever = Contriever(torch.device('cuda'))
+        contriever = Contriever()
     elif retriever == 'rank_gpt':
-        rank_gpt = RankGPT(torch.device('cuda'))
+        rank_gpt = RankGPT()
     elif retriever == 'icr':
-        icr = ICR(torch.device('cuda'))
+        icr = ICR()
 
     prompt_generator = _create_prompt_generator(task)
 
@@ -54,7 +53,7 @@ def create_prompt_generator(
         elif retriever == 'icr':
             retrieved_profiles = icr(query, corpus, profiles, num_retrieve)
         else:
-            raise ValueError(f'Invalid retriever: {retriever}')
+            raise ValueError(f'Invalid retriever/reranker: {retriever}')
 
         source_length = len(tokenizer.encode(source, truncation=True, max_length=max_length))
 

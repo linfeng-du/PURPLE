@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import Callable
 
 from datasets import Dataset, load_from_disk
@@ -16,38 +17,35 @@ from .data_types import Batch, Collator, Example
 
 
 def load_retrieved_lamp_dataset(task: str, split: str, retriever: str, num_candidates: int) -> Dataset:
-    if retriever == 'contriever':
-        contriever = Contriever(torch.device('cuda'))
+    dataset_dir = Path('./dataset') / task / f'{retriever}-{num_candidates}' / split
 
-    def process_dataset() -> Dataset:
-        dataset_dir = f'./dataset/{task}/{retriever}-{num_candidates}/{split}'
+    if not dataset_dir.exists():
+        if retriever == 'contriever':
+            contriever = Contriever()
 
-        if not os.path.exists(dataset_dir):
-            examples = []
-            dataset = load_lamp_dataset(task, split)
+        examples = []
+        dataset = load_lamp_dataset(task, split)
 
-            for example in tqdm(dataset, desc='Retrieving'):
-                query = example['query']
-                corpus = example['corpus']
-                profiles = example['profiles']
+        for example in tqdm(dataset, desc='Retrieving'):
+            query = example['query']
+            corpus = example['corpus']
+            profiles = example['profiles']
 
-                if retriever == 'bm25':
-                    bm25 = BM25Okapi([document.split() for document in corpus])
-                    retrieved_indices = bm25.get_top_n(query.split(), range(len(corpus)), n=num_candidates)
-                elif retriever == 'contriever':
-                    retrieved_indices = contriever(query, corpus, range(len(corpus)), num_candidates)
-                else:
-                    raise ValueError(f'Invalid retriever: {retriever}')
+            if retriever == 'bm25':
+                bm25 = BM25Okapi([document.split() for document in corpus])
+                retrieved_indices = bm25.get_top_n(query.split(), range(len(corpus)), n=num_candidates)
+            elif retriever == 'contriever':
+                retrieved_indices = contriever(query, corpus, range(len(corpus)), num_candidates)
+            else:
+                raise ValueError(f'Invalid retriever: {retriever}')
 
-                example['corpus'] = [corpus[index] for index in retrieved_indices]
-                example['profiles'] = [profiles[index] for index in retrieved_indices]
-                examples.append(example)
+            example['corpus'] = [corpus[index] for index in retrieved_indices]
+            example['profiles'] = [profiles[index] for index in retrieved_indices]
+            examples.append(example)
 
-            Dataset.from_list(examples).save_to_disk(dataset_dir)
+        Dataset.from_list(examples).save_to_disk(dataset_dir)
 
-        return load_from_disk(dataset_dir)
-
-    return process_dataset()
+    return load_from_disk(dataset_dir)
 
 
 def create_preprocessor(
@@ -91,7 +89,7 @@ def create_collator(tokenizer: PreTrainedTokenizerBase) -> Collator:
         corpus_inputs = [example['corpus_inputs'] for example in examples]
 
         # Create profile mask
-        max_num_profiles = max(map(len, profiles))
+        max_num_profiles = max([len(profile) for profile in profiles])
         profile_mask = torch.ones(len(profiles), max_num_profiles, dtype=torch.bool)
 
         for index, example_profiles in enumerate(profiles):

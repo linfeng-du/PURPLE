@@ -4,31 +4,29 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
-import fire
 import evaluate
 from datasets import load_dataset
 from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
+
+import fire
 
 from bandit_ramp import create_preprocessor, load_retrieved_lamp_dataset
 
 
 def download() -> None:
     print('Downloading tokenizers...')
-    AutoTokenizer.from_pretrained('gpt2')
     AutoTokenizer.from_pretrained('facebook/contriever')
     AutoTokenizer.from_pretrained('meta-llama/Meta-Llama-3-8B-Instruct')
     AutoTokenizer.from_pretrained('meta-llama/Meta-Llama-3-70B-Instruct')
     AutoTokenizer.from_pretrained('microsoft/Phi-4-mini-instruct')
-    AutoTokenizer.from_pretrained('microsoft/phi-4')
-    AutoTokenizer.from_pretrained('Qwen/Qwen3-Next-80B-A3B-Instruct')
+    AutoTokenizer.from_pretrained('Qwen/Qwen2.5-72B-Instruct')
 
     print('Downloading models...')
     AutoModel.from_pretrained('facebook/contriever')
     AutoModelForCausalLM.from_pretrained('meta-llama/Meta-Llama-3-8B-Instruct')
     AutoModelForCausalLM.from_pretrained('meta-llama/Meta-Llama-3-70B-Instruct')
     AutoModelForCausalLM.from_pretrained('microsoft/Phi-4-mini-instruct')
-    AutoModelForCausalLM.from_pretrained('microsoft/phi-4')
-    AutoModelForCausalLM.from_pretrained('Qwen/Qwen3-Next-80B-A3B-Instruct')
+    AutoModelForCausalLM.from_pretrained('Qwen/Qwen2.5-72B-Instruct')
 
     print('Downloading LongLaMP datasets...')
     load_dataset('LongLaMP/LongLaMP', name='abstract_generation_user')
@@ -72,8 +70,8 @@ def preprocess(task: str, retriever: str, num_candidates: int) -> None:
 
 
 def results_formatted(
-    version: str,
-    retriever: str = 'bm25', num_candidates: int = 20, num_rerank: int = 5
+    version: str, retriever: str = 'bm25',
+    num_candidates: int = 20, num_rerank: int = 5
 ) -> None:
     def label_results(results: list[str], higher_is_better: bool = True) -> str:
         best, second_best = sorted(set(map(float, results)), reverse=higher_is_better)[:2]
@@ -99,7 +97,7 @@ def results_formatted(
             for metric, result in results.items():
                 metric_results[metric][llm].append(result)
 
-            for reranker in ['icr', 'rank_gpt', 'contriever', 'bm25']:
+            for reranker in ['icr', 'rank_gpt', 'replug', 'icralm', 'contriever', 'bm25']:
                 try:
                     results = baseline_results(task, llm, retriever, num_candidates, reranker, num_rerank)
 
@@ -124,7 +122,8 @@ def results_formatted(
                 'RMSE $\\downarrow$' if metric == 'rmse' else
                 'ROUGE-1 $\\uparrow$' if metric == 'rouge-1' else
                 'ROUGE-L $\\uparrow$' if metric == 'rouge-L' else
-                'METEOR $\\uparrow$' if metric == 'meteor' else None
+                'METEOR $\\uparrow$' if metric == 'meteor' else
+                None
             )
             fresults = f'\n{" " * 12}& '.join([' & '.join(results[i:i+2]) for i in range(0, len(results), 2)])
             print(f'{" " * 8}& {fmetric}')
@@ -135,10 +134,11 @@ def results_formatted(
 
 def baseline_results(
     task: str, llm: str,
-    retriever: str, num_candidates: int, reranker: str, num_rerank: int
+    retriever: str, num_candidates: int,
+    reranker: str, num_rerank: int
 ) -> dict[str, str]:
-    result_dir = Path(f'logs/{llm}/{retriever}-{num_candidates}/{reranker}-{num_rerank}/{task}')
-    result_file = list(result_dir.rglob('*.out'))[0]
+    exp_name = f'{llm}/{retriever}-{num_candidates}/{reranker}-{num_rerank}/{task}'
+    result_file = list((Path('./logs') / exp_name).rglob('*.out'))[0]
 
     with open(result_file, 'r') as file:
         text = file.read()
@@ -146,39 +146,34 @@ def baseline_results(
     results_list = [json.loads(match) for match in re.findall(r'\{.*?\}', text, flags=re.DOTALL)]
     assert len(results_list) == 1
 
-    results = {
+    return {
         key: f'{value:.3f}'
         for key, value in results_list[0].items()
         if key in {'accuracy', 'f1', 'mae', 'rmse', 'rouge-1', 'rouge-L', 'meteor'}
     }
-    return results
 
 
 def bandit_ramp_results(
     task: str, llm: str,
-    retriever: str, num_candidates: int, num_rerank: int,
-    version: str
+    retriever: str, num_candidates: int,
+    num_rerank: int, version: str
 ) -> dict[str, str]:
+    exp_name = f'{llm}/{retriever}-{num_candidates}/bandit_ramp-{num_rerank}/{version}/{task}'
     results = []
-    result_dir = Path(f'logs/{llm}/{retriever}-{num_candidates}/bandit_ramp-{num_rerank}/{version}/{task}')
 
-    for result_file in result_dir.rglob('*.out'):
+    for result_file in (Path('./logs') / exp_name).rglob('*.out'):
         with open(result_file, 'r') as file:
             text = file.read()
 
         results.extend([json.loads(match) for match in re.findall(r'\{.*?\}', text, flags=re.DOTALL)])
 
-    key = lambda x: (
-        x['accuracy'] if 'accuracy' in x else
-        -x['mae'] if 'mae' in x else x['rouge-1']
-    )
+    key = lambda x: (x['accuracy'] if 'accuracy' in x else -x['mae'] if 'mae' in x else x['rouge-1'])
     best_results = max(results, key=key)
-    best_results = {
+    return {
         key: f'{value:.3f}'
         for key, value in best_results.items()
         if key in {'accuracy', 'f1', 'mae', 'rmse', 'rouge-1', 'rouge-L', 'meteor'}
     }
-    return best_results
 
 
 if __name__ == '__main__':

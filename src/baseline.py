@@ -29,6 +29,7 @@ if os.getenv('HF_EVALUATE_OFFLINE') == '1':
 
 logging.getLogger('absl').setLevel(logging.WARNING)
 logging.getLogger('httpx').setLevel(logging.WARNING)
+logging.getLogger('openai._base_client').setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 
@@ -58,14 +59,9 @@ def main(cfg: DictConfig) -> None:
         retriever = cfg.reranker
         num_retrieve = cfg.num_rerank
 
-    tokenizer = (
-        AutoTokenizer.from_pretrained(cfg.llm.model)
-        if cfg.llm.provider == 'local' else
-        AutoTokenizer.from_pretrained('gpt2')
-    )
     prompt_generator = create_prompt_generator(
         cfg.task, retriever, num_retrieve,
-        cfg.prompt_generator.max_length, tokenizer
+        cfg.prompt_generator.max_length, AutoTokenizer.from_pretrained(cfg.llm.model)
     )
     metric_fn = create_metric(cfg.task)
 
@@ -91,30 +87,35 @@ def main(cfg: DictConfig) -> None:
 def replug(cfg: DictConfig, dataset: Dataset, prompt_generator: PromptGenerator) -> (
     tuple[list[str], list[str]]
 ):
-    contriever = Contriever(torch.device('cuda'))
-    llm = LLM(
-        cfg.task, cfg.llm.model, provider='local',
-        generate_config={
+    contriever = Contriever()
+
+    if cfg.llm.provider == 'local':
+        OmegaConf.set_struct(cfg.llm.generate_config, False)
+        cfg.llm.generate_config.update({
             'batch_size': 1,
-            'max_new_tokens': 256,
             'do_sample': False,
             'num_beams': 4,
             'temperature': None,
             'top_p': None,
             'num_return_sequences': 4
-        }
-    )
+        })
+        OmegaConf.set_struct(cfg.llm.generate_config, True)
+    elif cfg.llm.provider == 'vllm':
+        # Use sampling instead of beam search
+        OmegaConf.set_struct(cfg.llm.generate_config, False)
+        cfg.llm.generate_config.update({'n': 4})
+        OmegaConf.set_struct(cfg.llm.generate_config, True)
+
+    llm = LLM(cfg.task, **cfg.llm)
 
     predictions = []
     targets = []
 
     for example in tqdm(dataset, desc='Generating responses'):
         profiles, retriever_logps = contriever(
-            example['query'], example['corpus'], example['profiles'],
-            cfg.num_rerank, return_logps=True
+            example['query'], example['corpus'], example['profiles'], cfg.num_rerank,
+            return_logps=True
         )
-        target = example['target']
-
         sources = [prompt_generator(example['source'], [profile]) for profile in profiles]
         all_predictions = llm.generate(sources)
         all_predictions = list(itertools.chain.from_iterable(all_predictions))
@@ -130,7 +131,7 @@ def replug(cfg: DictConfig, dataset: Dataset, prompt_generator: PromptGenerator)
         prediction = all_predictions[best_index]
 
         predictions.append(prediction)
-        targets.append(target)
+        targets.append(example['target'])
 
     return predictions, targets
 
@@ -141,7 +142,21 @@ def icralm(cfg: DictConfig, dataset: Dataset, prompt_generator: PromptGenerator)
     rerank_stride = 5
     rerank_length = 5
 
-    contriever = Contriever(torch.device('cuda'))
+    contriever = Contriever()
+
+    # Get the original maximum new tokens and set it to 1
+    if cfg.llm.provider == 'local':
+        max_new_tokens = cfg.llm.generate_config.max_new_tokens
+        OmegaConf.set_struct(cfg.llm.generate_config, False)
+        cfg.llm.generate_config.update({'max_new_tokens': 1})
+        OmegaConf.set_struct(cfg.llm.generate_config, True)
+    elif cfg.llm.provider == 'vllm':
+        max_new_tokens = cfg.llm.generate_config.max_completion_tokens
+        del cfg.llm.generate_config.max_completion_tokens
+        OmegaConf.set_struct(cfg.llm.generate_config, False)
+        cfg.llm.generate_config.update({'max_tokens': 1})
+        OmegaConf.set_struct(cfg.llm.generate_config, True)
+
     llm = LLM(cfg.task, **cfg.llm)
 
     predictions = []
@@ -150,54 +165,42 @@ def icralm(cfg: DictConfig, dataset: Dataset, prompt_generator: PromptGenerator)
     for example in tqdm(dataset, desc='Generating responses'):
         profiles = contriever(example['query'], example['corpus'], example['profiles'], cfg.num_rerank)
         prompts = [prompt_generator(example['source'], [profile]) for profile in profiles]
-        target = example['target']
 
         prompts_ids = llm.apply_chat_template(prompts)
         cur_prompt_ids = prompts_ids[0]
-        new_ids = []
+        response_ids = []
 
         while (
-            (not new_ids) or (
-                len(new_ids) < llm.generate_config['max_new_tokens']
-                and new_ids[-1] != llm.pipeline.tokenizer.eos_token_id
-            )
+            (not response_ids)
+            or (len(response_ids) < max_new_tokens and response_ids[-1] not in llm.end_token_ids)
         ):
-            if new_ids and len(new_ids) % rerank_stride == 0:
-                concats_ids = [prompt_ids + new_ids for prompt_ids in prompts_ids]
+            if response_ids and len(response_ids) % rerank_stride == 0:
+                concats_ids = [prompt_ids + response_ids for prompt_ids in prompts_ids]
                 inputs_ids = [concat_ids[:-rerank_length] for concat_ids in concats_ids]
-                targets_ids = [concat_ids[-rerank_length:] for concat_ids in concats_ids]
+                targets_ids = [concat_ids[-rerank_length:] for concat_ids in concats_ids]                
 
-                logps = llm.compute_target_id_logps(inputs_ids, targets_ids)
+                inputs = llm.tokenizer.batch_decode(inputs_ids, skip_special_tokens=False)
+                targets = llm.tokenizer.batch_decode(targets_ids, skip_special_tokens=False)
+
+                logps = llm.compute_target_logps(inputs, targets, apply_template=False)
                 best_index = logps.argmax().item()
                 cur_prompt_ids = prompts_ids[best_index]
 
-            cur_input_ids = cur_prompt_ids + new_ids
-            cur_input_ids = torch.tensor([cur_input_ids], dtype=torch.long, device=llm.device)
+            cur_input_ids = cur_prompt_ids + response_ids
+            cur_inputs = llm.tokenizer.batch_decode([cur_input_ids], skip_special_tokens=False)
 
-            with torch.no_grad():
-                outputs = llm.pipeline.model(input_ids=cur_input_ids)
-                logits = outputs.logits[:, -1, :]
+            outputs = llm.generate(cur_inputs, apply_template=False)
 
-            logits /= llm.generate_config['temperature']
-            probs = torch.softmax(logits, dim=1)
-            sorted_probs, sorted_indices = probs.sort(dim=1, descending=True)
-            cum_probs = torch.cumsum(sorted_probs, dim=1)
+            if outputs[0] == '':
+                # The API returns an empty string when the EOS token is reached
+                break
 
-            mask = (cum_probs <= llm.generate_config['top_p'])
-            mask[:, 0] = 1
-            mask[:, 1:] = mask[:, :-1].clone()
+            response_id = llm.tokenizer.encode(outputs[0], add_special_tokens=False)[0]
+            response_ids.append(response_id)
 
-            probs = torch.where(mask, sorted_probs, torch.zeros_like(sorted_probs))
-            probs = probs / probs.sum(dim=1, keepdim=True)
-            index = torch.multinomial(probs, num_samples=1)
-            next_token_id = sorted_indices.gather(dim=1, index=index)
-
-            cur_input_ids = torch.cat([cur_input_ids, next_token_id], dim=1)
-            new_ids.append(next_token_id.item())
-
-        prediction = llm.pipeline.tokenizer.decode(new_ids, skip_special_tokens=True)
+        prediction = llm.tokenizer.decode(response_ids, skip_special_tokens=True)
         predictions.append(prediction)
-        targets.append(target)
+        targets.append(example['target'])
 
     return predictions, targets
 
@@ -213,9 +216,8 @@ def reranker(cfg: DictConfig, dataset: Dataset, prompt_generator: PromptGenerato
             example['source'], example['profiles'],
             example['query'], example['corpus']
         )
-        target = example['target']
         prompts.append(prompt)
-        targets.append(target)
+        targets.append(example['target'])
 
     llm = LLM(cfg.task, **cfg.llm)
     predictions = llm.generate(prompts, verbose=True)

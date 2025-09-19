@@ -90,28 +90,20 @@ def main(cfg: DictConfig) -> None:
         collate_fn=collate_fn,
         drop_last=True
     )
-    test_loader = DataLoader(
-        test_dataset,
-        batch_size=cfg.eval_batch_size,
-        collate_fn=collate_fn
-    )
+    test_loader = DataLoader(test_dataset, batch_size=cfg.eval_batch_size, collate_fn=collate_fn)
 
     # Prepare LaMP components
-    tokenizer = (
-        AutoTokenizer.from_pretrained(cfg.llm.model)
-        if cfg.llm.provider == 'local' else
-        AutoTokenizer.from_pretrained('gpt2')
-    )
     prompt_generator = create_prompt_generator(
         cfg.task, 'first_k', cfg.num_rerank,
-        cfg.prompt_generator.max_length, tokenizer
+        cfg.prompt_generator.max_length, AutoTokenizer.from_pretrained(cfg.llm.model)
     )
     reward_fn = create_reward(cfg.task)
     metric_fn = create_metric(cfg.task)
 
     # Initialize trainer and start training
     trainer = Trainer(
-        cfg, score_model, llm,
+        cfg,
+        score_model, llm,
         train_loader, test_loader,
         prompt_generator, reward_fn, metric_fn,
         cfg.from_pretrained

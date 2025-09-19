@@ -1,7 +1,6 @@
 # Adapted from https://github.com/sunnweiwei/RankGPT/blob/main/rank_gpt.py
 from typing import TypeAlias
 
-import torch
 from transformers import pipeline
 
 from ..data_types import Profile
@@ -12,12 +11,12 @@ Message: TypeAlias = list[dict[str, str]]
 
 class RankGPT:
 
-    def __init__(self, device: torch.device) -> None:
+    def __init__(self) -> None:
         self.pipeline = pipeline(
             task='text-generation',
             model='meta-llama/Meta-Llama-3-8B-Instruct',
-            device=device,
-            torch_dtype=torch.bfloat16
+            device_map='auto',
+            torch_dtype='bfloat16'
         )
         self.pipeline.tokenizer.padding_side = 'left'
 
