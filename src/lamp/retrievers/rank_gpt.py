@@ -61,12 +61,7 @@ class RankGPT:
 
                 while response is None:
                     try:
-                        outputs = self.client.chat.completions.create(
-                            messages=message,
-                            model='gpt-5-nano',
-                            temperature=None,
-                            top_p=None
-                        )
+                        outputs = self.client.chat.completions.create(messages=message, model='gpt-5-nano')
                         response = outputs.choices[0].message.content
                     except OpenAIError as err:
                         logger.error(f'OpenAI API error: {err}', exc_info=True)
