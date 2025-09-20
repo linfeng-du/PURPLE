@@ -176,13 +176,13 @@ def icralm(cfg: DictConfig, dataset: Dataset, prompt_generator: PromptGenerator)
         ):
             if response_ids and len(response_ids) % rerank_stride == 0:
                 concats_ids = [prompt_ids + response_ids for prompt_ids in prompts_ids]
-                inputs_ids = [concat_ids[:-rerank_length] for concat_ids in concats_ids]
-                targets_ids = [concat_ids[-rerank_length:] for concat_ids in concats_ids]                
+                prefixes_ids = [concat_ids[:-rerank_length] for concat_ids in concats_ids]
+                suffixes_ids = [concat_ids[-rerank_length:] for concat_ids in concats_ids]
 
-                inputs = llm.tokenizer.batch_decode(inputs_ids, skip_special_tokens=False)
-                targets = llm.tokenizer.batch_decode(targets_ids, skip_special_tokens=False)
+                prefixes = llm.tokenizer.batch_decode(prefixes_ids, skip_special_tokens=False)
+                suffixes = llm.tokenizer.batch_decode(suffixes_ids, skip_special_tokens=False)
 
-                logps = llm.compute_target_logps(inputs, targets, apply_template=False)
+                logps = llm.compute_target_logps(prefixes, suffixes, apply_template=False)
                 best_index = logps.argmax().item()
                 cur_prompt_ids = prompts_ids[best_index]
 
