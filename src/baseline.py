@@ -212,10 +212,7 @@ def reranker(cfg: DictConfig, dataset: Dataset, prompt_generator: PromptGenerato
     targets = []
 
     for example in tqdm(dataset, desc='Generating Prompts'):
-        prompt = prompt_generator(
-            example['source'], example['profiles'],
-            example['query'], example['corpus']
-        )
+        prompt = prompt_generator(example['source'], example['profiles'], example['query'], example['corpus'])
         prompts.append(prompt)
         targets.append(example['target'])
 

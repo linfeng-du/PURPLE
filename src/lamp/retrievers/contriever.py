@@ -15,11 +15,7 @@ class Contriever:
 
     @torch.no_grad()
     def __call__(
-        self,
-        query: str,
-        corpus: list[str],
-        profiles: list[Profile],
-        num_retrieve: int,
+        self, query: str, corpus: list[str], profiles: list[Profile], num_retrieve: int,
         return_logps: bool = False
     ) -> list[Profile] | tuple[list[Profile], torch.Tensor]:
         num_retrieve = min(num_retrieve, len(profiles))

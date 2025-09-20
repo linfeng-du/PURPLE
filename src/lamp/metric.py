@@ -49,10 +49,7 @@ def _create_classification_metric(labels: list[str]) -> Metric:
         prediction_indices = [map_to_label_index(prediction) for prediction in predictions]
         target_indices = [map_to_label_index(target) for target in targets]
 
-        accuracy_results = accuracy_metric.compute(
-            predictions=prediction_indices,
-            references=target_indices
-        )
+        accuracy_results = accuracy_metric.compute(predictions=prediction_indices, references=target_indices)
         f1_results = f1_metric.compute(
             predictions=prediction_indices,
             references=target_indices,
@@ -86,10 +83,7 @@ def _create_regression_metric() -> Metric:
         ]
         target_floats = [float(target) for target in targets]
 
-        mae_results = mae_metric.compute(
-            predictions=prediction_floats,
-            references=target_floats
-        )
+        mae_results = mae_metric.compute(predictions=prediction_floats, references=target_floats)
         rmse_results = mse_metric.compute(
             predictions=prediction_floats,
             references=target_floats,
@@ -114,10 +108,7 @@ def _create_generation_metric() -> Metric:
             references=target_lists,
             rouge_types=['rouge1', 'rougeL']
         )
-        meteor_results = meteor_metric.compute(
-            predictions=stripped_predictions,
-            references=target_lists
-        )
+        meteor_results = meteor_metric.compute(predictions=stripped_predictions, references=target_lists)
         return {
             'rouge-1': rouge_results['rouge1'],
             'rouge-L': rouge_results['rougeL'],

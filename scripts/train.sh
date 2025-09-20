@@ -5,7 +5,7 @@ ARGS=$(
         --options "" \
         --long $(
             echo -n "time:,tasks:,from_pretrained,"
-            echo -n "llms:,retrievers:,num_candidates:,num_rerank:,"
+            echo -n "llms:,endpoint:,retrievers:,num_candidates:,num_rerank:,"
             echo -n "fuse_modes:,num_layers_list:"
         ) \
         --name "$0" \
@@ -19,6 +19,7 @@ while true; do
         --tasks) tasks="$2"; shift 2 ;;
         --from_pretrained) from_pretrained=true; shift 1 ;;
         --llms) llms="$2"; shift 2 ;;
+        --endpoint) endpoint="$2"; shift 2 ;;
         --retrievers) retrievers="$2"; shift 2 ;;
         --num_candidates) num_candidates="$2"; shift 2 ;;
         --num_rerank) num_rerank="$2"; shift 2 ;;
@@ -33,6 +34,7 @@ done
 : "${tasks:=LaMP-1,LaMP-2,LaMP-3,LaMP-4,LaMP-5,LaMP-7,LongLaMP-2,LongLaMP-3,LongLaMP-4}"
 : "${from_pretrained:=false}"
 : "${llms:=phi-4-mini-instruct,llama-3-8b-instruct}"
+: "${endpoint:=null}"
 : "${retrievers:=contriever}"
 : "${num_candidates:=20}"
 : "${num_rerank:=5}"
@@ -71,6 +73,7 @@ for llm in ${llms[@]}; do
                             echo -n "task=\"$task\" "
                             echo -n "from_pretrained=\"$from_pretrained\" "
                             echo -n "llm=\"$llm\" "
+                            echo -n "llm.endpoint=\"$endpoint\" "
                             echo -n "retriever=\"$retriever\" "
                             echo -n "num_candidates=\"$num_candidates\" "
                             echo -n "num_rerank=\"$num_rerank\" "

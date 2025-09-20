@@ -1,6 +1,6 @@
 import json
-import os
 from collections import OrderedDict
+from pathlib import Path
 
 import torch
 import torch.nn as nn
@@ -9,13 +9,7 @@ from transformers import AutoModel, BatchEncoding
 
 class ScoreModel(nn.Module):
 
-    def __init__(
-        self,
-        encoder_model: str,
-        fuse_mode: str,
-        num_layers: int,
-        decoder_hidden_size: int
-    ) -> None:
+    def __init__(self, encoder_model: str, fuse_mode: str, num_layers: int, decoder_hidden_size: int) -> None:
         super().__init__()
         self.encoder_model = encoder_model
         self.fuse_mode = fuse_mode
@@ -67,23 +61,21 @@ class ScoreModel(nn.Module):
 
     @classmethod
     def from_pretrained(cls, ckpt_dir: str) -> 'ScoreModel':
-        config_path = f'{ckpt_dir}/config.json'
-        state_dict_path = f'{ckpt_dir}/model.pt'
+        ckpt_dir = Path(ckpt_dir)
 
-        with open(config_path, 'r') as file:
+        with open(ckpt_dir / 'config.json', 'r') as file:
             config = json.load(file)
 
         model = cls(**config)
-        state_dict = torch.load(state_dict_path, map_location='cpu', weights_only=True)
+        state_dict = torch.load(ckpt_dir / 'model.pt', map_location='cpu', weights_only=True)
         model.load_state_dict(state_dict, strict=False)
         return model
 
     def save_pretrained(self, ckpt_dir: str) -> None:
-        os.makedirs(f'{ckpt_dir}', exist_ok=True)
-        config_path = f'{ckpt_dir}/config.json'
-        state_dict_path = f'{ckpt_dir}/model.pt'
+        ckpt_dir = Path(ckpt_dir)
+        ckpt_dir.mkdir(parents=True, exist_ok=True)
 
-        with open(config_path, 'w') as file:
+        with open(ckpt_dir / 'config.json', 'w') as file:
             config = {
                 'encoder_model': self.encoder_model,
                 'fuse_mode': self.fuse_mode,
@@ -97,7 +89,7 @@ class ScoreModel(nn.Module):
             for key, value in self.state_dict().items()
             if not key.startswith('encoder.')}
         )
-        torch.save(state_dict, state_dict_path)
+        torch.save(state_dict, ckpt_dir / 'model.pt')
 
     def forward(
         self,

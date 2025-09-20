@@ -15,25 +15,23 @@ logger = logging.getLogger(__name__)
 
 def create_prompt_generator(
     task: str,
-    retriever: str,
-    num_retrieve: int,
-    max_length: int,
-    tokenizer: PreTrainedTokenizerBase
+    retriever: str, num_retrieve: int,
+    max_length: int, tokenizer: PreTrainedTokenizerBase
 ) -> PromptGenerator:
     if retriever == 'contriever':
         contriever = Contriever()
-    elif retriever == 'rank_gpt':
-        rank_gpt = RankGPT()
+    elif retriever == 'rank_gpt-gpt5':
+        rank_gpt = RankGPT('gpt5')
+    elif retriever == 'rank_gpt-llama3':
+        rank_gpt = RankGPT('llama3')
     elif retriever == 'icr':
         icr = ICR()
 
     prompt_generator = _create_prompt_generator(task)
 
     def retrieval_augmented_prompt_generator(
-        source: str,
-        profiles: list[Profile],
-        query: str | None = None,
-        corpus: list[str] | None = None,
+        source: str, profiles: list[Profile],
+        query: str | None = None, corpus: list[str] | None = None,
         factor: float = 0.6
     ) -> str:
         nonlocal num_retrieve
@@ -48,7 +46,7 @@ def create_prompt_generator(
             retrieved_profiles = bm25.get_top_n(query.split(), profiles, n=num_retrieve)
         elif retriever == 'contriever':
             retrieved_profiles = contriever(query, corpus, profiles, num_retrieve)
-        elif retriever == 'rank_gpt':
+        elif retriever in {'rank_gpt-gpt5', 'rank_gpt-llama3'}:
             retrieved_profiles = rank_gpt(query, corpus, profiles, num_retrieve)
         elif retriever == 'icr':
             retrieved_profiles = icr(query, corpus, profiles, num_retrieve)
@@ -91,12 +89,10 @@ def _create_prompt_generator(task: str) -> (
     return task_fns[task]
 
 
-# ==================================   LaMP 1: Personalized Citation Identification   ==================================
+# =============================   LaMP 1: Personalized Citation Identification   =============================
 def _generate_prompt_classification_citation(
-    source: str,
-    profiles: list[Profile],
-    max_length: int,
-    tokenizer: PreTrainedTokenizerBase
+    source: str, profiles: list[Profile],
+    max_length: int, tokenizer: PreTrainedTokenizerBase
 ) -> str:
     template_length = 2 * len(profiles)
     max_length_per_profile = (max_length - template_length) // len(profiles)
@@ -124,12 +120,10 @@ def _generate_prompt_classification_citation(
     return f'{source[:title_start + 5]}, and {", and ".join(prompts)}{source[title_start + 5:]}'
 
 
-# ==================================        LaMP 2: Personalized Movie Tagging        ==================================
+# =============================        LaMP 2: Personalized Movie Tagging        =============================
 def _generate_prompt_classification_movies(
-    source: str,
-    profiles: list[Profile],
-    max_length: int,
-    tokenizer: PreTrainedTokenizerBase
+    source: str, profiles: list[Profile],
+    max_length: int, tokenizer: PreTrainedTokenizerBase
 ) -> str:
     template_length = 2 * (len(profiles) - 1) + 1
     max_length_per_profile = (max_length - template_length) // len(profiles)
@@ -157,12 +151,10 @@ def _generate_prompt_classification_movies(
     return f'{", and ".join(prompts)}. {source}'
 
 
-# ==================================       LaMP 3: Personalized Product Rating       ==================================
+# =============================       LaMP 3: Personalized Product Rating       =============================
 def _generate_prompt_regression_review(
-    source: str,
-    profiles: list[Profile],
-    max_length: int,
-    tokenizer: PreTrainedTokenizerBase
+    source: str, profiles: list[Profile],
+    max_length: int, tokenizer: PreTrainedTokenizerBase
 ) -> str:
     template_length = 2 * (len(profiles) - 1) + 1
     max_length_per_profile = (max_length - template_length) // len(profiles)
@@ -190,12 +182,10 @@ def _generate_prompt_regression_review(
     return f'{", and ".join(prompts)}. {source}'
 
 
-# ==================================  LaMP 4: Personalized News Headline Generation  ==================================
+# =============================  LaMP 4: Personalized News Headline Generation  =============================
 def _generate_prompt_generation_news(
-    source: str,
-    profiles: list[Profile],
-    max_length: int,
-    tokenizer: PreTrainedTokenizerBase
+    source: str, profiles: list[Profile],
+    max_length: int, tokenizer: PreTrainedTokenizerBase
 ) -> str:
     template_length = 2 * (len(profiles) - 1) + 1
     max_length_per_profile = (max_length - template_length) // len(profiles)
@@ -223,12 +213,10 @@ def _generate_prompt_generation_news(
     return f'{", and ".join(prompts)}. {source}'
 
 
-# ================================== LaMP 5: Personalized Scholarly Title Generation ==================================
+# ============================= LaMP 5: Personalized Scholarly Title Generation =============================
 def _generate_prompt_generation_paper(
-    source: str,
-    profiles: list[Profile],
-    max_length: int,
-    tokenizer: PreTrainedTokenizerBase
+    source: str, profiles: list[Profile],
+    max_length: int, tokenizer: PreTrainedTokenizerBase
 ) -> str:
     template = 'Following the given patterns'
     template_length = (
@@ -260,12 +248,10 @@ def _generate_prompt_generation_paper(
     return f'{", and ".join(prompts)}. Following the given patterns {source}'
 
 
-# ==================================  LaMP 6: Personalized Email Subject Generation  ==================================
+# =============================  LaMP 6: Personalized Email Subject Generation  =============================
 def _generate_prompt_generation_avocado(
-    source: str,
-    profiles: list[Profile],
-    max_length: int,
-    tokenizer: PreTrainedTokenizerBase
+    source: str, profiles: list[Profile],
+    max_length: int, tokenizer: PreTrainedTokenizerBase
 ) -> str:
     template_length = 2 * (len(profiles) - 1) + 1
     max_length_per_profile = (max_length - template_length) // len(profiles)
@@ -293,12 +279,10 @@ def _generate_prompt_generation_avocado(
     return f'{", and ".join(prompts)}. {source}'
 
 
-# ==================================     LaMP 7: Personalized Tweet Paraphrasing     ==================================
+# =============================     LaMP 7: Personalized Tweet Paraphrasing     =============================
 def _generate_prompt_generation_tweet(
-    source: str,
-    profiles: list[Profile],
-    max_length: int,
-    tokenizer: PreTrainedTokenizerBase
+    source: str, profiles: list[Profile],
+    max_length: int, tokenizer: PreTrainedTokenizerBase
 ) -> str:
     template = 'are written by a person. Following the given patterns'
     template_length = (
@@ -329,12 +313,10 @@ def _generate_prompt_generation_tweet(
     return f'{", and ".join(prompts)} are written by a person. Following the given patterns {source}'
 
 
-# =================================     LongLaMP 1: Personalized Email Completion     =================================
+# ============================     LongLaMP 1: Personalized Email Completion     ============================
 def _generate_prompt_generation_email(
-    source: str,
-    profiles: list[Profile],
-    max_length: int,
-    tokenizer: PreTrainedTokenizerBase
+    source: str, profiles: list[Profile],
+    max_length: int, tokenizer: PreTrainedTokenizerBase
 ) -> str:
     prompts = []
 
@@ -352,12 +334,10 @@ def _generate_prompt_generation_email(
     return f'{", and ".join(prompts)}. {source}'
 
 
-# ================================     LongLaMP 2: Personalized Abstract Generation     ================================
+# ===========================     LongLaMP 2: Personalized Abstract Generation     ===========================
 def _generate_prompt_generation_abstract(
-    source: str,
-    profiles: list[Profile],
-    max_length: int,
-    tokenizer: PreTrainedTokenizerBase
+    source: str, profiles: list[Profile],
+    max_length: int, tokenizer: PreTrainedTokenizerBase
 ) -> str:
     prompts = []
 
@@ -379,12 +359,10 @@ def _generate_prompt_generation_abstract(
     )
 
 
-# =================================     LongLaMP 3: Personalized Topic Generation     =================================
+# ============================     LongLaMP 3: Personalized Topic Generation     ============================
 def _generate_prompt_generation_topic(
-    source: str,
-    profiles: list[Profile],
-    max_length: int,
-    tokenizer: PreTrainedTokenizerBase
+    source: str, profiles: list[Profile],
+    max_length: int, tokenizer: PreTrainedTokenizerBase
 ) -> str:
     prompts = []
 
@@ -402,12 +380,10 @@ def _generate_prompt_generation_topic(
     return f'{", and ".join(prompts)}. Following the given patterns, {source}'
 
 
-# =============================     LongLaMP 4: Personalized Product Review Generation     =============================
+# ========================     LongLaMP 4: Personalized Product Review Generation     ========================
 def _generate_prompt_generation_review(
-    source: str,
-    profiles: list[Profile],
-    max_length: int,
-    tokenizer: PreTrainedTokenizerBase
+    source: str, profiles: list[Profile],
+    max_length: int, tokenizer: PreTrainedTokenizerBase
 ) -> str:
     prompts = []
 
@@ -420,7 +396,8 @@ def _generate_prompt_generation_review(
         )
         new_review_text = tokenizer.decode(input_ids, skip_special_tokens=True)
         prompt = (
-            f'"{profile["overall"]}" is a rating for the product with description "{profile["description"]}". '
+            f'"{profile["overall"]}" is a rating for '
+            f'the product with description "{profile["description"]}". '
             f'"{profile["summary"]}" is summary for "{new_review_text}" '
         )
         prompts.append(prompt)

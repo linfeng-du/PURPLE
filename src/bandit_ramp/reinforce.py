@@ -1,11 +1,9 @@
 import torch
 
 
-def sample(
-    likelihoods: torch.Tensor,
-    num_samples: int,
-    sample_size: int
-) -> tuple[torch.Tensor, torch.Tensor]:
+def sample(likelihoods: torch.Tensor, num_samples: int, sample_size: int) -> (
+    tuple[torch.Tensor, torch.Tensor]
+):
     """Generate `num_samples` samples from Plackett-Luce distribution defined by `likelihoods`."""
     valid_cnt = (likelihoods > 0).sum(dim=1).min().item()
     sample_size = min(sample_size, valid_cnt)
@@ -23,10 +21,9 @@ def sample(
     return indices, logps
 
 
-def _sample_without_replacement(
-    likelihoods: torch.Tensor,
-    sample_size: int
-) -> tuple[torch.Tensor, torch.Tensor]:
+def _sample_without_replacement(likelihoods: torch.Tensor, sample_size: int) -> (
+    tuple[torch.Tensor, torch.Tensor]
+):
     """Generate sample of `sample_size` items from Plackett-Luce distribution defined by `likelihoods`."""
     indices = torch.full_like(likelihoods[:, :sample_size], fill_value=-1, dtype=torch.long)
     logps = torch.zeros_like(likelihoods[:, :sample_size], dtype=torch.float)

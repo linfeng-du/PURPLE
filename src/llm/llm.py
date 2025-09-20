@@ -20,12 +20,14 @@ Message: TypeAlias = list[dict[str, str]]
 class LLM:
 
     def __init__(
-        self, task: str, model: str, provider: str,
-        generate_config: dict, endpoint: str = None
+        self, task: str, model: str,
+        provider: str, endpoint: str | None,
+        generate_config: dict
     ) -> None:
         self.task = task
         self.model = model
         self.provider = provider
+        self.endpoint = endpoint
         self.generate_config = generate_config
 
         if self.provider == 'local':
@@ -38,7 +40,7 @@ class LLM:
             self.tokenizer = self.pipeline.tokenizer
             self._setup_tokenizer()
         elif self.provider == 'vllm':
-            self.client = AsyncOpenAI(api_key='EMPTY', base_url=f'http://{endpoint}/v1')
+            self.client = AsyncOpenAI(api_key='EMPTY', base_url=f'http://{self.endpoint}/v1')
             self.tokenizer = AutoTokenizer.from_pretrained(self.model)
             self._setup_tokenizer()
 
@@ -64,21 +66,17 @@ class LLM:
 
         self.tokenizer.padding_side = 'left'
 
-    def generate(
-        self, prompts: list[str],
-        apply_template: bool = True, verbose: bool = False
-    ) -> list[str] | list[list[str]]:
+    def generate(self, prompts: list[str], apply_template: bool = True, verbose: bool = False) -> (
+        list[str] | list[list[str]]
+    ):
         if self.provider == 'local':
             return self._generate_local(prompts, apply_template, verbose)
         elif self.provider == 'vllm':
-            return self.loop.run_until_complete(
-                self._generate_api(prompts, apply_template, verbose)
-            )
+            return self.loop.run_until_complete(self._generate_api(prompts, apply_template, verbose))
 
-    def _generate_local(
-        self, prompts: list[str],
-        apply_template: bool, verbose: bool
-    ) -> list[str] | list[list[str]]:
+    def _generate_local(self, prompts: list[str], apply_template: bool, verbose: bool) -> (
+        list[str] | list[list[str]]
+    ):
         responses = []
 
         if apply_template:
@@ -114,10 +112,9 @@ class LLM:
 
         return responses
 
-    async def _generate_api(
-        self, prompts: list[str],
-        apply_template: bool, verbose: bool
-    ) -> list[str] | list[list[str]]:
+    async def _generate_api(self, prompts: list[str], apply_template: bool, verbose: bool) -> (
+        list[str] | list[list[str]]
+    ):
         semaphore = asyncio.Semaphore(value=5)
 
         async def _request_response(prompt: str, apply_template: bool, pbar: tqdm) -> str | list[str]:
@@ -170,10 +167,9 @@ class LLM:
 
         return responses
 
-    def compute_target_logps(
-        self, prompts: list[str], targets: list[str],
-        apply_template: bool = True
-    ) -> torch.Tensor:
+    def compute_target_logps(self, prompts: list[str], targets: list[str], apply_template: bool = True) -> (
+        torch.Tensor
+    ):
         if self.provider == 'local':
             return self._compute_target_logps_local(prompts, targets, apply_template)
         elif self.provider == 'vllm':
@@ -184,8 +180,7 @@ class LLM:
             raise ValueError(f'Invalid provider for computing target logps: {self.provider}')
 
     def _compute_target_logps_local(
-        self, prompts: list[str], targets: list[str],
-        apply_template: bool = True
+        self, prompts: list[str], targets: list[str], apply_template: bool = True
     ) -> torch.Tensor:
         if apply_template:
             inputs_ids = self.apply_chat_template(prompts)
@@ -222,8 +217,7 @@ class LLM:
         return torch.cat(target_logps, dim=0)
 
     async def _compute_target_logps_api(
-        self, prompts: list[str], targets: list[str],
-        apply_template: bool = True
+        self, prompts: list[str], targets: list[str], apply_template: bool = True
     ) -> torch.Tensor:
         semaphore = asyncio.Semaphore(value=5)
 

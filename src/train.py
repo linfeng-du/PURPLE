@@ -13,12 +13,12 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 
 from bandit_ramp import (
+    ScoreModel,
+    Trainer,
     create_collator,
     create_preprocessor,
     create_reward,
-    load_retrieved_lamp_dataset,
-    ScoreModel,
-    Trainer
+    load_retrieved_lamp_dataset
 )
 from lamp import create_metric, create_prompt_generator
 from llm import LLM
@@ -30,6 +30,7 @@ if os.getenv('HF_EVALUATE_OFFLINE') == '1':
 
 logging.getLogger('absl').setLevel(logging.WARNING)
 logging.getLogger('httpx').setLevel(logging.WARNING)
+logging.getLogger('openai._base_client').setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 

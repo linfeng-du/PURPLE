@@ -2,6 +2,7 @@
 from typing import TypeAlias
 
 from transformers import pipeline
+from openai import OpenAI
 
 from ..data_types import Profile
 
@@ -11,27 +12,29 @@ Message: TypeAlias = list[dict[str, str]]
 
 class RankGPT:
 
-    def __init__(self) -> None:
-        self.pipeline = pipeline(
-            task='text-generation',
-            model='meta-llama/Meta-Llama-3-8B-Instruct',
-            device_map='auto',
-            torch_dtype='bfloat16'
-        )
-        self.pipeline.tokenizer.padding_side = 'left'
+    def __init__(self, model: str) -> None:
+        self.model = model
 
-        if self.pipeline.tokenizer.pad_token is None:
-            self.pipeline.tokenizer.pad_token = self.pipeline.tokenizer.eos_token
-            self.pipeline.model.generation_config.pad_token_id = self.pipeline.tokenizer.eos_token_id
+        if self.model == 'llama3':
+            self.pipeline = pipeline(
+                task='text-generation',
+                model='meta-llama/Meta-Llama-3-8B-Instruct',
+                device_map='auto',
+                torch_dtype='bfloat16'
+            )
+            self.pipeline.tokenizer.padding_side = 'left'
+
+            if self.pipeline.tokenizer.pad_token is None:
+                self.pipeline.tokenizer.pad_token = self.pipeline.tokenizer.eos_token
+                self.pipeline.model.generation_config.pad_token_id = self.pipeline.tokenizer.eos_token_id
+        elif self.model == 'gpt5':
+            self.client = OpenAI(base_url='https://api.openai.com/v1')
+        else:
+            raise ValueError(f'Invalid model for RankGPT: {self.model}')
 
     def __call__(
-        self,
-        query: str,
-        corpus: list[str],
-        profiles: list[Profile],
-        num_rerank: int,
-        window_size: int = 20,
-        step: int = 10
+        self, query: str, corpus: list[str], profiles: list[Profile], num_rerank: int,
+        window_size: int = 20, step: int = 10
     ) -> list[Profile]:
         rank_start = len(profiles) - window_size
         rank_end = len(profiles)
@@ -39,11 +42,19 @@ class RankGPT:
 
         while rank_start >= 0:
             message = _create_ranking_instruction(query, corpus, rank_start, rank_end)
-            output = self.pipeline(
-                message, max_new_tokens=256,
-                do_sample=False, temperature=None, top_p=None
-            )
-            response = output[0]['generated_text'][-1]['content']
+
+            if self.model == 'llama3':
+                outputs = self.pipeline(
+                    message,
+                    max_new_tokens=256,
+                    do_sample=False,
+                    temperature=None,
+                    top_p=None
+                )
+                response = outputs[0]['generated_text'][-1]['content']
+            elif self.model == 'gpt5':
+                outputs = self.client.chat.completions.create(messages=message, model='gpt-5')
+                response = outputs.choices[0].message.content
 
             indices = _receive_ranking(indices, response, rank_start, rank_end)
             corpus = [corpus[index] for index in indices]
@@ -56,10 +67,8 @@ class RankGPT:
 
 
 def _create_ranking_instruction(
-    query: str,
-    corpus: list[str],
-    rank_start: int,
-    rank_end: int,
+    query: str, corpus: list[str],
+    rank_start: int, rank_end: int,
     max_length: int = 300
 ) -> Message:
     num_passages = len(corpus[rank_start:rank_end])

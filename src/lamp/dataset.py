@@ -92,77 +92,81 @@ def _process_long_lamp_dataset(task: str, split: str, cache_dir: str) -> None:
     Dataset.from_list(examples).save_to_disk(cache_dir)
 
 
-# ==================================   LaMP 1: Personalized Citation Identification   ==================================
-def _generate_query_corpus_classification_citation(source: str, profiles: list[Profile]) -> tuple[str, list[str]]:
+# =============================   LaMP 1: Personalized Citation Identification   =============================
+def _generate_query_corpus_classification_citation(source: str, profiles: list[Profile]) -> (
+    tuple[str, list[str]]
+):
     reference_1, reference_2 = _extract_references(source)
     query = f'{reference_1} {reference_2}'
     corpus = [f'{profile["title"]} {profile["abstract"]}' for profile in profiles]
     return query, corpus
 
 
-# ==================================        LaMP 2: Personalized Movie Tagging        ==================================
-def _generate_query_corpus_classification_movies(source: str, profiles: list[Profile]) -> tuple[str, list[str]]:
+# =============================        LaMP 2: Personalized Movie Tagging        =============================
+def _generate_query_corpus_classification_movies(source: str, profiles: list[Profile]) -> (
+    tuple[str, list[str]]
+):
     query = _extract_string_after_keyword(source, 'description: ')
     corpus = [profile['description'] for profile in profiles]
     return query, corpus
 
 
-# ==================================       LaMP 3: Personalized Product Rating       ==================================
+# =============================       LaMP 3: Personalized Product Rating       =============================
 def _generate_query_corpus_regression_review(source: str, profiles: list[Profile]) -> tuple[str, list[str]]:
     query = _extract_string_after_keyword(source, 'review: ')
     corpus = [profile['text'] for profile in profiles]
     return query, corpus
 
 
-# ==================================  LaMP 4: Personalized News Headline Generation  ==================================
+# ==============================  LaMP 4: Personalized News Headline Generation  =============================
 def _generate_query_corpus_generation_news(source: str, profiles: list[Profile]) -> tuple[str, list[str]]:
     query = _extract_string_after_keyword(source, 'article: ')
     corpus = [f'{profile["title"]} {profile["text"]}' for profile in profiles]
     return query, corpus
 
 
-# ================================== LaMP 5: Personalized Scholarly Title Generation ==================================
+# ============================= LaMP 5: Personalized Scholarly Title Generation =============================
 def _generate_query_corpus_generation_paper(source: str, profiles: list[Profile]) -> tuple[str, list[str]]:
     query = _extract_string_after_keyword(source, 'paper: ')
     corpus = [f'{profile["title"]} {profile["abstract"]}' for profile in profiles]
     return query, corpus
 
 
-# ==================================  LaMP 6: Personalized Email Subject Generation  ==================================
+# =============================  LaMP 6: Personalized Email Subject Generation  =============================
 def _generate_query_corpus_generation_avocado(source: str, profiles: list[Profile]) -> tuple[str, list[str]]:
     query = _extract_string_after_keyword(source, ': ')
     corpus = [profile['text'] for profile in profiles]
     return query, corpus
 
 
-# ==================================     LaMP 7: Personalized Tweet Paraphrasing     ==================================
+# =============================     LaMP 7: Personalized Tweet Paraphrasing     =============================
 def _generate_query_corpus_generation_tweet(source: str, profiles: list[Profile]) -> tuple[str, list[str]]:
     query = _extract_string_after_keyword(source, ': ')
     corpus = [profile['text'] for profile in profiles]
     return query, corpus
 
 
-# =================================     LongLaMP 1: Personalized Email Completion     =================================
+# ============================     LongLaMP 1: Personalized Email Completion     ============================
 def _generate_query_corpus_generation_email(source: str, profiles: list[Profile]) -> tuple[str, list[str]]:
     query = _extract_string_after_keyword(source, ': ')
     corpus = [profile['text'] for profile in profiles]
     return query, corpus
 
 
-# ================================     LongLaMP 2: Personalized Abstract Generation     ================================
+# ===========================     LongLaMP 2: Personalized Abstract Generation     ===========================
 def _generate_query_corpus_generation_abstract(source: str, profiles: list[Profile]) -> tuple[str, list[str]]:
     query = _extract_string_after_keyword(source, 'items: ')
     corpus = [f'{profile["title"]} {profile["abstract"]}' for profile in profiles]
     return query, corpus
 
 
-# =================================     LongLaMP 3: Personalized Topic Generation     =================================
+# ============================     LongLaMP 3: Personalized Topic Generation     =============================
 def _generate_query_corpus_generation_topic(source: str, profiles: list[Profile]) -> tuple[str, list[str]]:
     corpus = [f'{profile["content"]} {profile["summary"]}' for profile in profiles]
     return source, corpus
 
 
-# =============================     LongLaMP 4: Personalized Product Review Generation     =============================
+# ========================     LongLaMP 4: Personalized Product Review Generation     ========================
 def _generate_query_corpus_generation_review(source: str, profiles: list[Profile]) -> tuple[str, list[str]]:
     corpus = [
         f'{profile["overall"]} {profile["summary"]} {profile["description"]} {profile["reviewText"]}'
@@ -171,7 +175,7 @@ def _generate_query_corpus_generation_review(source: str, profiles: list[Profile
     return source, corpus
 
 
-# ==================================                Utility Functions                ==================================
+# =============================                Utility Functions                =============================
 def _extract_references(source: str) -> tuple[str, str]:
     template_1 = 'Just answer with [1] or [2] without explanation. [1]: "'
     template_2 = '" [2]: "'
