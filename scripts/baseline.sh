@@ -29,7 +29,7 @@ done
 : "${endpoint:=null}"
 : "${retrievers:=contriever}"
 : "${num_candidates:=20}"
-: "${rerankers:=icr,rank_gpt-gpt5,rank_gpt-llama3,replug,icralm}"
+: "${rerankers:=icr,rank_gpt-gpt5,rank_gpt-llama3,replug,icralm,contriever,bm25}"
 : "${num_rerank:=5}"
 
 IFS=',' read -ra tasks <<< "$tasks"
