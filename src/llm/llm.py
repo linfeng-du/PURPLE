@@ -34,7 +34,7 @@ class LLM:
             self.pipeline = pipeline(
                 task='text-generation',
                 model=self.model,
-                device_map='auto',
+                device_map='cuda',
                 torch_dtype='bfloat16'
             )
             self.tokenizer = self.pipeline.tokenizer

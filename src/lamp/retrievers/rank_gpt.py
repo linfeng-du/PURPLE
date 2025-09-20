@@ -22,7 +22,7 @@ class RankGPT:
             self.pipeline = pipeline(
                 task='text-generation',
                 model='meta-llama/Meta-Llama-3-8B-Instruct',
-                device_map='auto',
+                device='cuda',
                 torch_dtype='bfloat16'
             )
             self.pipeline.tokenizer.padding_side = 'left'

@@ -62,7 +62,7 @@ class InContextReranker():
                 base_llm_name, 
                 torch_dtype=torch.float16, 
                 attn_implementation=_attn_implementation,
-                device_map='auto'
+                device_map='cuda'
             )
         self.llm = llm
         self.llm.config.pad_token_id = self.llm.config.eos_token_id
