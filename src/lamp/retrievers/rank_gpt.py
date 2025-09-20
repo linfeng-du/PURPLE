@@ -1,12 +1,15 @@
 # Adapted from https://github.com/sunnweiwei/RankGPT/blob/main/rank_gpt.py
+import logging
+import time
 from typing import TypeAlias
 
 from transformers import pipeline
-from openai import OpenAI
+from openai import OpenAI, OpenAIError
 
 from ..data_types import Profile
 
 
+logger = logging.getLogger(__name__)
 Message: TypeAlias = list[dict[str, str]]
 
 
@@ -53,8 +56,22 @@ class RankGPT:
                 )
                 response = outputs[0]['generated_text'][-1]['content']
             elif self.model == 'gpt5':
-                outputs = self.client.chat.completions.create(messages=message, model='gpt-5')
-                response = outputs.choices[0].message.content
+                response = None
+                num_retries = 0
+
+                while response is None:
+                    try:
+                        outputs = self.client.chat.completions.create(
+                            messages=message,
+                            model='gpt-5-nano',
+                            temperature=None,
+                            top_p=None
+                        )
+                        response = outputs.choices[0].message.content
+                    except OpenAIError as err:
+                        logger.error(f'OpenAI API error: {err}', exc_info=True)
+                        num_retries += 1
+                        time.sleep(min(2 ** num_retries, 60))
 
             indices = _receive_ranking(indices, response, rank_start, rank_end)
             corpus = [corpus[index] for index in indices]
