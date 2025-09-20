@@ -47,7 +47,7 @@ for llm in ${llms[@]}; do
                     --job-name="$exp_name" \
                     --time="$time" \
                     --gres=gpu:h100:1 \
-                    --mem=64G \
+                    --mem=128G \
                     --output="./logs/$exp_name/%j.out" \
                     --error="./logs/$exp_name/%j.err" \
                     --wrap="$(
