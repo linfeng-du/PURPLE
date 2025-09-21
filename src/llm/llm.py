@@ -64,6 +64,9 @@ class LLM:
             if self.provider == 'local':
                 self.pipeline.model.generation_config.pad_token_id = self.tokenizer.pad_token_id
 
+        if self.model == 'meta-llama/Meta-Llama-3-70B-Instruct':
+            self.tokenizer.model_max_length = 8192
+
         self.tokenizer.padding_side = 'left'
 
     def generate(self, prompts: list[str], apply_template: bool = True, verbose: bool = False) -> (
@@ -124,11 +127,22 @@ class LLM:
             while response is None:
                 try:
                     if apply_template:
-                        messages = self._create_message(prompt) if apply_template else [prompt]
+                        # Truncate messages longer than the model's max length
+                        message_ids = self.apply_chat_template([prompt])[0]
+                        total_length = len(message_ids) + self.generate_config['max_completion_tokens']
+
+                        if total_length > self.tokenizer.model_max_length:
+                            prompt_ids = self.tokenizer.encode(prompt, add_special_tokens=False)
+                            prompt = self.tokenizer.decode(
+                                prompt_ids[total_length - self.tokenizer.model_max_length:],
+                                skip_special_tokens=True
+                            )
+
+                        message = self._create_message(prompt)
 
                         async with semaphore:
                             output = await self.client.chat.completions.create(
-                                messages=messages,
+                                messages=message,
                                 model=self.model,
                                 **self.generate_config
                             )
