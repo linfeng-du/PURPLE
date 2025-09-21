@@ -16,7 +16,8 @@ done
 sbatch \
     --job-name="$model" \
     --time="$time" \
-    --gpus-per-node=4 \
+    --gres=gpu:h100:4 \
+    --mem=256G \
     --output="./logs/serve_llm/$model/%j.out" \
     --error="./logs/serve_llm/$model/%j.err" \
     --wrap="$(

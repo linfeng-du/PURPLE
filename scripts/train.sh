@@ -60,7 +60,8 @@ for llm in ${llms[@]}; do
                     sbatch \
                         --job-name="$exp_name" \
                         --time="$time" \
-                        --gpus-per-node=1 \
+                        --gres=gpu:h100:1 \
+                        --mem=128G \
                         --output="./logs/$exp_name/%j.out" \
                         --error="./logs/$exp_name/%j.err" \
                         --wrap="$(
