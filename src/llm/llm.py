@@ -120,7 +120,7 @@ class LLM:
     ):
         semaphore = asyncio.Semaphore(value=5)
 
-        async def _request_response(prompt: str, apply_template: bool, pbar: tqdm) -> str | list[str]:
+        async def _request_response(prompt: str, pbar: tqdm) -> str | list[str]:
             response = None
             num_retries = 0
 
@@ -173,10 +173,7 @@ class LLM:
             return response
 
         with tqdm(total=len(prompts), desc='Generating responses', disable=(not verbose)) as pbar:
-            tasks = [
-                asyncio.create_task(_request_response(prompt, apply_template, pbar))
-                for prompt in prompts
-            ]
+            tasks = [asyncio.create_task(_request_response(prompt, pbar)) for prompt in prompts]
             responses = await asyncio.gather(*tasks)
 
         return responses
@@ -235,7 +232,27 @@ class LLM:
     ) -> torch.Tensor:
         semaphore = asyncio.Semaphore(value=5)
 
-        async def _request_logp(prompt: str, target_length: int) -> float:
+        async def _request_logp(prompt: str, target: str) -> float:
+            # Truncate messages longer than the model's max length
+            message_ids = (
+                self.apply_chat_template([prompt])[0]
+                if apply_template
+                else self.tokenizer.encode(prompt, add_special_tokens=False)
+            )
+            target += ''.join(self.end_tokens)
+            target_length = len(self.tokenizer.encode(target, add_special_tokens=False))
+            total_length = len(message_ids) + target_length
+
+            if total_length > self.tokenizer.model_max_length:
+                prompt_ids = self.tokenizer.encode(prompt, add_special_tokens=False)
+                prompt = self.tokenizer.decode(
+                    prompt_ids[total_length - self.tokenizer.model_max_length + 5:],
+                    skip_special_tokens=True
+                )
+
+            if apply_template:
+                prompt = self.apply_chat_template([prompt], tokenize=False)[0]
+
             logp = None
             num_retries = 0
 
@@ -244,7 +261,7 @@ class LLM:
                     async with semaphore:
                         output = await self.client.completions.create(
                             model=self.model,
-                            prompt=prompt,
+                            prompt=prompt + target,
                             echo=True,
                             logprobs=0,
                             max_tokens=0
@@ -259,15 +276,9 @@ class LLM:
 
             return logp
 
-        if apply_template:
-            prompts = self.apply_chat_template(prompts, tokenize=False)
-            targets = [target + ''.join(self.end_tokens) for target in targets]
-
-        concats = [prompt + target for prompt, target in zip(prompts, targets)]
-        target_lengths = [len(self.tokenizer.encode(target, add_special_tokens=False)) for target in targets]
         tasks = [
-            asyncio.create_task(_request_logp(concat, target_length))
-            for concat, target_length in zip(concats, target_lengths)
+            asyncio.create_task(_request_logp(prompt, target))
+            for prompt, target in zip(prompts, targets)
         ]
         logps = await asyncio.gather(*tasks)
         return torch.tensor(logps)

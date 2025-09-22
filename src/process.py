@@ -92,12 +92,15 @@ def results_formatted(
         metric_results = defaultdict(lambda: defaultdict(list))
 
         for llm in ['phi-4-mini-instruct', 'llama-3-8b-instruct']:
-            results = bandit_ramp_results(task, llm, retriever, num_candidates, num_rerank, version)
+            results = bandit_ramp_results(task, llm, 'contriever', num_candidates, num_rerank, version)
 
             for metric, result in results.items():
                 metric_results[metric][llm].append(result)
 
-            for reranker in ['icr', 'rank_gpt', 'replug', 'icralm', 'contriever', 'bm25']:
+            for reranker in [
+                'icr', 'rank_gpt-llama3',
+                'replug', 'icralm', 'contriever', 'bm25'
+            ]:
                 try:
                     results = baseline_results(task, llm, retriever, num_candidates, reranker, num_rerank)
 
@@ -138,9 +141,11 @@ def baseline_results(
     reranker: str, num_rerank: int
 ) -> dict[str, str]:
     exp_name = f'{llm}/{retriever}-{num_candidates}/{reranker}-{num_rerank}/{task}'
-    result_file = list((Path('./logs') / exp_name).rglob('*.out'))[0]
+    result_dirs = [result_dir for result_dir in (Path('./logs') / exp_name).iterdir() if result_dir.is_dir()]
+    assert len(result_dirs) == 1, f'No results for {exp_name}'
+    result_dir = result_dirs[0]
 
-    with open(result_file, 'r') as file:
+    with open(result_dir / 'baseline.log', 'r') as file:
         text = file.read()
 
     results_list = [json.loads(match) for match in re.findall(r'\{.*?\}', text, flags=re.DOTALL)]
@@ -161,8 +166,11 @@ def bandit_ramp_results(
     exp_name = f'{llm}/{retriever}-{num_candidates}/bandit_ramp-{num_rerank}/{version}/{task}'
     results = []
 
-    for result_file in (Path('./logs') / exp_name).rglob('*.out'):
-        with open(result_file, 'r') as file:
+    for result_dir in (Path('./logs') / exp_name).iterdir():
+        if not result_dir.is_dir():
+            continue
+
+        with open(result_dir / 'train.log', 'r') as file:
             text = file.read()
 
         results.extend([json.loads(match) for match in re.findall(r'\{.*?\}', text, flags=re.DOTALL)])
