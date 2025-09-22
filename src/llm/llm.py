@@ -127,17 +127,6 @@ class LLM:
             while response is None:
                 try:
                     if apply_template:
-                        # Truncate messages longer than the model's max length
-                        message_ids = self.apply_chat_template([prompt])[0]
-                        total_length = len(message_ids) + self.generate_config['max_completion_tokens']
-
-                        if total_length > self.tokenizer.model_max_length:
-                            prompt_ids = self.tokenizer.encode(prompt, add_special_tokens=False)
-                            prompt = self.tokenizer.decode(
-                                prompt_ids[total_length - self.tokenizer.model_max_length:],
-                                skip_special_tokens=True
-                            )
-
                         message = self._create_message(prompt)
 
                         async with semaphore:
@@ -166,6 +155,22 @@ class LLM:
 
                     pbar.update(1)
                 except OpenAIError as err:
+                    if 'Please reduce the length of the input messages.' in err.body['message']:
+                        # Truncate messages longer than the model's max length
+                        message_ids = (
+                            self.apply_chat_template([prompt])[0]
+                            if apply_template else
+                            self.tokenizer.encode(prompt, add_special_tokens=False)
+                        )
+                        total_length = len(message_ids) + self.generate_config['max_completion_tokens']
+
+                        prompt_ids = self.tokenizer.encode(prompt, add_special_tokens=False)
+                        prompt = self.tokenizer.decode(
+                            prompt_ids[total_length - self.tokenizer.model_max_length:],
+                            skip_special_tokens=True
+                        )
+                        continue
+
                     logger.error(f'OpenAI API error: {err}', exc_info=True)
                     num_retries += 1
                     await asyncio.sleep(min(2 ** num_retries, 60))
@@ -232,27 +237,7 @@ class LLM:
     ) -> torch.Tensor:
         semaphore = asyncio.Semaphore(value=5)
 
-        async def _request_logp(prompt: str, target: str) -> float:
-            # Truncate messages longer than the model's max length
-            message_ids = (
-                self.apply_chat_template([prompt])[0]
-                if apply_template
-                else self.tokenizer.encode(prompt, add_special_tokens=False)
-            )
-            target += ''.join(self.end_tokens)
-            target_length = len(self.tokenizer.encode(target, add_special_tokens=False))
-            total_length = len(message_ids) + target_length
-
-            if total_length > self.tokenizer.model_max_length:
-                prompt_ids = self.tokenizer.encode(prompt, add_special_tokens=False)
-                prompt = self.tokenizer.decode(
-                    prompt_ids[total_length - self.tokenizer.model_max_length + 5:],
-                    skip_special_tokens=True
-                )
-
-            if apply_template:
-                prompt = self.apply_chat_template([prompt], tokenize=False)[0]
-
+        async def _request_logp(prompt: str, target_length: int) -> float:
             logp = None
             num_retries = 0
 
@@ -261,7 +246,7 @@ class LLM:
                     async with semaphore:
                         output = await self.client.completions.create(
                             model=self.model,
-                            prompt=prompt + target,
+                            prompt=prompt,
                             echo=True,
                             logprobs=0,
                             max_tokens=0
@@ -270,15 +255,24 @@ class LLM:
                     logps = output.choices[0].logprobs.token_logprobs
                     logp = sum(logps[-target_length:])
                 except OpenAIError as err:
+                    if 'Please reduce the length of the input messages.' in err.body['message']:
+                        return 0.
+
                     logger.error(f'VLLM API error: {err}', exc_info=True)
                     num_retries += 1
                     await asyncio.sleep(min(2 ** num_retries, 60))
 
             return logp
 
+        if apply_template:
+            prompts = self.apply_chat_template(prompts, tokenize=False)
+            targets = [target + ''.join(self.end_tokens) for target in targets]
+
+        concats = [prompt + target for prompt, target in zip(prompts, targets)]
+        target_lengths = [len(self.tokenizer.encode(target, add_special_tokens=False)) for target in targets]
         tasks = [
-            asyncio.create_task(_request_logp(prompt, target))
-            for prompt, target in zip(prompts, targets)
+            asyncio.create_task(_request_logp(concat, target_length))
+            for concat, target_length in zip(concats, target_lengths)
         ]
         logps = await asyncio.gather(*tasks)
         return torch.tensor(logps)
