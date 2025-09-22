@@ -13,6 +13,10 @@ while true; do
     esac
 done
 
+: "${time:=24:00:00}"
+: "${model:=meta-llama/Meta-Llama-3-70B-Instruct}"
+: "${port:=8000}"
+
 sbatch \
     --job-name="$model" \
     --time="$time" \
