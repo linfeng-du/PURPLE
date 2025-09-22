@@ -16,16 +16,16 @@ from bandit_ramp import create_preprocessor, load_retrieved_lamp_dataset
 def download() -> None:
     print('Downloading tokenizers...')
     AutoTokenizer.from_pretrained('facebook/contriever')
+    AutoTokenizer.from_pretrained('microsoft/Phi-4-mini-instruct')
     AutoTokenizer.from_pretrained('meta-llama/Meta-Llama-3-8B-Instruct')
     AutoTokenizer.from_pretrained('meta-llama/Meta-Llama-3-70B-Instruct')
-    AutoTokenizer.from_pretrained('microsoft/Phi-4-mini-instruct')
     AutoTokenizer.from_pretrained('Qwen/Qwen2.5-72B-Instruct')
 
     print('Downloading models...')
     AutoModel.from_pretrained('facebook/contriever')
+    AutoModelForCausalLM.from_pretrained('microsoft/Phi-4-mini-instruct')
     AutoModelForCausalLM.from_pretrained('meta-llama/Meta-Llama-3-8B-Instruct')
     AutoModelForCausalLM.from_pretrained('meta-llama/Meta-Llama-3-70B-Instruct')
-    AutoModelForCausalLM.from_pretrained('microsoft/Phi-4-mini-instruct')
     AutoModelForCausalLM.from_pretrained('Qwen/Qwen2.5-72B-Instruct')
 
     print('Downloading LongLaMP datasets...')
