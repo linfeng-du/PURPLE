@@ -1,10 +1,11 @@
 #!/bin/bash
 
-ARGS=$(getopt \
-    --options "" \
-    --long time:,tasks:,llms:,endpoint:,retrievers:,num_candidates:,rerankers:,num_rerank: \
-    --name "$0" \
-    -- "$@"
+ARGS=$(
+    getopt \
+        --options "" \
+        --long time:,tasks:,llms:,endpoint:,retrievers:,num_candidates:,rerankers:,num_rerank: \
+        --name "$0" \
+        -- "$@"
 )
 eval set -- "$ARGS"
 
