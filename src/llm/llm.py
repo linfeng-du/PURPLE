@@ -155,7 +155,10 @@ class LLM:
 
                     pbar.update(1)
                 except OpenAIError as err:
-                    if 'Please reduce the length of the input messages.' in err.body['message']:
+                    if (
+                        isinstance(err.body, dict)
+                        and 'Please reduce the length of the input messages.' in err.body['message']
+                    ):
                         # Truncate messages longer than the model's max length
                         message_ids = (
                             self.apply_chat_template([prompt])[0]
@@ -255,7 +258,10 @@ class LLM:
                     logps = output.choices[0].logprobs.token_logprobs
                     logp = sum(logps[-target_length:])
                 except OpenAIError as err:
-                    if 'Please reduce the length of the input messages.' in err.body['message']:
+                    if (
+                        isinstance(err.body, dict)
+                        and 'Please reduce the length of the input messages.' in err.body['message']
+                    ):
                         return 0.
 
                     logger.error(f'VLLM API error: {err}', exc_info=True)
