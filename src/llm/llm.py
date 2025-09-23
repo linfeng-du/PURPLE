@@ -157,7 +157,10 @@ class LLM:
                 except OpenAIError as err:
                     if (
                         isinstance(err.body, dict)
-                        and 'Please reduce the length of the input messages.' in err.body['message']
+                        and (
+                            'Please reduce the length of the input messages.' in err.body['message']
+                            or '\'max_completion_tokens\' is too large:'in err.body['message']
+                        )
                     ):
                         # Truncate messages longer than the model's max length
                         message_ids = (
