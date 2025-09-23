@@ -87,14 +87,14 @@ def results_formatted(
 
     llms = ['phi-4-mini-instruct', 'llama-3-8b-instruct', 'llama-3-70b-instruct']
     tasks = [
-        'LaMP-1', 'LaMP-2',
-        'LaMP-3',
-        'LaMP-4', 'LaMP-5', 'LaMP-7',
+        'LaMP-1', 'LaMP-2', 'LaMP-3', 'LaMP-4', 'LaMP-5', 'LaMP-7',
         'LongLaMP-2', 'LongLaMP-3', 'LongLaMP-4'
     ]
     rerankers = ['bm25', 'contriever', 'icralm', 'replug', 'rank_gpt-llama3', 'rank_gpt-gpt5', 'icr']
 
-    for llm in llms:
+    print(TABLE_PREFIX_STRING)
+
+    for llm_index, llm in enumerate(llms):
         # Collect all results
         task_metric_results = defaultdict(lambda: defaultdict(list))
 
@@ -137,26 +137,18 @@ def results_formatted(
                     reranker_task_results[reranker][task].append(result)
 
         # Print results
-        frerankers = [
-            r'BM25~\citep{robertson2009probabilistic}',
-            r'Contriever~\citep{izacard2022unsupervised}',
-            r'IC-RALM-Llama-3-8B-Instruct~\cite{ram2023incontext}',
-            r'REPLUG-LSR~\citep{shi2024replug}',
-            r'RankGPT-Llama-3-8B-Instruct~\cite{sun2023chatgpt}',
-            r'RankGPT-GPT5-nano~\cite{sun2023chatgpt}',
-            r'ICR-Llama-3-8B-Instruct~\cite{chen2025attention}',
-            r'BASEP (Ours)'
-        ]
+        print(LLM_STRINGS[llm_index])
 
-        print(f'{"-" * 100} {llm} {"-" * 100}')
-        for index, (reranker, task_results) in enumerate(reranker_task_results.items()):
-            print(f'    {frerankers[index]}')
+        for reranker_index, (reranker, task_results) in enumerate(reranker_task_results.items()):
+            print(RERANKER_STRINGS[reranker_index])
 
-            for index, (task, results) in enumerate(task_results.items()):
-                end = ('' if index == len(task_results) - 1 else '\n')
+            for task_index, (task, results) in enumerate(task_results.items()):
+                end = ('' if task_index == len(task_results) - 1 else '\n')
                 print(f'        & {" / ".join(results)}', end=end)
 
             print(r' \\')
+
+    print(TABLE_SUFFIX_STRING)
 
 
 def bandit_ramp_results(
@@ -205,6 +197,70 @@ def baseline_results(
         for key, value in results_list[0].items()
         if key in {'accuracy', 'f1', 'mae', 'rmse', 'rouge-1', 'rouge-L', 'meteor'}
     }
+
+
+MID_RULE_STRING = r'    \midrule'
+
+TABLE_PREFIX_STRING = (
+    r'\begin{table}[ht]' + '\n'
+    r'    \centering' + '\n'
+    r'    \adjustbox{max width=\linewidth}{' + '\n'
+    r'    \begin{tabular}{l|cc|c|ccc|cccc}' + '\n'
+    r'    \toprule' + '\n'
+    r'    \textbf{Task}' + '\n'
+    r'        & \textbf{Citation}' + '\n'
+    r'        & \textbf{Movie}' + '\n'
+    r'        & \textbf{Rating}' + '\n'
+    r'        & \textbf{News}' + '\n'
+    r'        & \textbf{Scholar}' + '\n'
+    r'        & \textbf{Tweet}' + '\n'
+    r'        & \textbf{Abstract}' + '\n'
+    r'        & \textbf{Topic}' + '\n'
+    r'        & \textbf{Review} \\' + '\n'
+    rf'{MID_RULE_STRING}' + '\n'
+    r'    \textbf{Metric}' + '\n'
+    r'        & Acc / F1' + '\n'
+    r'        & Acc / F1' + '\n'
+    r'        & MAE / RMSE' + '\n'
+    r'        & R1 / RL / M' + '\n'
+    r'        & R1 / RL / M' + '\n'
+    r'        & R1 / RL / M' + '\n'
+    r'        & R1 / RL / M' + '\n'
+    r'        & R1 / RL / M' + '\n'
+    r'        & R1 / RL / M \\'
+)
+
+TABLE_SUFFIX_STRING = (
+    r'    \midrule' + '\n'
+    r'    \end{tabular}}' + '\n'
+    r'    \caption{Caption}' + '\n'
+    r'    \label{tab:main_results}' + '\n'
+    r'\end{table}'
+)
+
+LLM_STRINGS = [
+    rf'{MID_RULE_STRING}' + '\n    '
+        + r'\multicolumn{1}{l}{\textbf{\textit{With Phi-4-Mini-Instruct (3.84B)}}} & \multicolumn{9}{l}{} \\'
+        + '\n' + rf'{MID_RULE_STRING}',
+    rf'{MID_RULE_STRING}' + '\n    '
+        + r'\multicolumn{1}{l}{\textbf{\textit{With Llama-3-8B-Instruct (8.03B)}}} & \multicolumn{9}{l}{} \\'
+        + '\n' + rf'{MID_RULE_STRING}',
+    rf'{MID_RULE_STRING}' + '\n    '
+        + r'\multicolumn{1}{l}{\textbf{\textit{With Llama-3-70B-Instruct (70.6B)}}} & \multicolumn{9}{l}{} \\'
+        + '\n' + rf'{MID_RULE_STRING}',
+]
+
+RERANKER_STRINGS = [
+    r'    BM25~\citep{robertson2009probabilistic}',
+    r'    Contriever~\citep{izacard2022unsupervised}',
+    r'    IC-RALM-Llama-3-8B-Instruct~\cite{ram2023incontext}',
+    r'    REPLUG-LSR~\citep{shi2024replug}',
+    r'    RankGPT-Llama-3-8B-Instruct~\cite{sun2023chatgpt}',
+    r'    RankGPT-GPT5-nano~\cite{sun2023chatgpt}',
+    r'    ICR-Llama-3-8B-Instruct~\cite{chen2025attention}',
+    r'    \rowcolor{green!15} BASEP (Ours)'
+]
+
 
 
 if __name__ == '__main__':
