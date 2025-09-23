@@ -164,8 +164,7 @@ class LLM:
                     ):
                         # Truncate messages longer than the model's max length
                         message_ids = (
-                            self.apply_chat_template([prompt])[0]
-                            if apply_template else
+                            self.apply_chat_template([prompt])[0] if apply_template else
                             self.tokenizer.encode(prompt, add_special_tokens=False)
                         )
                         total_length = len(message_ids) + self.generate_config['max_completion_tokens']
