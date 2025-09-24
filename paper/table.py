@@ -17,7 +17,7 @@ def table(table: int) -> None:
     )
     rerankers = ['bm25', 'contriever', 'icralm', 'replug', 'rank_gpt-llama3', 'rank_gpt-gpt5', 'icr']
 
-    print(TABLE_1_PREFIX if table == 1 else TABLE_2_PREFIX)
+    print((TABLE_1_PREFIX if table == 1 else TABLE_2_PREFIX))
 
     for llm_index, llm in enumerate(llms):
         # Collect all results
@@ -62,7 +62,7 @@ def table(table: int) -> None:
                     reranker_task_results[reranker][task].append(result)
 
         # Print results
-        print(TABLE_1_LLMS[llm_index] if table == 1 else TABLE_2_LLMS[llm_index])
+        print((TABLE_1_LLMS[llm_index] if table == 1 else TABLE_2_LLMS[llm_index]))
 
         for reranker_index, (reranker, task_results) in enumerate(reranker_task_results.items()):
             print(TABLE_RERANKER_STRINGS[reranker_index])
@@ -73,7 +73,7 @@ def table(table: int) -> None:
 
             print(r' \\')
 
-    print(TABLE_SUFFIX)
+    print((TABLE_1_SUFFIX if table == 1 else TABLE_2_SUFFIX))
 
 
 def bandit_ramp_results(
@@ -186,11 +186,18 @@ TABLE_2_PREFIX = (
     r'        & R1 / RL / M \\'
 )
 
-TABLE_SUFFIX = (
+TABLE_1_SUFFIX = (
     rf'{MID_RULE}' + '\n'
     r'    \end{tabular}}' + '\n'
     r'    \caption{Caption}' + '\n'
-    r'    \label{tab:main_results}' + '\n'
+    r'    \label{tab:lamp_results}' + '\n'
+    r'\end{table}'
+)
+TABLE_2_SUFFIX = (
+    rf'{MID_RULE}' + '\n'
+    r'    \end{tabular}}' + '\n'
+    r'    \caption{Caption}' + '\n'
+    r'    \label{tab:longlamp_results}' + '\n'
     r'\end{table}'
 )
 

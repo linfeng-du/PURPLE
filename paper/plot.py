@@ -111,7 +111,7 @@ def correct_rate(task: str, llm: str, reranker: str) -> None:
         for key, value in all_results.items():
             results[key].append(value[0])
 
-    results = {
+    summary = {
         'time': total_time,
         'num_examples': len(test_dataset),
         'throughput': len(test_dataset) / total_time,
@@ -122,7 +122,7 @@ def correct_rate(task: str, llm: str, reranker: str) -> None:
     save_dir.mkdir(parents=True, exist_ok=True)
 
     with open(save_dir / f'{reranker}.json', 'w') as file:
-        json.dump(results, file, indent=2)
+        json.dump(summary, file, indent=2)
 
     with open(save_dir / f'{reranker}-results.json', 'w') as file:
         json.dump(results, file)
