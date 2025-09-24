@@ -50,7 +50,7 @@ def correct_rate(task: str, llm: str, reranker: str) -> None:
     )
     metric_fn = create_metric(task, average=False)
     
-    llm = LLM(
+    llm_model = LLM(
         task,
         model=model,
         provider='local', endpoint=None,
@@ -99,7 +99,7 @@ def correct_rate(task: str, llm: str, reranker: str) -> None:
             prompt = prompt_generator(example['source'], profiles)
             prompts.append(prompt)
 
-        predictions = llm.generate(prompts)
+        predictions = llm_model.generate(prompts)
         all_results = metric_fn(predictions, [example['target']] * len(prompts))
 
         if (
