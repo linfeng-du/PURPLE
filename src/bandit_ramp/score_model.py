@@ -4,7 +4,9 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
-from transformers import AutoModel, BatchEncoding
+from transformers import AutoModel, AutoTokenizer, BatchEncoding
+
+from lamp.data_types import Profile
 
 
 class ScoreModel(nn.Module):
@@ -16,6 +18,7 @@ class ScoreModel(nn.Module):
         self.num_layers = num_layers
         self.decoder_hidden_size = decoder_hidden_size
 
+        self.tokenizer = AutoTokenizer.from_pretrained(self.encoder_model)
         self.encoder = AutoModel.from_pretrained(self.encoder_model)
         self.encoder_hidden_size = self.encoder.config.hidden_size
 
@@ -90,6 +93,29 @@ class ScoreModel(nn.Module):
             if not key.startswith('encoder.')}
         )
         torch.save(state_dict, ckpt_dir / 'model.pt')
+
+    @torch.no_grad()
+    def rerank(self, query: str, corpus: list[str], profiles: list[Profile], num_rerank: int) -> (
+        list[Profile]
+    ):
+        num_rerank = min(num_rerank, len(profiles))
+        query_inputs = self.tokenizer(query, padding=True, truncation=True, return_tensors='pt')
+        corpus_inputs = [[
+            self.tokenizer(corpus[i:i+128], padding=True, truncation=True, return_tensors='pt')
+            for i in range(0, len(corpus), 128)
+        ]]
+        profile_mask = torch.ones(1, len(profiles), dtype=torch.bool)
+
+        query_inputs = query_inputs.to(self.encoder.device)
+        corpus_inputs = [
+            [document_inputs.to(self.encoder.device) for document_inputs in document_subbatches]
+            for document_subbatches in corpus_inputs
+        ]
+        profile_mask = profile_mask.to(self.encoder.device)
+
+        likelihoods = self(query_inputs, corpus_inputs, profile_mask)
+        _, indices = likelihoods.topk(num_rerank, dim=1)
+        return [profiles[index] for index in indices.squeeze(dim=0)]
 
     def forward(
         self,

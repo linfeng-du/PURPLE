@@ -30,10 +30,13 @@ def create_prompt_generator(
     prompt_generator = _create_prompt_generator(task)
 
     def retrieval_augmented_prompt_generator(
-        source: str, profiles: list[Profile],
-        query: str | None = None, corpus: list[str] | None = None,
-        factor: float = 0.6
-    ) -> str:
+        source: str,
+        profiles: list[Profile],
+        query: str | None = None,
+        corpus: list[str] | None = None,
+        factor: float = 0.6,
+        return_retrieved: bool = False
+    ) -> str | tuple[str, list[Profile]]:
         nonlocal num_retrieve
         num_retrieve = min(num_retrieve, len(profiles))
 
@@ -59,7 +62,12 @@ def create_prompt_generator(
             try:
                 reserved_length = min(source_length, int(factor * max_length))
                 max_profile_length = max_length - reserved_length
-                return prompt_generator(source, retrieved_profiles, max_profile_length, tokenizer)
+                prompt = prompt_generator(source, retrieved_profiles, max_profile_length, tokenizer)
+
+                if return_retrieved:
+                    return prompt, retrieved_profiles
+
+                return prompt
             except OverflowError:
                 factor -= 0.1
 
