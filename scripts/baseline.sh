@@ -54,7 +54,7 @@ for llm in ${llms[@]}; do
                     --wrap="$(
                         echo -n "source ~/.bashrc; "
                         echo -n "export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True; "
-                        echo -n "activate bandit_ramp; "
+                        echo -n "activate purple; "
                         echo -n "python src/baseline.py "
                         echo -n "exp_name=\"$exp_name\" "
                         echo -n "task=\"$task\" "

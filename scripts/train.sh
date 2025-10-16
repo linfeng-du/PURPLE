@@ -54,7 +54,7 @@ for llm in ${llms[@]}; do
                 for task in ${tasks[@]}; do
                     exp_name=$(
                         echo -n "$llm/$retriever-$num_candidates/"
-                        echo -n "bandit_ramp-$num_rerank/$fuse_mode-$num_layers/$task"
+                        echo -n "purple-$num_rerank/$fuse_mode-$num_layers/$task"
                     )
                     mkdir -p "./logs/$exp_name"
                     sbatch \
@@ -67,7 +67,7 @@ for llm in ${llms[@]}; do
                         --wrap="$(
                             echo -n "source ~/.bashrc; "
                             echo -n "export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True; "
-                            echo -n "activate bandit_ramp; "
+                            echo -n "activate purple; "
                             echo -n "python src/train.py "
                             echo -n "exp_name=\"$exp_name\" "
                             echo -n "task=\"$task\" "

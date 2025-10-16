@@ -43,7 +43,7 @@ for retriever in ${retrievers[@]}; do
             --wrap="$(
                 echo -n "source ~/.bashrc; "
                 echo -n "export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True; "
-                echo -n "activate bandit_ramp; "
+                echo -n "activate purple; "
                 echo -n "python src/process.py preprocess "
                 echo -n "--task=\"$task\" "
                 echo -n "--retriever=\"$retriever\" "
