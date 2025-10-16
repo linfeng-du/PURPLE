@@ -16,7 +16,7 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
 
-from bandit_ramp import load_retrieved_lamp_dataset
+from purple import load_retrieved_lamp_dataset
 from lamp import create_metric, create_prompt_generator
 from lamp.data_types import PromptGenerator
 from lamp.retrievers import Contriever

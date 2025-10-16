@@ -12,7 +12,7 @@ from transformers import AutoTokenizer
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
-from bandit_ramp import (
+from purple import (
     ScoreModel,
     Trainer,
     create_collator,
@@ -34,7 +34,7 @@ logging.getLogger('openai._base_client').setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 
-@hydra.main(config_path='../conf', config_name='bandit_ramp', version_base=None)
+@hydra.main(config_path='../conf', config_name='purple', version_base=None)
 def main(cfg: DictConfig) -> None:
     # Check for missing keys
     missing_keys = OmegaConf.missing_keys(cfg)

@@ -4,7 +4,7 @@ from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer
 
 import fire
 
-from bandit_ramp import create_preprocessor, load_retrieved_lamp_dataset
+from purple import create_preprocessor, load_retrieved_lamp_dataset
 
 
 def download() -> None:
