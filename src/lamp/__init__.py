@@ -1,3 +1,3 @@
 from .dataset import load_lamp_dataset
-from .metric import MetricFn, create_metric_fn, get_labels
-from .prompt import PromptGenerator, create_prompt_generator
+from .metric import create_metric_fn
+from .prompt import create_prompt_generator
