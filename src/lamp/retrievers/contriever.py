@@ -31,12 +31,12 @@ class Contriever:
             scores_batch = (query_emb @ corpus_embs.T).squeeze(dim=0)
             scores.append(scores_batch)
 
-        scores = torch.cat(scores, dim=0)
-        logits, indices = scores.topk(num_retrieve, dim=0)
+        scores = torch.cat(scores)
+        logits, indices = scores.topk(num_retrieve)
         retrieved_profile = [profile[idx] for idx in indices]
 
         if return_logps:
-            logps = torch.log_softmax(logits, dim=0)
+            logps = logits.log_softmax(dim=-1)
             return retrieved_profile, logps
 
         return retrieved_profile
