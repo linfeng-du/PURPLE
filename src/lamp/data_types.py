@@ -1,9 +1,0 @@
-from typing import Callable, TypeAlias
-
-
-Profile: TypeAlias = dict[str, str]
-Metric: TypeAlias = Callable[
-    [list[str], list[str]],
-    dict[str, float] | dict[str, list[int] | dict[str, float]]
-]
-PromptGenerator: TypeAlias = Callable[[str, list[Profile], str | None, list[str] | None, float], str]
