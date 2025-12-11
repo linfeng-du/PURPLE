@@ -23,4 +23,5 @@ class ICR:
 
         corpus = [doc.strip() for doc in corpus]
         (ranking, _), _ = self.icr.rerank(query, corpus)
-        return [profile[idx] for idx in ranking[:num_retrieve]]
+        retrieved_profile = [profile[idx] for idx in ranking[:num_retrieve]]
+        return retrieved_profile
