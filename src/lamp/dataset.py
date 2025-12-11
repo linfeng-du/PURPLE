@@ -29,7 +29,7 @@ def _prepare_lamp_dataset(task: str, split: str, dataset_dir: Path) -> None:
         questions = json.load(f)
 
     with outputs_file.open() as f:
-        outputs = {gold["id"]: gold["output"] for gold in json.load(f)["golds"]}
+        outputs = {gt["id"]: gt["output"] for gt in json.load(f)["golds"]}
 
     query_corpus_generator = QUERY_CORPUS_GENERATORS[task]
     examples = []
