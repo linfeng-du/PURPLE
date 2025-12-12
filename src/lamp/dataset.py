@@ -59,7 +59,9 @@ LONGLAMP_CONFIGS = {
 
 
 def _prepare_longlamp_dataset(task: str, split: str, dataset_dir: Path) -> None:
-    dataset = load_dataset("LongLaMP/LongLaMP", name=LONGLAMP_CONFIGS[task], split=split)
+    dataset = load_dataset(
+        "LongLaMP/LongLaMP", name=LONGLAMP_CONFIGS[task], split=split
+    )
 
     query_corpus_fn = QUERY_CORPUS_FNS[task]
     examples = []
@@ -158,7 +160,10 @@ def _generation_review_query_corpus_fn(
     profile: list[dict[str, str]]
 ) -> tuple[str, list[str]]:
     corpus = [
-        f"{rec['overall']} {rec['summary']} {rec['description']} {rec['reviewText']}"
+        (
+            f"{rec['overall']} {rec['summary']} "
+            f"{rec['description']} {rec['reviewText']}"
+        )
         for rec in profile
     ]
     return source, corpus

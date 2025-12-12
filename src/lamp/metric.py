@@ -8,7 +8,9 @@ from typing import Callable, TypeAlias
 import evaluate
 
 
-MetricFn: TypeAlias = Callable[[list[str], list[str]], dict[str, float | list[float]]]
+MetricFn: TypeAlias = Callable[
+    [list[str], list[str]], dict[str, float | list[float]]
+]
 
 
 LABELS = MappingProxyType({
@@ -39,13 +41,18 @@ def create_metric_fn(task: str, aggregate: bool = True) -> MetricFn:
         return _create_classification_metric_fn(LABELS[task], aggregate)
     elif task in {"LaMP-3"}:
         return _create_regression_metric_fn(LABELS[task], aggregate)
-    elif task in {"LaMP-4", "LaMP-5", "LaMP-7", "LongLaMP-2", "LongLaMP-3", "LongLaMP-4"}:
+    elif task in {
+        "LaMP-4", "LaMP-5", "LaMP-7", "LongLaMP-2", "LongLaMP-3", "LongLaMP-4"
+    }:
         return _create_generation_metric_fn(aggregate)
     else:
         raise ValueError(f"Invalid task: {task}")
 
 
-def _create_classification_metric_fn(labels: tuple[str, ...], aggregate: bool) -> MetricFn:
+def _create_classification_metric_fn(
+    labels: tuple[str, ...],
+    aggregate: bool
+) -> MetricFn:
     accuracy_metric = evaluate.load("accuracy")
     f1_metric = evaluate.load("f1")
     label_to_index = {lbl: idx for idx, lbl in enumerate(labels)}
@@ -54,13 +61,15 @@ def _create_classification_metric_fn(labels: tuple[str, ...], aggregate: bool) -
         predictions: list[str],
         references: list[str]
     ) -> dict[str, float | list[float]]:
-        predictions = [label_to_index.get(pred.strip(), -1) for pred in predictions]
+        predictions = [
+            label_to_index.get(pred.strip(), -1)
+            for pred in predictions
+        ]
         references = [label_to_index.get(ref.strip(), -1) for ref in references]
 
         if aggregate:
             accuracy_results = accuracy_metric.compute(
-                predictions=predictions,
-                references=references
+                predictions=predictions, references=references
             )
             f1_results = f1_metric.compute(
                 predictions=predictions,
@@ -68,17 +77,27 @@ def _create_classification_metric_fn(labels: tuple[str, ...], aggregate: bool) -
                 labels=list(label_to_index.values()),
                 average="macro"
             )
-            return {"accuracy": accuracy_results["accuracy"], "f1": f1_results["f1"]}
+            return {
+                "accuracy": accuracy_results["accuracy"],
+                "f1": f1_results["f1"]
+            }
         else:
-            correctness = [float(pred == ref) for pred, ref in zip(predictions, references)]
+            correctness = [
+                float(pred == ref)
+                for pred, ref in zip(predictions, references)
+            ]
             return {"correctness": correctness}
 
     return classification_metric_fn
 
 
-def _create_regression_metric_fn(labels: tuple[str, ...], aggregate: bool) -> MetricFn:
+def _create_regression_metric_fn(
+    labels: tuple[str, ...],
+    aggregate: bool
+) -> MetricFn:
     mae_metric = evaluate.load("mae")
     mse_metric = evaluate.load("mse")
+
     min_value = min(float(lbl) for lbl in labels)
     max_value = max(float(lbl) for lbl in labels)
 
@@ -97,22 +116,25 @@ def _create_regression_metric_fn(labels: tuple[str, ...], aggregate: bool) -> Me
         predictions: list[str],
         references: list[str]
     ) -> dict[str, float | list[float]]:
-        predictions = [map_to_float(pred, ref) for pred, ref in zip(predictions, references)]
+        predictions = [
+            map_to_float(pred, ref)
+            for pred, ref in zip(predictions, references)
+        ]
         references = [float(ref) for ref in references]
 
         if aggregate:
             mae_results = mae_metric.compute(
-                predictions=predictions,
-                references=references
+                predictions=predictions, references=references
             )
             mse_results = mse_metric.compute(
-                predictions=predictions,
-                references=references,
-                squared=False
+                predictions=predictions, references=references, squared=False
             )
             return {"mae": mae_results["mae"], "rmse": mse_results["mse"]}
         else:
-            abs_error = [abs(pred - ref) for pred, ref in zip(predictions, references)]
+            abs_error = [
+                abs(pred - ref)
+                for pred, ref in zip(predictions, references)
+            ]
             return {"abs_error": abs_error}
 
     return regression_metric_fn
@@ -138,15 +160,12 @@ def _create_generation_metric_fn(aggregate: bool) -> MetricFn:
 
         if aggregate:
             meteor_results = meteor_metric.compute(
-                predictions=predictions,
-                references=references
+                predictions=predictions, references=references
             )
         else:
             meteor = [
-                meteor_metric.compute(
-                    predictions=[pred],
-                    references=[ref]
-                )["meteor"]
+                meteor_metric
+                .compute(predictions=[pred], references=[ref])["meteor"]
                 for pred, ref in zip(predictions, references)
             ]
             meteor_results = {"meteor": meteor}

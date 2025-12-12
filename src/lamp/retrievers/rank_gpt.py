@@ -54,7 +54,9 @@ class RankGPT:
 
         while end > 0:
             start = max(0, end - self.window_size)
-            messages = _build_instruction(query, corpus[start:end], self.max_passage_length)
+            messages = _build_instruction(
+                query, corpus[start:end], self.max_passage_length
+            )
 
             if self.backend == "hf":
                 outputs = self.pipeline(
@@ -74,8 +76,7 @@ class RankGPT:
                 while response is None:
                     try:
                         outputs = self.client.chat.completions.create(
-                            messages=messages,
-                            model=self.model
+                            messages=messages, model=self.model
                         )
                         response = outputs.choices[0].message.content
                     except OpenAIError as err:
@@ -143,7 +144,8 @@ def _build_suffix(query: str, num_passages: int) -> dict[str, str]:
             f"Search Query: {query}. \n"
             f"Rank the {num_passages} passages above "
             "based on their relevance to the search query. "
-            "The passages should be listed in descending order using identifiers. "
+            "The passages should be listed "
+            "in descending order using identifiers. "
             "The most relevant passages should be listed first. "
             "The output format should be [] > [], e.g., [1] > [2]. "
             "Only response the ranking results, do not say any word or explain."

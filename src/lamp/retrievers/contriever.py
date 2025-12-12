@@ -27,7 +27,9 @@ class Contriever:
         query_emb = self._compute_sentence_embedding([query])
         scores = []
 
-        for corpus_batch in [corpus[i:i+128] for i in range(0, len(corpus), 128)]:
+        for corpus_batch in [
+            corpus[i:i+128] for i in range(0, len(corpus), 128)
+        ]:
             corpus_embs = self._compute_sentence_embedding(corpus_batch)
             scores_batch = (query_emb @ corpus_embs.T).squeeze(dim=0)
             scores.append(scores_batch)
@@ -43,7 +45,9 @@ class Contriever:
         return retrieved_profile
 
     def _compute_sentence_embedding(self, sentences: list[str]) -> torch.Tensor:
-        inputs = self.tokenizer(sentences, padding=True, truncation=True, return_tensors="pt")
+        inputs = self.tokenizer(
+            sentences, padding=True, truncation=True, return_tensors="pt"
+        )
         inputs = inputs.to(self.contriever.device)
         mask = inputs["attention_mask"].unsqueeze(dim=-1)
 

@@ -38,13 +38,19 @@ def create_prompt_fn(
     ) -> str | tuple[str, list[dict[str, str]]]:
         local_factor = factor
         retrieved_profile = retriever_fn(query, corpus, profile, num_retrieve)
-        source_length = len(tokenizer.encode(source, truncation=True, max_length=max_prompt_length))
+        source_length = len(tokenizer.encode(
+            source, truncation=True, max_length=max_prompt_length
+        ))
 
         while True:
             try:
-                reserved_length = min(source_length, int(local_factor * max_prompt_length))
+                reserved_length = min(
+                    source_length, int(local_factor * max_prompt_length)
+                )
                 max_profile_length = max_prompt_length - reserved_length
-                prompt = prompt_fn(source, retrieved_profile, max_profile_length, tokenizer)
+                prompt = prompt_fn(
+                    source, retrieved_profile, max_profile_length, tokenizer
+                )
 
                 if return_retrieved:
                     return prompt, retrieved_profile
@@ -75,7 +81,9 @@ def _classification_citation_prompt_fn(
 
     for record in profile:
         record_template_length = 2
-        max_record_length = max_length_per_record + saved_length - record_template_length
+        max_record_length = (
+            max_length_per_record + saved_length - record_template_length
+        )
 
         input_ids = tokenizer.encode(
             record["title"],
@@ -87,10 +95,15 @@ def _classification_citation_prompt_fn(
         prompt = f"'{new_title}'"
 
         prompts.append(prompt)
-        saved_length += max_length_per_record - record_template_length - len(input_ids)
+        saved_length += (
+            max_length_per_record - record_template_length - len(input_ids)
+        )
 
     index = source.find("title")
-    return f"{source[:index + 5]}, and {', and '.join(prompts)}{source[index + 5:]}"
+    return (
+        f"{source[:index + 5]}, and {', and '.join(prompts)}"
+        f"{source[index + 5:]}"
+    )
 
 
 # [LaMP-2] Personalized Movie Tagging
@@ -107,9 +120,15 @@ def _classification_movies_prompt_fn(
     saved_length = 0
 
     for record in profile:
-        record_template = f"the tag for the movie: \" \" is \"{record['tag']}\" "
-        record_template_length = len(tokenizer.encode(record_template, add_special_tokens=False))
-        max_record_length = max_length_per_record + saved_length - record_template_length
+        record_template = (
+            f"the tag for the movie: \" \" is \"{record['tag']}\" "
+        )
+        record_template_length = len(tokenizer.encode(
+            record_template, add_special_tokens=False
+        ))
+        max_record_length = (
+            max_length_per_record + saved_length - record_template_length
+        )
 
         input_ids = tokenizer.encode(
             record["description"],
@@ -118,10 +137,15 @@ def _classification_movies_prompt_fn(
             max_length=max_record_length
         )
         new_description = tokenizer.decode(input_ids, skip_special_tokens=True)
-        prompt = f"the tag for the movie: \"{new_description}\" is \"{record['tag']}\" "
+        prompt = (
+            f"the tag for the movie: \"{new_description}\" "
+            f"is \"{record['tag']}\" "
+        )
 
         prompts.append(prompt)
-        saved_length += max_length_per_record - record_template_length - len(input_ids)
+        saved_length += (
+            max_length_per_record - record_template_length - len(input_ids)
+        )
 
     return f"{', and '.join(prompts)}. {source}"
 
@@ -141,8 +165,12 @@ def _regression_review_prompt_fn(
 
     for record in profile:
         record_template = f"{record['score']} is the score for " " "
-        record_template_length = len(tokenizer.encode(record_template, add_special_tokens=False))
-        max_record_length = max_length_per_record + saved_length - record_template_length
+        record_template_length = len(tokenizer.encode(
+            record_template, add_special_tokens=False
+        ))
+        max_record_length = (
+            max_length_per_record + saved_length - record_template_length
+        )
 
         input_ids = tokenizer.encode(
             record["text"],
@@ -154,7 +182,9 @@ def _regression_review_prompt_fn(
         prompt = f"{record['score']} is the score for \"{new_text}\" "
 
         prompts.append(prompt)
-        saved_length += max_length_per_record - record_template_length - len(input_ids)
+        saved_length += (
+            max_length_per_record - record_template_length - len(input_ids)
+        )
 
     return f"{', and '.join(prompts)}. {source}"
 
@@ -174,8 +204,12 @@ def _generation_news_prompt_fn(
 
     for record in profile:
         record_template = f"\"{record['title']}\" is the title for \" \" "
-        record_template_length = len(tokenizer.encode(record_template, add_special_tokens=False))
-        max_record_length = max_length_per_record + saved_length - record_template_length
+        record_template_length = len(tokenizer.encode(
+            record_template, add_special_tokens=False
+        ))
+        max_record_length = (
+            max_length_per_record + saved_length - record_template_length
+        )
 
         input_ids = tokenizer.encode(
             record["text"],
@@ -187,7 +221,9 @@ def _generation_news_prompt_fn(
         prompt = f"\"{record['title']}\" is the title for \"{new_text}\" "
 
         prompts.append(prompt)
-        saved_length += max_length_per_record - record_template_length - len(input_ids)
+        saved_length += (
+            max_length_per_record - record_template_length - len(input_ids)
+        )
 
     return f"{', and '.join(prompts)}. {source}"
 
@@ -211,8 +247,12 @@ def _generation_paper_prompt_fn(
 
     for record in profile:
         record_template = f"\"{record['title']}\" is a title for \" \" "
-        record_template_length = len(tokenizer.encode(record_template, add_special_tokens=False))
-        max_record_length = max_length_per_record + saved_length - record_template_length
+        record_template_length = len(tokenizer.encode(
+            record_template, add_special_tokens=False
+        ))
+        max_record_length = (
+            max_length_per_record + saved_length - record_template_length
+        )
 
         input_ids = tokenizer.encode(
             record["abstract"],
@@ -224,7 +264,9 @@ def _generation_paper_prompt_fn(
         prompt = f"\"{record['title']}\" is a title for \"{new_abstract}\" "
 
         prompts.append(prompt)
-        saved_length += max_length_per_record - record_template_length - len(input_ids)
+        saved_length += (
+            max_length_per_record - record_template_length - len(input_ids)
+        )
 
     return f"{', and '.join(prompts)}. Following the given patterns {source}"
 
@@ -246,7 +288,9 @@ def _generation_tweet_prompt_fn(
 
     for record in profile:
         record_template_length = 2
-        max_record_length = max_length_per_record + saved_length - record_template_length
+        max_record_length = (
+            max_length_per_record + saved_length - record_template_length
+        )
 
         input_ids = tokenizer.encode(
             record["text"],
@@ -258,7 +302,9 @@ def _generation_tweet_prompt_fn(
         prompt = f"\"{new_text}\" "
 
         prompts.append(prompt)
-        saved_length += max_length_per_record - record_template_length - len(input_ids)
+        saved_length += (
+            max_length_per_record - record_template_length - len(input_ids)
+        )
 
     return (
         f"{', and '.join(prompts)} are written by a person. "
@@ -284,7 +330,10 @@ def _generation_abstract_prompt_fn(
             max_length=max_length
         )
         new_abstract = tokenizer.decode(input_ids, skip_special_tokens=True)
-        prompt = f"\"{new_abstract}\" is the abstract for the title \"{record['title']}\""
+        prompt = (
+            f"\"{new_abstract}\" is the abstract "
+            f"for the title \"{record['title']}\""
+        )
         prompts.append(prompt)
 
     return (
