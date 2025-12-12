@@ -66,6 +66,7 @@ class RankGPT:
                     pad_token_id=self.pipeline.tokenizer.eos_token_id
                 )
                 response = outputs[0]["generated_text"][-1]["content"]
+
             elif self.backend == "openai":
                 response = None
                 num_retries = 0

@@ -31,14 +31,14 @@ def _prepare_lamp_dataset(task: str, split: str, dataset_dir: Path) -> None:
     with outputs_file.open() as f:
         outputs = {gt["id"]: gt["output"] for gt in json.load(f)["golds"]}
 
-    query_corpus_generator = QUERY_CORPUS_GENERATORS[task]
+    query_corpus_fn = QUERY_CORPUS_FNS[task]
     examples = []
 
     for question in questions:
         source = question["input"]
         profile = question["profile"]
         target = outputs[question["id"]]
-        query, corpus = query_corpus_generator(source, profile)
+        query, corpus = query_corpus_fn(source, profile)
 
         examples.append({
             "source": source,
@@ -60,14 +60,15 @@ LONGLAMP_CONFIGS = {
 
 def _prepare_longlamp_dataset(task: str, split: str, dataset_dir: Path) -> None:
     dataset = load_dataset("LongLaMP/LongLaMP", name=LONGLAMP_CONFIGS[task], split=split)
-    query_corpus_generator = QUERY_CORPUS_GENERATORS[task]
+
+    query_corpus_fn = QUERY_CORPUS_FNS[task]
     examples = []
 
     for row in dataset:
         source = row["input"]
         profile = row["profile"]
         target = row["output"]
-        query, corpus = query_corpus_generator(source, profile)
+        query, corpus = query_corpus_fn(source, profile)
 
         examples.append({
             "source": source,
@@ -81,7 +82,7 @@ def _prepare_longlamp_dataset(task: str, split: str, dataset_dir: Path) -> None:
 
 
 # [LaMP-1] Personalized Citation Identification
-def _generate_query_corpus_classification_citation(
+def _classification_citation_query_corpus_fn(
     source: str,
     profile: list[dict[str, str]]
 ) -> tuple[str, list[str]]:
@@ -92,7 +93,7 @@ def _generate_query_corpus_classification_citation(
 
 
 # [LaMP-2] Personalized Movie Tagging
-def _generate_query_corpus_classification_movies(
+def _classification_movies_query_corpus_fn(
     source: str,
     profile: list[dict[str, str]]
 ) -> tuple[str, list[str]]:
@@ -102,7 +103,7 @@ def _generate_query_corpus_classification_movies(
 
 
 # [LaMP-3] Personalized Product Rating
-def _generate_query_corpus_regression_review(
+def _regression_review_query_corpus_fn(
     source: str,
     profile: list[dict[str, str]]
 ) -> tuple[str, list[str]]:
@@ -112,7 +113,7 @@ def _generate_query_corpus_regression_review(
 
 
 # [LaMP-4] Personalized News Headline Generation
-def _generate_query_corpus_generation_news(
+def _generation_news_query_corpus_fn(
     source: str,
     profile: list[dict[str, str]]
 ) -> tuple[str, list[str]]:
@@ -122,7 +123,7 @@ def _generate_query_corpus_generation_news(
 
 
 # [LaMP-5] Personalized Scholarly Title Generation
-def _generate_query_corpus_generation_paper(
+def _generation_paper_query_corpus_fn(
     source: str,
     profile: list[dict[str, str]]
 ) -> tuple[str, list[str]]:
@@ -132,7 +133,7 @@ def _generate_query_corpus_generation_paper(
 
 
 # [LaMP-7] Personalized Tweet Paraphrasing
-def _generate_query_corpus_generation_tweet(
+def _generation_tweet_query_corpus_fn(
     source: str,
     profile: list[dict[str, str]]
 ) -> tuple[str, list[str]]:
@@ -142,7 +143,7 @@ def _generate_query_corpus_generation_tweet(
 
 
 # [LongLaMP-2] Personalized Abstract Generation
-def _generate_query_corpus_generation_abstract(
+def _generation_abstract_query_corpus_fn(
     source: str,
     profile: list[dict[str, str]]
 ) -> tuple[str, list[str]]:
@@ -152,7 +153,7 @@ def _generate_query_corpus_generation_abstract(
 
 
 # [LongLaMP-3] Personalized Product Review Generation
-def _generate_query_corpus_generation_review(
+def _generation_review_query_corpus_fn(
     source: str,
     profile: list[dict[str, str]]
 ) -> tuple[str, list[str]]:
@@ -164,7 +165,7 @@ def _generate_query_corpus_generation_review(
 
 
 # [LongLaMP-4] Personalized Topic Generation
-def _generate_query_corpus_generation_topic(
+def _generation_topic_query_corpus_fn(
     source: str,
     profile: list[dict[str, str]]
 ) -> tuple[str, list[str]]:
@@ -172,16 +173,16 @@ def _generate_query_corpus_generation_topic(
     return source, corpus
 
 
-QUERY_CORPUS_GENERATORS = {
-    "LaMP-1": _generate_query_corpus_classification_citation,
-    "LaMP-2": _generate_query_corpus_classification_movies,
-    "LaMP-3": _generate_query_corpus_regression_review,
-    "LaMP-4": _generate_query_corpus_generation_news,
-    "LaMP-5": _generate_query_corpus_generation_paper,
-    "LaMP-7": _generate_query_corpus_generation_tweet,
-    "LongLaMP-2": _generate_query_corpus_generation_abstract,
-    "LongLaMP-3": _generate_query_corpus_generation_review,
-    "LongLaMP-4": _generate_query_corpus_generation_topic
+QUERY_CORPUS_FNS = {
+    "LaMP-1": _classification_citation_query_corpus_fn,
+    "LaMP-2": _classification_movies_query_corpus_fn,
+    "LaMP-3": _regression_review_query_corpus_fn,
+    "LaMP-4": _generation_news_query_corpus_fn,
+    "LaMP-5": _generation_paper_query_corpus_fn,
+    "LaMP-7": _generation_tweet_query_corpus_fn,
+    "LongLaMP-2": _generation_abstract_query_corpus_fn,
+    "LongLaMP-3": _generation_review_query_corpus_fn,
+    "LongLaMP-4": _generation_topic_query_corpus_fn
 }
 
 
