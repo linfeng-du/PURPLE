@@ -5,17 +5,17 @@ tqdm==4.67.1
 openai==2.7.2
 wandb==0.18.0
 
-numpy==2.3.3
 nltk==3.9.2
+numpy==2.3.3
 rank-bm25==0.2.2
 rouge-score==0.1.2
 scikit-learn==1.7.2
 
 torch==2.7.1
 triton==3.2.0
-flash_attn==2.8.3
+flash-attn==2.8.3
 
-transformers==4.57.1
+transformers==4.53.3
 accelerate==1.11.0
 datasets==4.4.1
 evaluate==0.4.6
