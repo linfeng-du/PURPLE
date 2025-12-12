@@ -5,7 +5,9 @@ from transformers import AutoModel, AutoTokenizer
 
 class Contriever:
 
-    def __init__(self) -> None:
+    def __init__(self, return_logps: bool = False) -> None:
+        self.return_logps = return_logps
+
         self.tokenizer = AutoTokenizer.from_pretrained("facebook/contriever")
         self.contriever = AutoModel.from_pretrained("facebook/contriever")
         self.contriever.to("cuda" if torch.cuda.is_available() else "cpu")
@@ -17,8 +19,7 @@ class Contriever:
         query: str,
         corpus: list[str],
         profile: list[dict[str, str]],
-        num_retrieve: int,
-        return_logps: bool = False
+        num_retrieve: int
     ) -> list[dict[str, str]] | tuple[list[dict[str, str]], torch.Tensor]:
         assert len(corpus) == len(profile) != 0
         num_retrieve = min(num_retrieve, len(profile))
@@ -35,7 +36,7 @@ class Contriever:
         logits, indices = scores.topk(num_retrieve)
         retrieved_profile = [profile[idx] for idx in indices]
 
-        if return_logps:
+        if self.return_logps:
             logps = logits.log_softmax(dim=-1)
             return retrieved_profile, logps
 
