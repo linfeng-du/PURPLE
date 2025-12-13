@@ -36,7 +36,7 @@ class Contriever:
 
         scores = torch.cat(scores)
         logits, indices = scores.topk(num_retrieve)
-        retrieved_profile = [profile[idx] for idx in indices]
+        retrieved_profile = [profile[i] for i in indices]
 
         if self.return_logps:
             logps = logits.log_softmax(dim=-1)

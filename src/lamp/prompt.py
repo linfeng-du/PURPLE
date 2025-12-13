@@ -38,9 +38,11 @@ def create_prompt_fn(
     ) -> str | tuple[str, list[dict[str, str]]]:
         local_factor = factor
         retrieved_profile = retriever_fn(query, corpus, profile, num_retrieve)
-        source_length = len(tokenizer.encode(
-            source, truncation=True, max_length=max_prompt_length
-        ))
+        source_length = len(
+            tokenizer.encode(
+                source, truncation=True, max_length=max_prompt_length
+            )
+        )
 
         while True:
             try:

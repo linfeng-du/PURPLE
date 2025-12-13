@@ -54,7 +54,7 @@ class RankGPT:
 
         while end > 0:
             start = max(0, end - self.window_size)
-            messages = _build_instruction(
+            messages = _build_messages(
                 query, corpus[start:end], self.max_passage_length
             )
 
@@ -94,11 +94,10 @@ class RankGPT:
 
             end -= self.window_stride
 
-        retrieved_profile = [profile[idx] for idx in ranking[:num_retrieve]]
-        return retrieved_profile
+        return [profile[idx] for idx in ranking[:num_retrieve]]
 
 
-def _build_instruction(
+def _build_messages(
     query: str,
     corpus: list[str],
     max_passage_length: int

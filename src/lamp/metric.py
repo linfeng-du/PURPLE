@@ -55,17 +55,14 @@ def _create_classification_metric_fn(
 ) -> MetricFn:
     accuracy_metric = evaluate.load("accuracy")
     f1_metric = evaluate.load("f1")
-    label_to_index = {lbl: idx for idx, lbl in enumerate(labels)}
+    label_to_index = {l: idx for idx, l in enumerate(labels)}
 
     def classification_metric_fn(
         predictions: list[str],
         references: list[str]
     ) -> dict[str, float | list[float]]:
-        predictions = [
-            label_to_index.get(pred.strip(), -1)
-            for pred in predictions
-        ]
-        references = [label_to_index.get(ref.strip(), -1) for ref in references]
+        predictions = [label_to_index.get(p.strip(), -1) for p in predictions]
+        references = [label_to_index.get(r.strip(), -1) for r in references]
 
         if aggregate:
             accuracy_results = accuracy_metric.compute(
@@ -83,8 +80,7 @@ def _create_classification_metric_fn(
             }
         else:
             correctness = [
-                float(pred == ref)
-                for pred, ref in zip(predictions, references)
+                float(p == r) for p, r in zip(predictions, references)
             ]
             return {"correctness": correctness}
 
@@ -98,8 +94,8 @@ def _create_regression_metric_fn(
     mae_metric = evaluate.load("mae")
     mse_metric = evaluate.load("mse")
 
-    min_value = min(float(lbl) for lbl in labels)
-    max_value = max(float(lbl) for lbl in labels)
+    min_value = min(float(l) for l in labels)
+    max_value = max(float(l) for l in labels)
 
     def map_to_float(prediction: str, reference: str) -> float:
         try:
@@ -117,10 +113,9 @@ def _create_regression_metric_fn(
         references: list[str]
     ) -> dict[str, float | list[float]]:
         predictions = [
-            map_to_float(pred, ref)
-            for pred, ref in zip(predictions, references)
+            map_to_float(p, r) for p, r in zip(predictions, references)
         ]
-        references = [float(ref) for ref in references]
+        references = [float(r) for r in references]
 
         if aggregate:
             mae_results = mae_metric.compute(
@@ -131,10 +126,7 @@ def _create_regression_metric_fn(
             )
             return {"mae": mae_results["mae"], "rmse": mse_results["mse"]}
         else:
-            abs_error = [
-                abs(pred - ref)
-                for pred, ref in zip(predictions, references)
-            ]
+            abs_error = [abs(p - r) for p, r in zip(predictions, references)]
             return {"abs_error": abs_error}
 
     return regression_metric_fn
@@ -148,8 +140,8 @@ def _create_generation_metric_fn(aggregate: bool) -> MetricFn:
         predictions: list[str],
         references: list[str]
     ) -> dict[str, float | list[float]]:
-        predictions = [pred.strip() for pred in predictions]
-        references = [[ref.strip()] for ref in references]
+        predictions = [p.strip() for p in predictions]
+        references = [[r.strip()] for r in references]
 
         rouge_results = rouge_metric.compute(
             predictions=predictions,
@@ -164,9 +156,8 @@ def _create_generation_metric_fn(aggregate: bool) -> MetricFn:
             )
         else:
             meteor = [
-                meteor_metric
-                .compute(predictions=[pred], references=[ref])["meteor"]
-                for pred, ref in zip(predictions, references)
+                meteor_metric.compute(predictions=[p], references=[r])["meteor"]
+                for p, r in zip(predictions, references)
             ]
             meteor_results = {"meteor": meteor}
 
