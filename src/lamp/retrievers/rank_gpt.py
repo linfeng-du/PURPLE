@@ -4,6 +4,7 @@ import time
 
 from openai import OpenAI, OpenAIError
 from transformers import pipeline
+from transformers.pipelines.text_generation import ChatType
 
 
 logger = logging.getLogger(__name__)
@@ -54,31 +55,31 @@ class RankGPT:
 
         while end > 0:
             start = max(0, end - self.window_size)
-            messages = _build_messages(
+            chat = _build_chat(
                 query, corpus[start:end], self.max_passage_length
             )
 
             if self.backend == "hf":
                 outputs = self.pipeline(
-                    messages,
+                    chat,
                     max_new_tokens=256,
                     do_sample=False,
                     temperature=None,
                     top_p=None,
                     pad_token_id=self.pipeline.tokenizer.eos_token_id
                 )
-                response = outputs[0]["generated_text"][-1]["content"]
+                completion = outputs[0]["generated_text"][-1]["content"]
 
             elif self.backend == "openai":
-                response = None
+                completion = None
                 num_retries = 0
 
-                while response is None:
+                while completion is None:
                     try:
                         outputs = self.client.chat.completions.create(
-                            messages=messages, model=self.model
+                            messages=chat, model=self.model
                         )
-                        response = outputs.choices[0].message.content
+                        completion = outputs.choices[0].message.content
                     except OpenAIError as err:
                         num_retries += 1
 
@@ -88,7 +89,7 @@ class RankGPT:
                         logger.error(f"OpenAI API error: {err}", exc_info=True)
                         time.sleep(num_retries ** 2)
 
-            ordering = _parse_response(response, end - start)
+            ordering = _parse_completion(completion, end - start)
             corpus[start:end] = [corpus[start:end][idx] for idx in ordering]
             ranking[start:end] = [ranking[start:end][idx] for idx in ordering]
 
@@ -97,25 +98,25 @@ class RankGPT:
         return [profile[idx] for idx in ranking[:num_retrieve]]
 
 
-def _build_messages(
+def _build_chat(
     query: str,
     corpus: list[str],
     max_passage_length: int
-) -> list[dict[str, str]]:
-    messages = _build_prefix(query, len(corpus))
+) -> ChatType:
+    chat = _build_prefix(query, len(corpus))
 
     for index, passage in enumerate(corpus, start=1):
         passage = " ".join(passage.strip().split()[:max_passage_length])
-        messages.extend([
+        chat.extend([
             {"role": "user", "content": f"[{index}] {passage}"},
             {"role": "assistant", "content": f"Received passage [{index}]."}
         ])
 
-    messages.append(_build_suffix(query, len(corpus)))
-    return messages
+    chat.append(_build_suffix(query, len(corpus)))
+    return chat
 
 
-def _build_prefix(query: str, num_passages: int) -> list[dict[str, str]]:
+def _build_prefix(query: str, num_passages: int) -> ChatType:
     return [
         {
             "role": "system",
@@ -152,8 +153,8 @@ def _build_suffix(query: str, num_passages: int) -> dict[str, str]:
     }
 
 
-def _parse_response(response: str, num_passages: int) -> list[int]:
-    digits_str = "".join(char if char.isdigit() else " " for char in response)
+def _parse_completion(completion: str, num_passages: int) -> list[int]:
+    digits_str = "".join(char if char.isdigit() else " " for char in completion)
     digits = [int(char) - 1 for char in digits_str.strip().split()]
     unique_digits = list(dict.fromkeys(digits))
 
