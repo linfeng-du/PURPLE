@@ -1,6 +1,7 @@
 # Adapted from:
 #   https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/data/datasets.py
 #   https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/prompts/prompts.py
+#   https://github.com/LongLaMP-benchmark/LongLaMP-Benchmark/blob/main/longLaMP/prompts/prompts.py
 import json
 from pathlib import Path
 
@@ -11,9 +12,9 @@ def load_lamp_dataset(task: str, split: str) -> Dataset:
     dataset_dir = Path("data") / task / split
 
     if not dataset_dir.exists():
-        if task.startswith("LaMP"):
+        if task in {"LaMP-1", "LaMP-2", "LaMP-3", "LaMP-4", "LaMP-5", "LaMP-7"}:
             _prepare_lamp_dataset(task, split, dataset_dir)
-        elif task.startswith("LongLaMP"):
+        elif task in {"LongLaMP-2", "LongLaMP-3", "LongLaMP-4"}:
             _prepare_longlamp_dataset(task, split, dataset_dir)
         else:
             raise ValueError(f"Invalid task: {task}")
@@ -51,7 +52,7 @@ def _prepare_lamp_dataset(task: str, split: str, dataset_dir: Path) -> None:
     Dataset.from_list(examples).save_to_disk(dataset_dir)
 
 
-LONGLAMP_CONFIGS = {
+LONGLAMP_USER_SUBSETS = {
     "LongLaMP-2": "abstract_generation_user",
     "LongLaMP-3": "product_review_user",
     "LongLaMP-4": "topic_writing_user"
@@ -60,7 +61,7 @@ LONGLAMP_CONFIGS = {
 
 def _prepare_longlamp_dataset(task: str, split: str, dataset_dir: Path) -> None:
     dataset = load_dataset(
-        "LongLaMP/LongLaMP", name=LONGLAMP_CONFIGS[task], split=split
+        "LongLaMP/LongLaMP", name=LONGLAMP_USER_SUBSETS[task], split=split
     )
 
     query_corpus_fn = QUERY_CORPUS_FNS[task]
@@ -94,22 +95,35 @@ def _classification_citation_query_corpus_fn(
     return query, corpus
 
 
+def _extract_references(source: str) -> tuple[str, str]:
+    delimiter_1 = 'Just answer with [1] or [2] without explanation. [1]: "'
+    delimiter_2 = '" [2]: "'
+
+    index_1 = source.find(delimiter_1)
+    index_2 = source.find(delimiter_2)
+    assert index_1 != -1 and index_2 != -1 and source.endswith('"')
+
+    reference_1 = source[index_1 + len(delimiter_1) : index_2]
+    reference_2 = source[index_2 + len(delimiter_2) : -1]
+    return reference_1, reference_2
+
+
 # [LaMP-2] Personalized Movie Tagging
-def _classification_movies_query_corpus_fn(
+def _classification_movie_query_corpus_fn(
     source: str,
     profile: list[dict[str, str]]
 ) -> tuple[str, list[str]]:
-    query = _extract_string_after(source, "description: ")
+    query = _extract_after(source, "description: ")
     corpus = [rec["description"] for rec in profile]
     return query, corpus
 
 
 # [LaMP-3] Personalized Product Rating
-def _regression_review_query_corpus_fn(
+def _regression_rating_query_corpus_fn(
     source: str,
     profile: list[dict[str, str]]
 ) -> tuple[str, list[str]]:
-    query = _extract_string_after(source, "review: ")
+    query = _extract_after(source, "review: ")
     corpus = [rec["text"] for rec in profile]
     return query, corpus
 
@@ -119,17 +133,17 @@ def _generation_news_query_corpus_fn(
     source: str,
     profile: list[dict[str, str]]
 ) -> tuple[str, list[str]]:
-    query = _extract_string_after(source, "article: ")
+    query = _extract_after(source, "article: ")
     corpus = [f"{rec['title']} {rec['text']}" for rec in profile]
     return query, corpus
 
 
 # [LaMP-5] Personalized Scholarly Title Generation
-def _generation_paper_query_corpus_fn(
+def _generation_scholar_query_corpus_fn(
     source: str,
     profile: list[dict[str, str]]
 ) -> tuple[str, list[str]]:
-    query = _extract_string_after(source, "paper: ")
+    query = _extract_after(source, "paper: ")
     corpus = [f"{rec['title']} {rec['abstract']}" for rec in profile]
     return query, corpus
 
@@ -139,7 +153,7 @@ def _generation_tweet_query_corpus_fn(
     source: str,
     profile: list[dict[str, str]]
 ) -> tuple[str, list[str]]:
-    query = _extract_string_after(source, ": ")
+    query = _extract_after(source, ": ")
     corpus = [rec["text"] for rec in profile]
     return query, corpus
 
@@ -149,7 +163,7 @@ def _generation_abstract_query_corpus_fn(
     source: str,
     profile: list[dict[str, str]]
 ) -> tuple[str, list[str]]:
-    query = _extract_string_after(source, "items: ")
+    query = _extract_after(source, "items: ")
     corpus = [f"{rec['title']} {rec['abstract']}" for rec in profile]
     return query, corpus
 
@@ -178,33 +192,20 @@ def _generation_topic_query_corpus_fn(
     return source, corpus
 
 
+def _extract_after(source: str, delimiter: str) -> str:
+    index = source.find(delimiter)
+    assert index != -1
+    return source[index + len(delimiter):]
+
+
 QUERY_CORPUS_FNS = {
     "LaMP-1": _classification_citation_query_corpus_fn,
-    "LaMP-2": _classification_movies_query_corpus_fn,
-    "LaMP-3": _regression_review_query_corpus_fn,
+    "LaMP-2": _classification_movie_query_corpus_fn,
+    "LaMP-3": _regression_rating_query_corpus_fn,
     "LaMP-4": _generation_news_query_corpus_fn,
-    "LaMP-5": _generation_paper_query_corpus_fn,
+    "LaMP-5": _generation_scholar_query_corpus_fn,
     "LaMP-7": _generation_tweet_query_corpus_fn,
     "LongLaMP-2": _generation_abstract_query_corpus_fn,
     "LongLaMP-3": _generation_review_query_corpus_fn,
     "LongLaMP-4": _generation_topic_query_corpus_fn
 }
-
-
-def _extract_references(source: str) -> tuple[str, str]:
-    delimiter_1 = 'Just answer with [1] or [2] without explanation. [1]: "'
-    delimiter_2 = '" [2]: "'
-
-    index_1 = source.find(delimiter_1)
-    index_2 = source.find(delimiter_2)
-    assert index_1 != -1 and index_2 != -1 and source.endswith('"')
-
-    reference_1 = source[index_1 + len(delimiter_1) : index_2]
-    reference_2 = source[index_2 + len(delimiter_2) : -1]
-    return reference_1, reference_2
-
-
-def _extract_string_after(source: str, delimiter: str) -> str:
-    index = source.find(delimiter)
-    assert index != -1
-    return source[index + len(delimiter):]
