@@ -34,7 +34,7 @@ class Contriever:
         assert len(corpus) == len(profile) != 0
         num_retrieve = min(num_retrieve, len(profile))
 
-        query_emb = self._compute_sentence_embedding([query])
+        query_emb = self._compute_sentence_embeddings([query])
         scores = []
 
         for corpus_batch in [
