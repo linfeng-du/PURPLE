@@ -30,9 +30,9 @@ def create_retriever_fn(retriever: str, **kwargs: Any) -> RetrieverFn:
             BM25Okapi([doc.split() for doc in corpus])
             .get_top_n(query.split(), profile, n=num_retrieve)
         )
-            
+
     elif retriever == "contriever":
-        return Contriever(**kwargs)
+        return Contriever()
 
     elif retriever == "rank_gpt-llama3":
         return RankGPT("meta-llama/Meta-Llama-3-8B-Instruct", "hf", **kwargs)
