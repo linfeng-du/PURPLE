@@ -5,9 +5,7 @@ from transformers import AutoModel, AutoTokenizer
 
 class Contriever:
 
-    def __init__(self, return_logps: bool = False) -> None:
-        self.return_logps = return_logps
-
+    def __init__(self) -> None:
         self.tokenizer = AutoTokenizer.from_pretrained("facebook/contriever")
         self.contriever = AutoModel.from_pretrained("facebook/contriever")
         self.contriever.to("cuda" if torch.cuda.is_available() else "cpu")
