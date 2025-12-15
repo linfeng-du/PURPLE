@@ -3,12 +3,17 @@ from .in_context_reranker.in_context_reranker import InContextReranker
 
 class ICR:
 
-    def __init__(self, sliding_window_size: int = 10) -> None:
+    def __init__(
+        self,
+        sliding_window_size: int = 10,
+        sliding_window_stride: int = 5
+    ) -> None:
         self.icr = InContextReranker(
             "meta-llama/Meta-Llama-3-8B-Instruct",
             scoring_strategy="masked_NA_calibration",
             retrieval_type="IE",
-            sliding_window_size=sliding_window_size
+            sliding_window_size=sliding_window_size,
+            sliding_window_stride=sliding_window_stride
         )
 
     def __call__(
