@@ -51,7 +51,10 @@ class Contriever:
         retrieved_profile = [profile[i] for i in indices]
         return retrieved_profile, logps
 
-    def _compute_sentence_embedding(self, sentences: list[str]) -> torch.Tensor:
+    def _compute_sentence_embeddings(
+        self,
+        sentences: list[str]
+    ) -> torch.Tensor:
         inputs = self.tokenizer(
             sentences, padding=True, truncation=True, return_tensors="pt"
         )
