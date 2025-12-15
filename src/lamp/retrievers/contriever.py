@@ -13,14 +13,26 @@ class Contriever:
         self.contriever.to("cuda" if torch.cuda.is_available() else "cpu")
         self.contriever.eval()
 
-    @torch.no_grad()
     def __call__(
         self,
         query: str,
         corpus: list[str],
         profile: list[dict[str, str]],
         num_retrieve: int
-    ) -> list[dict[str, str]] | tuple[list[dict[str, str]], torch.Tensor]:
+    ) -> list[dict[str, str]]:
+        retrieved_profile, _ = self.retrieve_with_logps(
+            query, corpus, profile, num_retrieve
+        )
+        return retrieved_profile
+
+    @torch.no_grad()
+    def retrieve_with_logps(
+        self,
+        query: str,
+        corpus: list[str],
+        profile: list[dict[str, str]],
+        num_retrieve: int
+    ) -> tuple[list[dict[str, str]], torch.Tensor]:
         assert len(corpus) == len(profile) != 0
         num_retrieve = min(num_retrieve, len(profile))
 
@@ -36,13 +48,10 @@ class Contriever:
 
         scores = torch.cat(scores)
         logits, indices = scores.topk(num_retrieve)
+
+        logps = logits.log_softmax(dim=-1)
         retrieved_profile = [profile[i] for i in indices]
-
-        if self.return_logps:
-            logps = logits.log_softmax(dim=-1)
-            return retrieved_profile, logps
-
-        return retrieved_profile
+        return retrieved_profile, logps
 
     def _compute_sentence_embedding(self, sentences: list[str]) -> torch.Tensor:
         inputs = self.tokenizer(

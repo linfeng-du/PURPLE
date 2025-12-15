@@ -1,7 +1,6 @@
 import random
 from typing import Any, Callable, TypeAlias
 
-import torch
 from rank_bm25 import BM25Okapi
 
 from .contriever import Contriever
@@ -11,7 +10,7 @@ from .rank_gpt import RankGPT
 
 RetrieverFn: TypeAlias = Callable[
     [str | None, list[str] | None, list[dict[str, str]], int],
-    list[dict[str, str]] | tuple[list[dict[str, str]], torch.Tensor]
+    list[dict[str, str]]
 ]
 
 
