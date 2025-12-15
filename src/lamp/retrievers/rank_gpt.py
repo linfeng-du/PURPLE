@@ -108,7 +108,7 @@ def _build_chat(
     corpus: list[str],
     max_passage_length: int
 ) -> ChatType:
-    chat = _build_prefix(query, len(corpus))
+    chat = _build_chat_prefix(query, len(corpus))
 
     for index, passage in enumerate(corpus, start=1):
         passage = " ".join(passage.strip().split()[:max_passage_length])
@@ -117,11 +117,11 @@ def _build_chat(
             {"role": "assistant", "content": f"Received passage [{index}]."}
         ])
 
-    chat.append(_build_suffix(query, len(corpus)))
+    chat.append(_build_chat_suffix(query, len(corpus)))
     return chat
 
 
-def _build_prefix(query: str, num_passages: int) -> ChatType:
+def _build_chat_prefix(query: str, num_passages: int) -> ChatType:
     return [
         {
             "role": "system",
@@ -142,7 +142,7 @@ def _build_prefix(query: str, num_passages: int) -> ChatType:
     ]
 
 
-def _build_suffix(query: str, num_passages: int) -> dict[str, str]:
+def _build_chat_suffix(query: str, num_passages: int) -> dict[str, str]:
     return {
         "role": "user",
         "content": (
@@ -159,10 +159,11 @@ def _build_suffix(query: str, num_passages: int) -> dict[str, str]:
 
 
 def _parse_completion(completion: str, num_passages: int) -> list[int]:
-    digits_str = "".join(char if char.isdigit() else " " for char in completion)
-    digits = [int(char) - 1 for char in digits_str.strip().split()]
-    unique_digits = list(dict.fromkeys(digits))
+    digits = "".join(char if char.isdigit() else " " for char in completion)
+    indices = list(
+        dict.fromkeys([int(char) - 1 for char in digits.strip().split()])
+    )
 
-    ordering = [idx for idx in unique_digits if idx in range(num_passages)]
-    ordering += [idx for idx in range(num_passages) if idx not in unique_digits]
+    ordering = [i for i in indices if i in range(num_passages)]
+    ordering += [i for i in range(num_passages) if i not in indices]
     return ordering
