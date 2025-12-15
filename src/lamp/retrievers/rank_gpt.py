@@ -34,6 +34,11 @@ class RankGPT:
                 device_map="auto",
                 torch_dtype="bfloat16"
             )
+
+            if self.pipeline.model.generation_config.pad_token_id is None:
+                self.pipeline.model.generation_config.pad_token_id = (
+                    self.pipeline.tokenizer.eos_token_id
+                )
         elif self.backend == "openai":
             self.client = OpenAI()
         else:
@@ -62,13 +67,13 @@ class RankGPT:
             if self.backend == "hf":
                 outputs = self.pipeline(
                     chat,
+                    return_full_text=False,
                     max_new_tokens=256,
                     do_sample=False,
                     temperature=None,
-                    top_p=None,
-                    pad_token_id=self.pipeline.tokenizer.eos_token_id
+                    top_p=None
                 )
-                completion = outputs[0]["generated_text"][-1]["content"]
+                completion = outputs[0]["generated_text"]
 
             elif self.backend == "openai":
                 completion = None
@@ -84,10 +89,10 @@ class RankGPT:
                         num_retries += 1
 
                         if num_retries > 10:
-                            raise err
+                            raise
 
-                        logger.error(f"OpenAI API error: {err}", exc_info=True)
-                        time.sleep(num_retries ** 2)
+                        logger.warning(f"Retrying ({num_retries}/10). {err}")
+                        time.sleep(min(2 ** num_retries, 60))
 
             ordering = _parse_completion(completion, end - start)
             corpus[start:end] = [corpus[start:end][idx] for idx in ordering]
