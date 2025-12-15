@@ -55,7 +55,7 @@ def _create_classification_metric_fn(
 ) -> MetricFn:
     accuracy_metric = evaluate.load("accuracy")
     f1_metric = evaluate.load("f1")
-    label_to_index = {l: idx for idx, l in enumerate(labels)}
+    label_to_index = {l: i for i, l in enumerate(labels)}
 
     def classification_metric_fn(
         predictions: list[str],
@@ -97,13 +97,14 @@ def _create_regression_metric_fn(
     min_value = min(float(l) for l in labels)
     max_value = max(float(l) for l in labels)
 
-    def map_to_float(prediction: str, reference: str) -> float:
+    def to_float(prediction: str, reference: str) -> float:
         try:
             return float(prediction)
         except ValueError:
             reference = float(reference)
 
-            if abs(min_value - reference) > abs(max_value - reference):
+            # Map to the most distant label value
+            if abs(reference - min_value) > abs(reference - max_value):
                 return min_value
             else:
                 return max_value
@@ -112,9 +113,7 @@ def _create_regression_metric_fn(
         predictions: list[str],
         references: list[str]
     ) -> dict[str, float | list[float]]:
-        predictions = [
-            map_to_float(p, r) for p, r in zip(predictions, references)
-        ]
+        predictions = [to_float(p, r) for p, r in zip(predictions, references)]
         references = [float(r) for r in references]
 
         if aggregate:
@@ -126,8 +125,8 @@ def _create_regression_metric_fn(
             )
             return {"mae": mae_results["mae"], "rmse": mse_results["mse"]}
         else:
-            abs_error = [abs(p - r) for p, r in zip(predictions, references)]
-            return {"abs_error": abs_error}
+            error = [abs(p - r) for p, r in zip(predictions, references)]
+            return {"error": error}
 
     return regression_metric_fn
 
