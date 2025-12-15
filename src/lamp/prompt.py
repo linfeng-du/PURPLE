@@ -6,7 +6,7 @@ from typing import Callable, TypeAlias
 
 from transformers import PreTrainedTokenizerBase
 
-from .retrievers import get_retriever_fn
+from .retrievers import create_retriever_fn
 
 
 logger = logging.getLogger(__name__)
@@ -27,7 +27,7 @@ def create_prompt_fn(
     factor: float = 0.6,
     return_retrieved: bool = False
 ) -> PromptGenerator:
-    retriever_fn = get_retriever_fn(retriever)
+    retriever_fn = create_retriever_fn(retriever)
     prompt_fn = PROMPT_FNS[task]
 
     def retrieval_augmented_prompt_fn(

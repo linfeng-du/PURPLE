@@ -14,7 +14,7 @@ RetrieverFn: TypeAlias = Callable[
 ]
 
 
-def get_retriever_fn(retriever: str, **kwargs: Any) -> RetrieverFn:
+def create_retriever_fn(retriever: str, **kwargs: Any) -> RetrieverFn:
     if retriever == "first_k":
         return lambda _query, _corpus, profile, num_retrieve: (
             profile[:num_retrieve]
