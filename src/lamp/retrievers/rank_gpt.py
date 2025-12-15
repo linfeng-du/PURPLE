@@ -16,15 +16,15 @@ class RankGPT:
         self,
         model: str,
         backend: str,
-        window_size: int = 20,
-        window_stride: int = 10,
+        sliding_window_size: int = 20,
+        sliding_window_stride: int = 10,
         max_passage_length: int = 300
     ) -> None:
         self.model = model
         self.backend = backend
 
-        self.window_size = window_size
-        self.window_stride = window_stride
+        self.sliding_window_size = sliding_window_size
+        self.sliding_window_stride = sliding_window_stride
         self.max_passage_length = max_passage_length
 
         if self.backend == "hf":
@@ -59,7 +59,7 @@ class RankGPT:
         end = len(profile)
 
         while end > 0:
-            start = max(0, end - self.window_size)
+            start = max(0, end - self.sliding_window_size)
             chat = _build_chat(
                 query, corpus[start:end], self.max_passage_length
             )
@@ -98,7 +98,7 @@ class RankGPT:
             corpus[start:end] = [corpus[start:end][idx] for idx in ordering]
             ranking[start:end] = [ranking[start:end][idx] for idx in ordering]
 
-            end -= self.window_stride
+            end -= self.sliding_window_stride
 
         return [profile[idx] for idx in ranking[:num_retrieve]]
 
