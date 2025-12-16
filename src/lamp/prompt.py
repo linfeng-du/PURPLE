@@ -17,7 +17,6 @@ PromptFn = Callable[
 ]
 
 
-
 def create_prompt_fn(
     task: str,
     retriever: str,
@@ -52,7 +51,7 @@ def create_prompt_fn(
                 local_factor -= 0.1
 
                 if local_factor < 0:
-                    logger.warning(f"Returning source as is")
+                    logger.warning("Returning source as is")
                     return source
 
     return retrieval_augmented_prompt_fn
