@@ -12,7 +12,7 @@ from .retrievers import create_retriever_fn
 logger = logging.getLogger(__name__)
 
 
-PromptGenerator: TypeAlias = Callable[
+PromptFn: TypeAlias = Callable[
     [str, list[dict[str, str]], str | None, list[str] | None], str
 ]
 
@@ -24,7 +24,7 @@ def create_prompt_fn(
     max_prompt_length: int,
     tokenizer: PreTrainedTokenizerBase,
     factor: float = 0.6
-) -> PromptGenerator:
+) -> PromptFn:
     retriever_fn = create_retriever_fn(retriever)
     prompt_fn = PROMPT_FNS[task]
 
