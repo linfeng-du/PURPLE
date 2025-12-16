@@ -6,6 +6,7 @@ from types import MappingProxyType
 from collections.abc import Callable
 
 import evaluate
+import numpy as np
 
 
 MetricFn = Callable[[list[str], list[str]], dict[str, float | list[float]]]
@@ -133,6 +134,14 @@ def _create_generation_metric_fn(aggregate: bool) -> MetricFn:
     rouge_metric = evaluate.load("rouge")
     meteor_metric = evaluate.load("meteor")
 
+    def to_float(
+        result: float | np.float64 | list[float] | list[np.float64]
+    ) -> float | list[float]:
+        if isinstance(result, list):
+            return [float(r) for r in result]
+
+        return float(result)
+
     def generation_metric_fn(
         predictions: list[str],
         references: list[str]
@@ -159,9 +168,9 @@ def _create_generation_metric_fn(aggregate: bool) -> MetricFn:
             meteor_results = {"meteor": meteor}
 
         return {
-            "rouge-1": rouge_results["rouge1"],
-            "rouge-L": rouge_results["rougeL"],
-            "meteor": meteor_results["meteor"]
+            "rouge-1": to_float(rouge_results["rouge1"]),
+            "rouge-L": to_float(rouge_results["rougeL"]),
+            "meteor": to_float(meteor_results["meteor"])
         }
 
     return generation_metric_fn
