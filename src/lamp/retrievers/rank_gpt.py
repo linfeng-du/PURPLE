@@ -60,13 +60,13 @@ class RankGPT:
 
         while end > 0:
             start = max(0, end - self.sliding_window_size)
-            chat = _build_chat(
+            messages = _build_messages(
                 query, corpus[start:end], self.max_passage_length
             )
 
             if self.backend == "hf":
                 outputs = self.pipeline(
-                    chat,
+                    messages,
                     return_full_text=False,
                     max_new_tokens=256,
                     do_sample=False,
@@ -82,7 +82,7 @@ class RankGPT:
                 while completion is None:
                     try:
                         outputs = self.client.chat.completions.create(
-                            messages=chat, model=self.model
+                            messages=messages, model=self.model
                         )
                         completion = outputs.choices[0].message.content
                     except OpenAIError as err:
@@ -103,25 +103,25 @@ class RankGPT:
         return [profile[idx] for idx in ranking[:num_retrieve]]
 
 
-def _build_chat(
+def _build_messages(
     query: str,
     corpus: list[str],
     max_passage_length: int
 ) -> ChatType:
-    chat = _build_chat_prefix(query, len(corpus))
+    messages = _build_prefix_messages(query, len(corpus))
 
     for index, passage in enumerate(corpus, start=1):
         passage = " ".join(passage.strip().split()[:max_passage_length])
-        chat.extend([
+        messages.extend([
             {"role": "user", "content": f"[{index}] {passage}"},
             {"role": "assistant", "content": f"Received passage [{index}]."}
         ])
 
-    chat.append(_build_chat_suffix(query, len(corpus)))
-    return chat
+    messages.extend(_build_suffix_messages(query, len(corpus)))
+    return messages
 
 
-def _build_chat_prefix(query: str, num_passages: int) -> ChatType:
+def _build_prefix_messages(query: str, num_passages: int) -> ChatType:
     return [
         {
             "role": "system",
@@ -142,20 +142,23 @@ def _build_chat_prefix(query: str, num_passages: int) -> ChatType:
     ]
 
 
-def _build_chat_suffix(query: str, num_passages: int) -> dict[str, str]:
-    return {
-        "role": "user",
-        "content": (
-            f"Search Query: {query}. \n"
-            f"Rank the {num_passages} passages above "
-            "based on their relevance to the search query. "
-            "The passages should be listed "
-            "in descending order using identifiers. "
-            "The most relevant passages should be listed first. "
-            "The output format should be [] > [], e.g., [1] > [2]. "
-            "Only response the ranking results, do not say any word or explain."
-        )
-    }
+def _build_suffix_messages(query: str, num_passages: int) -> ChatType:
+    return [
+        {
+            "role": "user",
+            "content": (
+                f"Search Query: {query}. \n"
+                f"Rank the {num_passages} passages above "
+                "based on their relevance to the search query. "
+                "The passages should be listed "
+                "in descending order using identifiers. "
+                "The most relevant passages should be listed first. "
+                "The output format should be [] > [], e.g., [1] > [2]. "
+                "Only response the ranking results, "
+                "do not say any word or explain."
+            )
+        }
+    ]
 
 
 def _parse_completion(completion: str, num_passages: int) -> list[int]:
