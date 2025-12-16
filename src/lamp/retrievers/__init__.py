@@ -1,5 +1,6 @@
 import random
-from typing import Any, Callable, TypeAlias
+from collections.abc import Callable
+from typing import Any
 
 from rank_bm25 import BM25Okapi
 
@@ -8,28 +9,21 @@ from .icr import ICR
 from .rank_gpt import RankGPT
 
 
-RetrieverFn: TypeAlias = Callable[
-    [str | None, list[str] | None, list[dict[str, str]], int],
-    list[dict[str, str]]
-]
+RetrieverFn = (
+    Callable[[str, list[str], list[dict[str, str]], int], list[dict[str, str]]]
+    | Callable[[None, None, list[dict[str, str]], int], list[dict[str, str]]]
+)
 
 
 def create_retriever_fn(retriever: str, **kwargs: Any) -> RetrieverFn:
     if retriever == "first_k":
-        return lambda _query, _corpus, profile, num_retrieve: (
-            profile[:num_retrieve]
-        )
+        return _first_k_retriever
 
     elif retriever == "random":
-        return lambda _query, _corpus, profile, num_retrieve: (
-            random.sample(profile, min(num_retrieve, len(profile)))
-        )
+        return _random_retriever
 
     elif retriever == "bm25":
-        return lambda query, corpus, profile, num_retrieve: (
-            BM25Okapi([doc.split() for doc in corpus])
-            .get_top_n(query.split(), profile, n=num_retrieve)
-        )
+        return _bm25_retriever
 
     elif retriever == "contriever":
         return Contriever()
@@ -45,3 +39,37 @@ def create_retriever_fn(retriever: str, **kwargs: Any) -> RetrieverFn:
 
     else:
         raise ValueError(f"Invalid retriever: {retriever}")
+
+
+def _first_k_retriever(
+    _query: None,
+    _corpus: None,
+    profile: list[dict[str, str]],
+    num_retrieve: int
+) -> list[dict[str, str]]:
+    assert profile
+    num_retrieve = min(num_retrieve, len(profile))
+    return profile[:num_retrieve]
+
+
+def _random_retriever(
+    _query: None,
+    _corpus: None,
+    profile: list[dict[str, str]],
+    num_retrieve: int
+) -> list[dict[str, str]]:
+    assert profile
+    num_retrieve = min(num_retrieve, len(profile))
+    return random.sample(profile, num_retrieve)
+
+
+def _bm25_retriever(
+    query: str,
+    corpus: list[str],
+    profile: list[dict[str, str]],
+    num_retrieve: int
+) -> list[dict[str, str]]:
+    assert len(corpus) == len(profile) != 0
+    num_retrieve = min(num_retrieve, len(profile))
+    bm25 = BM25Okapi([doc.split() for doc in corpus])
+    return bm25.get_top_n(query.split(), profile, n=num_retrieve)

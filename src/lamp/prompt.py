@@ -2,7 +2,7 @@
 #   https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/prompts/prompts.py
 #   https://github.com/LongLaMP-benchmark/LongLaMP-Benchmark/blob/main/longLaMP/prompts/prompts.py
 import logging
-from typing import Callable, TypeAlias
+from collections.abc import Callable
 
 from transformers import PreTrainedTokenizerBase
 
@@ -12,9 +12,10 @@ from .retrievers import create_retriever_fn
 logger = logging.getLogger(__name__)
 
 
-PromptFn: TypeAlias = Callable[
+PromptFn = Callable[
     [str, list[dict[str, str]], str | None, list[str] | None], str
 ]
+
 
 
 def create_prompt_fn(
@@ -31,8 +32,8 @@ def create_prompt_fn(
     def retrieval_augmented_prompt_fn(
         source: str,
         profile: list[dict[str, str]],
-        query: str | None = None,
-        corpus: list[str] | None = None
+        query: str | None,
+        corpus: list[str] | None
     ) -> str:
         local_factor = factor
         retrieved_profile = retriever_fn(query, corpus, profile, num_retrieve)
@@ -85,6 +86,7 @@ def _classification_citation_prompt_fn(
         )
 
     index = source.find("title")
+    assert index != -1
     return (
         f"{source[:index + 5]}, and {', and '.join(prompts)}"
         f"{source[index + 5:]}"

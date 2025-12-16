@@ -3,14 +3,12 @@
 #   https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/metrics/classification_metrics.py
 #   https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/metrics/generation_metrics.py
 from types import MappingProxyType
-from typing import Callable, TypeAlias
+from collections.abc import Callable
 
 import evaluate
 
 
-MetricFn: TypeAlias = Callable[
-    [list[str], list[str]], dict[str, float | list[float]]
-]
+MetricFn = Callable[[list[str], list[str]], dict[str, float | list[float]]]
 
 
 LABELS = MappingProxyType({
