@@ -12,9 +12,7 @@ from .retrievers import create_retriever_fn
 logger = logging.getLogger(__name__)
 
 
-PromptFn = Callable[
-    [str, list[dict[str, str]], str | None, list[str] | None], str
-]
+PromptFn = Callable[[str, list[dict[str, str]], str, list[str]], str]
 
 
 def create_prompt_fn(
@@ -31,8 +29,8 @@ def create_prompt_fn(
     def retrieval_augmented_prompt_fn(
         source: str,
         profile: list[dict[str, str]],
-        query: str | None,
-        corpus: list[str] | None
+        query: str,
+        corpus: list[str]
     ) -> str:
         local_factor = factor
         retrieved_profile = retriever_fn(query, corpus, profile, num_retrieve)
