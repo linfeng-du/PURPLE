@@ -1,7 +1,7 @@
 model: meta-llama/Meta-Llama-3-70B-Instruct
-provider: vllm
+backend: vllm
 endpoint: ???
-generate_config:
+generation_kwargs:
   max_completion_tokens: 256
   temperature: 0.7
   top_p: 0.8

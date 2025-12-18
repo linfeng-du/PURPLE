@@ -1,7 +1,6 @@
-model: meta-llama/Meta-Llama-3-8B-Instruct
-provider: local
-endpoint: null
-generate_config:
+model: microsoft/Phi-4-mini-instruct
+backend: hf
+generation_kwargs:
   batch_size: 4
   max_new_tokens: 256
   do_sample: true

@@ -1,24 +1,23 @@
 defaults:
-  - base
+  - baseline
   - _self_
 
-preprocessor:
-  max_num_profiles: -1  # Maximum number of profiles to use per question (-1 to use all)
+retriever: purple
+resume: false
+
+preprocess_fn:
   max_query_length: 512
   max_document_length: 512
 
 score_model:
   encoder_model: facebook/contriever
-  fuse_mode: cross_attn  # Strategy for query-document fusion (concat_hidden, concat_token, cross_attn)
-  num_layers: 12         # Number of document Transformer layers
+  fuse_mode: cross_attn
+  num_transformer_layers: 12
   decoder_hidden_size: 256
 
 reinforce:
-  num_samples: 32  # Number of samples, each contains `num_rerank` profiles
-  reward: logp     # Type of reward (metric, logp)
-
-wandb_mode: offline
-from_pretrained: false
+  num_samples: 32
+  reward: logp
 
 num_epochs: 10
 batch_size: 16

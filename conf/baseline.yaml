@@ -1,5 +1,27 @@
 defaults:
-  - base
+  - llm: phi4-mini-instruct
   - _self_
 
-reranker: ???
+hydra:
+  run:
+    dir: ${run_dir}
+
+run_name: >-
+  ${hydra.runtime.choices.llm}/
+  ${candidate_retriever}-${num_candidates}/${retriever}-${num_retrieve}/${task}
+run_dir: ./outputs/${run_name}/${now:%Y-%m-%d_%H-%M-%S_%f}
+
+task: ???
+retriever: ???
+num_retrieve: 5
+
+prompt_fn:
+  task: ${task}
+  retriever: ${retriever}
+  num_retrieve: ${num_retrieve}
+  max_prompt_length: 2048
+
+candidate_retriever: contriever
+num_candidates: 20
+
+seed: 42
