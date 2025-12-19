@@ -6,7 +6,7 @@ from collections.abc import Callable
 
 from transformers import PreTrainedTokenizerBase
 
-from .retrievers import create_retriever_fn
+from .retrieval import create_retriever_fn
 
 
 logger = logging.getLogger(__name__)
