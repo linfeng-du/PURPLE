@@ -1,8 +1,46 @@
-# Adapted from: https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/prompts/contriever_retriever.py
+import random
+
+from rank_bm25 import BM25Okapi
+
 import torch
 from transformers import AutoModel, AutoTokenizer
 
 
+def first_k_retriever(
+    _query: str,
+    _corpus: list[str],
+    profile: list[dict[str, str]],
+    num_retrieve: int
+) -> list[dict[str, str]]:
+    assert profile
+    num_retrieve = min(num_retrieve, len(profile))
+    return profile[:num_retrieve]
+
+
+def random_retriever(
+    _query: str,
+    _corpus: list[str],
+    profile: list[dict[str, str]],
+    num_retrieve: int
+) -> list[dict[str, str]]:
+    assert profile
+    num_retrieve = min(num_retrieve, len(profile))
+    return random.sample(profile, num_retrieve)
+
+
+def bm25_retriever(
+    query: str,
+    corpus: list[str],
+    profile: list[dict[str, str]],
+    num_retrieve: int
+) -> list[dict[str, str]]:
+    assert len(corpus) == len(profile) != 0
+    num_retrieve = min(num_retrieve, len(profile))
+    bm25 = BM25Okapi([doc.split() for doc in corpus])
+    return bm25.get_top_n(query.split(), profile, n=num_retrieve)
+
+
+# Adapted from: https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/prompts/contriever_retriever.py
 class Contriever:
 
     def __init__(self) -> None:

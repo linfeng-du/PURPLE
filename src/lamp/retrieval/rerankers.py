@@ -1,4 +1,3 @@
-# Adapted from: https://github.com/sunnweiwei/RankGPT/blob/main/rank_gpt.py
 import logging
 import time
 
@@ -6,10 +5,13 @@ from openai import OpenAI, OpenAIError
 from transformers import pipeline
 from transformers.pipelines.text_generation import ChatType
 
+from .in_context_reranker.in_context_reranker import InContextReranker
+
 
 logger = logging.getLogger(__name__)
 
 
+# Adapted from: https://github.com/sunnweiwei/RankGPT/blob/main/rank_gpt.py
 class RankGPT:
 
     def __init__(
@@ -170,3 +172,33 @@ def _parse_completion(completion: str, num_passages: int) -> list[int]:
     ordering = [i for i in indices if i in range(num_passages)]
     ordering += [i for i in range(num_passages) if i not in indices]
     return ordering
+
+
+class ICR:
+
+    def __init__(
+        self,
+        sliding_window_size: int = 10,
+        sliding_window_stride: int = 5
+    ) -> None:
+        self.icr = InContextReranker(
+            "meta-llama/Meta-Llama-3-8B-Instruct",
+            scoring_strategy="masked_NA_calibration",
+            retrieval_type="IE",
+            sliding_window_size=sliding_window_size,
+            sliding_window_stride=sliding_window_stride
+        )
+
+    def __call__(
+        self,
+        query: str,
+        corpus: list[str],
+        profile: list[dict[str, str]],
+        num_retrieve: int
+    ) -> list[dict[str, str]]:
+        assert len(corpus) == len(profile) != 0
+        num_retrieve = min(num_retrieve, len(profile))
+
+        corpus = [doc.strip() for doc in corpus]
+        (ranking, _), _ = self.icr.rerank(query, corpus)
+        return [profile[idx] for idx in ranking[:num_retrieve]]
