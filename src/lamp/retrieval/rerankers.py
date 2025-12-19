@@ -53,7 +53,7 @@ class RankGPT:
         profile: list[dict[str, str]],
         num_retrieve: int
     ) -> list[dict[str, str]]:
-        assert len(corpus) == len(profile) != 0
+        assert len(corpus) == len(profile) > 0
         num_retrieve = min(num_retrieve, len(profile))
 
         corpus = corpus.copy()
@@ -165,12 +165,11 @@ def _build_suffix_messages(query: str, num_passages: int) -> ChatType:
 
 def _parse_completion(completion: str, num_passages: int) -> list[int]:
     digits = "".join(char if char.isdigit() else " " for char in completion)
-    indices = list(
-        dict.fromkeys([int(char) - 1 for char in digits.strip().split()])
-    )
+    indices = [int(char) - 1 for char in digits.strip().split()]
+    unique_indices = list(dict.fromkeys(indices))
 
-    ordering = [i for i in indices if i in range(num_passages)]
-    ordering += [i for i in range(num_passages) if i not in indices]
+    ordering = [i for i in unique_indices if i in range(num_passages)]
+    ordering += [i for i in range(num_passages) if i not in unique_indices]
     return ordering
 
 
@@ -196,7 +195,7 @@ class ICR:
         profile: list[dict[str, str]],
         num_retrieve: int
     ) -> list[dict[str, str]]:
-        assert len(corpus) == len(profile) != 0
+        assert len(corpus) == len(profile) > 0
         num_retrieve = min(num_retrieve, len(profile))
 
         corpus = [doc.strip() for doc in corpus]
