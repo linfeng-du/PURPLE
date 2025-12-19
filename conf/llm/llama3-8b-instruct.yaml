@@ -1,5 +1,6 @@
 model: meta-llama/Meta-Llama-3-8B-Instruct
 backend: hf
+authority: null
 generation_kwargs:
   batch_size: 4
   max_new_tokens: 256

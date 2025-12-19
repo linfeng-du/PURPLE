@@ -1,5 +1,6 @@
 model: microsoft/Phi-4-mini-instruct
 backend: hf
+authority: null
 generation_kwargs:
   batch_size: 4
   max_new_tokens: 256
