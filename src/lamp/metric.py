@@ -79,7 +79,8 @@ def _create_classification_metric_fn(
             }
         else:
             correctness = [
-                float(p == r) for p, r in zip(predictions, references)
+                float(p == r)
+                for p, r in zip(predictions, references, strict=True)
             ]
             return {"correctness": correctness}
 
@@ -112,7 +113,9 @@ def _create_regression_metric_fn(
         predictions: list[str],
         references: list[str]
     ) -> dict[str, float | list[float]]:
-        predictions = [to_float(p, r) for p, r in zip(predictions, references)]
+        predictions = [
+            to_float(p, r) for p, r in zip(predictions, references, strict=True)
+        ]
         references = [float(r) for r in references]
 
         if aggregate:
@@ -124,7 +127,9 @@ def _create_regression_metric_fn(
             )
             return {"mae": mae_results["mae"], "rmse": mse_results["mse"]}
         else:
-            error = [abs(p - r) for p, r in zip(predictions, references)]
+            error = [
+                abs(p - r) for p, r in zip(predictions, references, strict=True)
+            ]
             return {"error": error}
 
     return regression_metric_fn
@@ -163,7 +168,7 @@ def _create_generation_metric_fn(aggregate: bool) -> MetricFn:
         else:
             meteor = [
                 meteor_metric.compute(predictions=[p], references=[r])["meteor"]
-                for p, r in zip(predictions, references)
+                for p, r in zip(predictions, references, strict=True)
             ]
             meteor_results = {"meteor": meteor}
 
