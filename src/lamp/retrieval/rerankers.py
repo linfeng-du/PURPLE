@@ -2,6 +2,7 @@ import logging
 import time
 
 from openai import OpenAI, OpenAIError
+
 from transformers import pipeline
 from transformers.pipelines.text_generation import ChatType
 
