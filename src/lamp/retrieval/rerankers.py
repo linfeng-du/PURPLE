@@ -138,7 +138,8 @@ def _build_prefix_messages(query: str, num_passages: int) -> ChatType:
             "content": (
                 f"I will provide you with {num_passages} passages, "
                 "each indicated by number identifier []. \n"
-                f"Rank the passages based on their relevance to query: {query}."
+                "Rank the passages "
+                f"based on their relevance to query: {query}."
             )
         },
         {"role": "assistant", "content": "Okay, please provide the passages."}

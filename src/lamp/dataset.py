@@ -12,7 +12,9 @@ def load_lamp_dataset(task: str, split: str) -> Dataset:
     dataset_dir = Path("data") / task / split
 
     if not dataset_dir.exists():
-        if task in {"LaMP-1", "LaMP-2", "LaMP-3", "LaMP-4", "LaMP-5", "LaMP-7"}:
+        if task in {
+            "LaMP-1", "LaMP-2", "LaMP-3", "LaMP-4", "LaMP-5", "LaMP-7"
+        }:
             _prepare_lamp_dataset(task, split, dataset_dir)
         elif task in {"LongLaMP-2", "LongLaMP-3", "LongLaMP-4"}:
             _prepare_longlamp_dataset(task, split, dataset_dir)
@@ -59,7 +61,11 @@ LONGLAMP_USER_SUBSETS = {
 }
 
 
-def _prepare_longlamp_dataset(task: str, split: str, dataset_dir: Path) -> None:
+def _prepare_longlamp_dataset(
+    task: str,
+    split: str,
+    dataset_dir: Path
+) -> None:
     dataset = load_dataset(
         "LongLaMP/LongLaMP", name=LONGLAMP_USER_SUBSETS[task], split=split
     )

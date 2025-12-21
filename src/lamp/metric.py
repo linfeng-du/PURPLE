@@ -114,7 +114,8 @@ def _create_regression_metric_fn(
         references: list[str]
     ) -> dict[str, float | list[float]]:
         predictions = [
-            to_float(p, r) for p, r in zip(predictions, references, strict=True)
+            to_float(p, r)
+            for p, r in zip(predictions, references, strict=True)
         ]
         references = [float(r) for r in references]
 
@@ -128,7 +129,8 @@ def _create_regression_metric_fn(
             return {"mae": mae_results["mae"], "rmse": mse_results["mse"]}
         else:
             error = [
-                abs(p - r) for p, r in zip(predictions, references, strict=True)
+                abs(p - r)
+                for p, r in zip(predictions, references, strict=True)
             ]
             return {"error": error}
 
@@ -167,7 +169,8 @@ def _create_generation_metric_fn(aggregate: bool) -> MetricFn:
             )
         else:
             meteor = [
-                meteor_metric.compute(predictions=[p], references=[r])["meteor"]
+                meteor_metric
+                .compute(predictions=[p], references=[r])["meteor"]
                 for p, r in zip(predictions, references, strict=True)
             ]
             meteor_results = {"meteor": meteor}
