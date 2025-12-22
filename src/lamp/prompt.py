@@ -275,7 +275,7 @@ def _generation_abstract_prompt_fn(
     prompts = []
 
     for record in profile:
-        # Truncate abstract to 750 words
+        # Extract first 750 words of abstract before truncation
         abstract, _ = _truncate_text(
             " ".join(record["abstract"].split()[:750]), max_length, tokenizer
         )
