@@ -332,11 +332,11 @@ def _truncate_text(
     max_length: int,
     tokenizer: PreTrainedTokenizerBase
 ) -> tuple[str, int]:
-    input_ids = tokenizer.encode(
+    text_ids = tokenizer.encode(
         text, add_special_tokens=False, truncation=True, max_length=max_length
     )
-    new_text = tokenizer.decode(input_ids, skip_special_tokens=True)
-    return new_text, len(input_ids)
+    new_text = tokenizer.decode(text_ids, skip_special_tokens=True)
+    return new_text, len(text_ids)
 
 
 PROMPT_FNS = {
