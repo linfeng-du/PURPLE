@@ -94,7 +94,9 @@ class RankGPT:
                         if num_retries > 10:
                             raise
 
-                        logger.warning(f"Retrying ({num_retries}/10). {err}")
+                        logger.warning(
+                            f"{err}\nRetrying {num_retries}/10..."
+                        )
                         time.sleep(min(2 ** num_retries, 60))
 
             ordering = _parse_completion(completion, end - start)
