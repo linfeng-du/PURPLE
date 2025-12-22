@@ -63,41 +63,14 @@ class RankGPT:
 
         while end > 0:
             start = max(0, end - self.sliding_window_size)
-            messages = _build_messages(
+            prompt = _build_prompt(
                 query, corpus[start:end], self.max_passage_length
             )
 
             if self.backend == "hf":
-                outputs = self.pipeline(
-                    messages,
-                    return_full_text=False,
-                    max_new_tokens=256,
-                    do_sample=False,
-                    temperature=None,
-                    top_p=None
-                )
-                completion = outputs[0]["generated_text"]
-
+                completion = self._generate_hf(prompt)
             elif self.backend == "openai":
-                completion = None
-                num_retries = 0
-
-                while completion is None:
-                    try:
-                        outputs = self.client.chat.completions.create(
-                            messages=messages, model=self.model
-                        )
-                        completion = outputs.choices[0].message.content
-                    except OpenAIError as err:
-                        num_retries += 1
-
-                        if num_retries > 10:
-                            raise
-
-                        logger.warning(
-                            f"{err}\nRetrying {num_retries}/10..."
-                        )
-                        time.sleep(min(2 ** num_retries, 60))
+                completion = self._generate_openai(prompt)
 
             ordering = _parse_completion(completion, end - start)
             corpus[start:end] = [corpus[start:end][idx] for idx in ordering]
@@ -107,26 +80,57 @@ class RankGPT:
 
         return [profile[idx] for idx in ranking[:num_retrieve]]
 
+    def _generate_hf(self, prompt: ChatType) -> str:
+        outputs = self.pipeline(
+            prompt,
+            return_full_text=False,
+            max_new_tokens=256,
+            do_sample=False,
+            temperature=None,
+            top_p=None
+        )
+        return outputs[0]["generated_text"]
 
-def _build_messages(
+    def _generate_openai(self, prompt: ChatType) -> str:
+        completion = None
+        num_retries = 0
+
+        while completion is None:
+            try:
+                outputs = self.client.chat.completions.create(
+                    messages=prompt, model=self.model
+                )
+                completion = outputs.choices[0].message.content
+            except OpenAIError as err:
+                num_retries += 1
+
+                if num_retries > 10:
+                    raise
+
+                logger.warning(f"{err}\nRetrying {num_retries}/10...")
+                time.sleep(min(2 ** num_retries, 60))
+
+        return completion
+
+
+def _build_prompt(
     query: str,
     corpus: list[str],
     max_passage_length: int
 ) -> ChatType:
-    messages = _build_prefix_messages(query, len(corpus))
+    prompt = _build_prompt_prefix(query, len(corpus))
 
     for index, passage in enumerate(corpus, start=1):
         passage = " ".join(passage.strip().split()[:max_passage_length])
-        messages.extend([
+        prompt.extend([
             {"role": "user", "content": f"[{index}] {passage}"},
             {"role": "assistant", "content": f"Received passage [{index}]."}
         ])
 
-    messages.extend(_build_suffix_messages(query, len(corpus)))
-    return messages
+    prompt.extend(_build_prompt_suffix(query, len(corpus)))
+    return prompt
 
-
-def _build_prefix_messages(query: str, num_passages: int) -> ChatType:
+def _build_prompt_prefix(query: str, num_passages: int) -> ChatType:
     return [
         {
             "role": "system",
@@ -148,7 +152,7 @@ def _build_prefix_messages(query: str, num_passages: int) -> ChatType:
     ]
 
 
-def _build_suffix_messages(query: str, num_passages: int) -> ChatType:
+def _build_prompt_suffix(query: str, num_passages: int) -> ChatType:
     return [
         {
             "role": "user",
