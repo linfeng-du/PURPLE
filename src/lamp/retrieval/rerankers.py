@@ -101,6 +101,7 @@ class RankGPT:
                     messages=prompt, model=self.model
                 )
                 completion = outputs.choices[0].message.content
+
             except OpenAIError as err:
                 num_retries += 1
 
