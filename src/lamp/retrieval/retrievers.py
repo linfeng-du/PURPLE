@@ -76,7 +76,7 @@ class Contriever:
         scores = []
 
         for corpus_batch in [
-            corpus[i:i+128] for i in range(0, len(corpus), 128)
+            corpus[i : i + 128] for i in range(0, len(corpus), 128)
         ]:
             corpus_embs = self._compute_sentence_embeddings(corpus_batch)
             scores_batch = (query_emb @ corpus_embs.T).squeeze(dim=0)
