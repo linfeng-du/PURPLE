@@ -2,8 +2,8 @@
 #   https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/data/datasets.py
 #   https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/metrics/classification_metrics.py
 #   https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/metrics/generation_metrics.py
-from types import MappingProxyType
 from collections.abc import Callable
+from types import MappingProxyType
 
 import evaluate
 import numpy as np
