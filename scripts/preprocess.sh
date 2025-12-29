@@ -4,7 +4,7 @@ sbatch_time='6:00:00'
 tasks="LaMP-1,LaMP-2,LaMP-3,LaMP-4,LaMP-5,LaMP-7,\
 LongLaMP-2,LongLaMP-3,LongLaMP-4"
 candidate_retrievers='bm25,contriever'
-num_candidates=20
+num_candidates='20'
 
 LONGOPTIONS='time:,tasks:,candidate_retrievers:,num_candidates:'
 TEMP=$(getopt --options '' --longoptions "${LONGOPTIONS}" --name "$0" -- "$@")
@@ -26,16 +26,16 @@ readarray -td ',' candidate_retrievers <<< "${candidate_retrievers}"
 
 for candidate_retriever in "${candidate_retrievers[@]}"; do
   for task in "${tasks[@]}"; do
-    job_name="preprocess/${candidate_retriever}/${task}"
+    job_name="preprocess/${candidate_retriever}-${num_candidates}/${task}"
     log_dir="outputs/slurm/${job_name}"
 
     wrap_cmds=(
       'source ~/.bashrc;'
       'activate purple;'
       'python src/preprocess.py'
-      "--task ${task}"
-      "--candidate_retriever ${candidate_retriever}"
-      "--num_candidates ${num_candidates}"
+      "--task=${task}"
+      "--candidate_retriever=${candidate_retriever}"
+      "--num_candidates=${num_candidates}"
     )
     wrap_cmd="${wrap_cmds[*]}"
 
