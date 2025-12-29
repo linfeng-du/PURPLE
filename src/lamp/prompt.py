@@ -6,7 +6,7 @@ from collections.abc import Callable
 
 from transformers import PreTrainedTokenizerBase
 
-from .retrieval import create_retriever_fn
+from .retrieval import create_retrieval_fn
 
 
 logger = logging.getLogger(__name__)
@@ -23,7 +23,7 @@ def create_prompt_fn(
     tokenizer: PreTrainedTokenizerBase,
     factor: float = 0.6
 ) -> PromptFn:
-    retriever_fn = create_retriever_fn(retriever)
+    retrieval_fn = create_retrieval_fn(retriever)
     prompt_fn = PROMPT_FNS[task]
 
     def retrieval_augmented_prompt_fn(
@@ -33,7 +33,7 @@ def create_prompt_fn(
         corpus: list[str]
     ) -> str:
         local_factor = factor
-        retrieved_profile = retriever_fn(query, corpus, profile, num_retrieve)
+        retrieved_profile = retrieval_fn(query, corpus, profile, num_retrieve)
         source_length = len(tokenizer.encode(source))
 
         while True:

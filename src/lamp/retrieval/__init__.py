@@ -2,12 +2,12 @@ from collections.abc import Callable
 from typing import Any
 
 
-RetrieverFn = Callable[
+RetrievalFn = Callable[
     [str, list[str], list[dict[str, str]], int], list[dict[str, str]]
 ]
 
 
-def create_retriever_fn(retriever: str, **kwargs: Any) -> RetrieverFn:
+def create_retrieval_fn(retriever: str, **kwargs: Any) -> RetrievalFn:
     if retriever == "first_k":
         from .retrievers import first_k_retriever
         return first_k_retriever
