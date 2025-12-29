@@ -21,8 +21,8 @@ while true; do
   esac
 done
 
-readarray -td ',' tasks <<< "${tasks}"
-readarray -td ',' candidate_retrievers <<< "${candidate_retrievers}"
+IFS=',' read -r -a tasks <<< "${tasks}"
+IFS=',' read -r -a candidate_retrievers <<< "${candidate_retrievers}"
 
 for candidate_retriever in "${candidate_retrievers[@]}"; do
   for task in "${tasks[@]}"; do

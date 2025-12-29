@@ -23,8 +23,8 @@ while true; do
   esac
 done
 
-readarray -td ',' tasks <<< "${tasks}"
-readarray -td ',' llms <<< "${llms}"
+IFS=',' read -r -a tasks <<< "${tasks}"
+IFS=',' read -r -a llms <<< "${llms}"
 
 for llm in "${llms[@]}"; do
   for task in "${tasks[@]}"; do
