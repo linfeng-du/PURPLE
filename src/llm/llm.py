@@ -3,7 +3,7 @@ from typing import Any
 import torch
 from transformers.pipelines.text_generation import ChatType
 
-from lamp.metric import LABELS
+from lamp import LABELS
 
 from .huggingface import HuggingFaceLLM
 from .vllm import VLLMClient
