@@ -6,16 +6,19 @@ import torch
 import torch.nn as nn
 from transformers import AutoModel, AutoTokenizer, BatchEncoding
 
-from lamp.data_types import Profile
-
 
 class ScoreModel(nn.Module):
-
-    def __init__(self, encoder_model: str, fuse_mode: str, num_layers: int, decoder_hidden_size: int) -> None:
+    def __init__(
+        self,
+        encoder_model: str,
+        fuse_mode: str,
+        num_transformer_layers: int,
+        decoder_hidden_size: int
+    ) -> None:
         super().__init__()
         self.encoder_model = encoder_model
         self.fuse_mode = fuse_mode
-        self.num_layers = num_layers
+        self.num_transformer_layers = num_transformer_layers
         self.decoder_hidden_size = decoder_hidden_size
 
         self.tokenizer = AutoTokenizer.from_pretrained(self.encoder_model)
@@ -25,37 +28,35 @@ class ScoreModel(nn.Module):
         for param in self.encoder.parameters():
             param.requires_grad = False
 
-        if self.fuse_mode == 'concat_hidden':
-            self.fuse_mlp = nn.Sequential(
-                nn.Linear(2 * self.encoder_hidden_size, self.encoder_hidden_size),
+        if self.fuse_mode == "concat_hidden":
+            self.fuse_linear = nn.Sequential(
+                nn.Linear(
+                    2 * self.encoder_hidden_size, self.encoder_hidden_size
+                ),
                 nn.ReLU()
             )
-        elif self.fuse_mode == 'concat_token':
-            pass
-        elif self.fuse_mode == 'cross_attn':
+        elif self.fuse_mode == "cross_attn":
             self.fuse_attn = nn.MultiheadAttention(
                 self.encoder_hidden_size,
                 self.encoder.config.num_attention_heads,
                 batch_first=True
             )
-        else:
-            raise ValueError(f'Invalid fuse mode: {self.fuse_mode}')
 
         self.fuse_norm = nn.LayerNorm(self.encoder_hidden_size)
 
-        if self.num_layers > 0:
-            self.doc_transformer = nn.TransformerEncoder(
+        if self.num_transformer_layers > 0:
+            self.transformer = nn.TransformerEncoder(
                 nn.TransformerEncoderLayer(
                     self.encoder_hidden_size,
                     self.encoder.config.num_attention_heads,
-                    dim_feedforward=4 * self.encoder_hidden_size,
+                    dim_feedforward=(4 * self.encoder_hidden_size),
                     batch_first=True
                 ),
-                self.num_layers,
+                self.num_transformer_layers,
                 enable_nested_tensor=False
             )
 
-        self.mlp_decoder = nn.Sequential(
+        self.decoder = nn.Sequential(
             nn.Linear(self.encoder_hidden_size, self.decoder_hidden_size),
             nn.ReLU(),
             nn.Linear(self.decoder_hidden_size, 1),
@@ -63,173 +64,220 @@ class ScoreModel(nn.Module):
         )
 
     @classmethod
-    def from_pretrained(cls, ckpt_dir: str) -> 'ScoreModel':
-        ckpt_dir = Path(ckpt_dir)
-
-        with open(ckpt_dir / 'config.json', 'r') as file:
-            config = json.load(file)
+    def from_pretrained(cls, model_dir: Path) -> "ScoreModel":
+        with (model_dir / "config.json").open() as f:
+            config = json.load(f)
 
         model = cls(**config)
-        state_dict = torch.load(ckpt_dir / 'model.pt', map_location='cpu', weights_only=True)
+        state_dict = torch.load(
+            model_dir / "model.pt", map_location="cpu", weights_only=True
+        )
         model.load_state_dict(state_dict, strict=False)
         return model
 
-    def save_pretrained(self, ckpt_dir: str) -> None:
-        ckpt_dir = Path(ckpt_dir)
-        ckpt_dir.mkdir(parents=True, exist_ok=True)
+    def save_pretrained(self, model_dir: Path) -> None:
+        model_dir.mkdir(parents=True, exist_ok=True)
 
-        with open(ckpt_dir / 'config.json', 'w') as file:
+        with (model_dir / "config.json").open(mode="w") as f:
             config = {
-                'encoder_model': self.encoder_model,
-                'fuse_mode': self.fuse_mode,
-                'num_layers': self.num_layers,
-                'decoder_hidden_size': self.decoder_hidden_size
+                "encoder_model": self.encoder_model,
+                "fuse_mode": self.fuse_mode,
+                "num_transformer_layers": self.num_transformer_layers,
+                "decoder_hidden_size": self.decoder_hidden_size
             }
-            json.dump(config, file, indent=2)
+            json.dump(config, f, indent=2)
 
         state_dict = OrderedDict({
-            key: value
-            for key, value in self.state_dict().items()
-            if not key.startswith('encoder.')}
-        )
-        torch.save(state_dict, ckpt_dir / 'model.pt')
+            k: v
+            for k, v in self.state_dict().items()
+            if not k.startswith("encoder.")
+        })
+        torch.save(state_dict, model_dir / "model.pt")
 
     @torch.no_grad()
-    def rerank(self, query: str, corpus: list[str], profiles: list[Profile], num_rerank: int) -> (
-        list[Profile]
-    ):
-        num_rerank = min(num_rerank, len(profiles))
-        query_inputs = self.tokenizer(query, padding=True, truncation=True, return_tensors='pt')
+    def retrieve(
+        self,
+        query: str,
+        corpus: list[str],
+        profile: list[dict[str, str]],
+        num_retrieve: int
+    ) -> list[dict[str, str]]:
+        num_retrieve = min(num_retrieve, len(profile))
+
+        query_inputs = (
+            self.tokenizer(query, truncation=True, return_tensors="pt")
+            .to(self.encoder.device)
+        )
         corpus_inputs = [[
-            self.tokenizer(corpus[i:i+128], padding=True, truncation=True, return_tensors='pt')
+            (
+                self.tokenizer(
+                    corpus[i : i + 128],
+                    padding=True,
+                    truncation=True,
+                    return_tensors="pt"
+                )
+                .to(self.encoder.device)
+            )
             for i in range(0, len(corpus), 128)
         ]]
-        profile_mask = torch.ones(1, len(profiles), dtype=torch.bool)
+        record_mask = (
+            torch.ones(1, len(profile), dtype=torch.bool)
+            .to(self.encoder.device)
+        )
 
-        query_inputs = query_inputs.to(self.encoder.device)
-        corpus_inputs = [
-            [document_inputs.to(self.encoder.device) for document_inputs in document_subbatches]
-            for document_subbatches in corpus_inputs
-        ]
-        profile_mask = profile_mask.to(self.encoder.device)
-
-        likelihoods = self(query_inputs, corpus_inputs, profile_mask)
-        _, indices = likelihoods.topk(num_rerank, dim=1)
-        return [profiles[index] for index in indices.squeeze(dim=0)]
+        likelihoods = self(query_inputs, corpus_inputs, record_mask)
+        _, indices = likelihoods.topk(num_retrieve)
+        return [profile[i] for i in indices.squeeze(dim=0)]
 
     def forward(
         self,
         query_inputs: BatchEncoding,
         corpus_inputs: list[list[BatchEncoding]],
-        profile_mask: torch.Tensor
+        record_mask: torch.Tensor
     ) -> torch.Tensor:
-        if self.fuse_mode == 'concat_hidden':
-            fuse_embeds = self._fuse_concat_hidden(query_inputs, corpus_inputs, profile_mask)
-        elif self.fuse_mode == 'concat_token':
-            fuse_embeds, fuse_mask = self._fuse_concat_token(query_inputs, corpus_inputs, profile_mask)
-        elif self.fuse_mode == 'cross_attn':
-            fuse_embeds = self._fuse_cross_attention(query_inputs, corpus_inputs, profile_mask)
+        if self.fuse_mode == "concat_hidden":
+            fuse_embs = self._fuse_concat_hidden(
+                query_inputs, corpus_inputs, record_mask
+            )
+        elif self.fuse_mode == "concat_token":
+            fuse_embs, fuse_mask = self._fuse_concat_token(
+                query_inputs, corpus_inputs, record_mask
+            )
+        elif self.fuse_mode == "cross_attn":
+            fuse_embs = self._fuse_cross_attention(
+                query_inputs, corpus_inputs, record_mask
+            )
+        else:
+            raise ValueError(f"Invalid fuse mode: {self.fuse_mode}")
 
-        # Model candidate profile dependencies
-        fuse_embeds = self.fuse_norm(fuse_embeds)
+        fuse_embs = self.fuse_norm(fuse_embs)
 
-        if self.num_layers > 0:
-            src_key_padding_mask = ~(fuse_mask if self.fuse_mode == 'concat_token' else profile_mask)
-            fuse_embeds = self.doc_transformer(fuse_embeds, src_key_padding_mask=src_key_padding_mask)
+        if self.num_transformer_layers > 0:
+            # Model record dependency
+            src_key_padding_mask = ~(
+                fuse_mask if self.fuse_mode == "concat_token" else record_mask
+            )
+            fuse_embs = self.transformer(
+                fuse_embs, src_key_padding_mask=src_key_padding_mask
+            )
 
-        # Compute profile likelihoods
-        likelihoods = self.mlp_decoder(fuse_embeds).squeeze(dim=2)
+        # Compute record likelihoods
+        likelihoods = self.decoder(fuse_embs).squeeze(dim=-1)
 
-        if self.fuse_mode == 'concat_token':
+        if self.fuse_mode == "concat_token":
             likelihoods = likelihoods[:, 1:]
 
-        return likelihoods.masked_fill(~profile_mask, value=0.)
+        return likelihoods * record_mask
 
     def _fuse_concat_hidden(
         self,
         query_inputs: BatchEncoding,
         corpus_inputs: list[list[BatchEncoding]],
-        profile_mask: torch.Tensor
+        record_mask: torch.Tensor
     ) -> torch.Tensor:
-        batch_size, num_profiles = profile_mask.shape
+        batch_size, num_records = record_mask.shape
 
-        query_embed = self._compute_sentence_embedding(query_inputs)
-        corpus_embeds = [
-            self._compute_sentence_embedding(document_inputs)
-            for document_subbatches in corpus_inputs
-            for document_inputs in document_subbatches
+        query_emb = self._compute_sentence_embedding(query_inputs)
+        corpus_embs = [
+            self._compute_sentence_embedding(doc_inputs)
+            for doc_batches in corpus_inputs
+            for doc_inputs in doc_batches
         ]
 
-        query_embed = query_embed.unsqueeze(dim=1)
-        corpus_embeds = torch.sparse_coo_tensor(
-            indices=profile_mask.nonzero().T,
-            values=torch.cat(corpus_embeds, dim=0),
-            size=(batch_size, num_profiles, self.encoder_hidden_size)
-        ).to_dense()
+        query_emb = query_emb.unsqueeze(dim=1).expand(-1, num_records, -1)
+        corpus_embs = (
+            torch.sparse_coo_tensor(
+                record_mask.nonzero().T,
+                torch.cat(corpus_embs),
+                size=(batch_size, num_records, self.encoder_hidden_size)
+            )
+            .to_dense()
+        )
 
-        query_embed = query_embed.expand(-1, num_profiles, -1)
-        return self.fuse_mlp(torch.cat([query_embed, corpus_embeds], dim=2))
+        fuse_embs = torch.cat([query_emb, corpus_embs], dim=-1)
+        return self.fuse_linear(fuse_embs)
 
     def _fuse_concat_token(
         self,
         query_inputs: BatchEncoding,
         corpus_inputs: list[list[BatchEncoding]],
-        profile_mask: torch.Tensor
+        record_mask: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        batch_size, num_profiles = profile_mask.shape
+        batch_size, num_records = record_mask.shape
 
-        query_embed = self._compute_sentence_embedding(query_inputs)
-        corpus_embeds = [
-            self._compute_sentence_embedding(document_inputs)
-            for document_subbatches in corpus_inputs
-            for document_inputs in document_subbatches
+        query_emb = self._compute_sentence_embedding(query_inputs)
+        corpus_embs = [
+            self._compute_sentence_embedding(doc_inputs)
+            for doc_batches in corpus_inputs
+            for doc_inputs in doc_batches
         ]
-        corpus_embeds = torch.sparse_coo_tensor(
-            indices=profile_mask.nonzero().T,
-            values=torch.cat(corpus_embeds, dim=0),
-            size=(batch_size, num_profiles, self.encoder_hidden_size)
-        ).to_dense()
 
-        fuse_embeds = torch.cat([query_embed.unsqueeze(dim=1), corpus_embeds], dim=1)
-        fuse_mask = torch.cat([torch.ones_like(profile_mask[:, :1]), profile_mask], dim=1)
-        return fuse_embeds, fuse_mask
+        corpus_embs = (
+            torch.sparse_coo_tensor(
+                record_mask.nonzero().T,
+                torch.cat(corpus_embs),
+                size=(batch_size, num_records, self.encoder_hidden_size)
+            )
+            .to_dense()
+        )
+
+        fuse_embs = torch.cat([query_emb.unsqueeze(dim=1), corpus_embs], dim=1)
+        fuse_mask = torch.cat(
+            [torch.ones_like(record_mask[:, :1]), record_mask], dim=1
+        )
+        return fuse_embs, fuse_mask
 
     def _fuse_cross_attention(
         self,
         query_inputs: BatchEncoding,
         corpus_inputs: list[list[BatchEncoding]],
-        profile_mask: torch.Tensor
+        record_mask: torch.Tensor
     ) -> torch.Tensor:
-        query_mask = query_inputs['attention_mask'].bool()
-        batch_size, num_profiles = profile_mask.shape
+        batch_size, num_records = record_mask.shape
 
-        query_token_embeds = self.encoder(**query_inputs).last_hidden_state
-        fuse_embeds = []
+        query_mask = query_inputs["attention_mask"].bool()
+        query_token_embs = self.encoder(**query_inputs).last_hidden_state
+        fuse_embs = []
 
-        for index, document_subbatches in enumerate(corpus_inputs):
-            for document_inputs in document_subbatches:
-                num_documents = document_inputs['attention_mask'].shape[0]
-                document_mask = document_inputs['attention_mask'].unsqueeze(dim=2)
-                document_token_embeds = self.encoder(**document_inputs).last_hidden_state
+        for index, document_batches in enumerate(corpus_inputs):
+            for document_inputs in document_batches:
+                num_documents = document_inputs["attention_mask"].shape[0]
+                document_mask = (
+                    document_inputs["attention_mask"].unsqueeze(dim=-1)
+                )
+                document_token_embs = (
+                    self.encoder(**document_inputs).last_hidden_state
+                )
 
                 attn_out, _ = self.fuse_attn(
-                    document_token_embeds,
-                    query_token_embeds[index].expand(num_documents, -1, -1),
-                    query_token_embeds[index].expand(num_documents, -1, -1),
-                    key_padding_mask=~query_mask[index].expand(num_documents, -1)
+                    document_token_embs,
+                    query_token_embs[index].expand(num_documents, -1, -1),
+                    query_token_embs[index].expand(num_documents, -1, -1),
+                    key_padding_mask=(
+                        ~query_mask[index].expand(num_documents, -1)
+                    )
                 )
-                attn_out.masked_fill_(document_mask == 0, value=0.)
-                fuse_embed = attn_out.sum(dim=1) / document_mask.sum(dim=1)
-                fuse_embeds.append(fuse_embed)
+                fuse_emb = (
+                    (attn_out * document_mask).sum(dim=1)
+                    / document_mask.sum(dim=1)
+                )
+                fuse_embs.append(fuse_emb)
 
-        return torch.sparse_coo_tensor(
-            indices=profile_mask.nonzero().T,
-            values=torch.cat(fuse_embeds, dim=0),
-            size=(batch_size, num_profiles, self.encoder_hidden_size)
-        ).to_dense()
+        fuse_embs = (
+            torch.sparse_coo_tensor(
+                record_mask.nonzero().T,
+                torch.cat(fuse_embs),
+                size=(batch_size, num_records, self.encoder_hidden_size)
+            )
+            .to_dense()
+        )
+        return fuse_embs
 
-    def _compute_sentence_embedding(self, sentence_inputs: BatchEncoding) -> torch.Tensor:
-        attention_mask = sentence_inputs['attention_mask'].unsqueeze(dim=2)
-        token_embeds = self.encoder(**sentence_inputs).last_hidden_state
-        token_embeds.masked_fill_(attention_mask == 0, value=0.)
-        return token_embeds.sum(dim=1) / attention_mask.sum(dim=1)
+    def _compute_sentence_embedding(
+        self,
+        sentence_inputs: BatchEncoding
+    ) -> torch.Tensor:
+        mask = sentence_inputs["attention_mask"].unsqueeze(dim=-1)
+        token_embs = self.encoder(**sentence_inputs).last_hidden_state
+        sentence_embs = (token_embs * mask).sum(dim=1) / mask.sum(dim=1)
+        return sentence_embs

@@ -1,62 +1,83 @@
+from collections.abc import Callable
+
 import evaluate
 import torch
 
-from .data_types import Reward
+from lamp import LABELS
 
 
-def create_reward(task: str) -> Reward:
-    if task in {'LaMP-1', 'LaMP-2'}:
-        return _classification_reward
-    elif task in {'LaMP-3'}:
-        return _regression_reward
-    elif task in {'LaMP-4', 'LaMP-5', 'LaMP-6', 'LaMP-7'}:
-        return _create_generation_reward()
-    elif task in {'LongLaMP-1', 'LongLaMP-2', 'LongLaMP-3', 'LongLaMP-4'}:
-        return _create_generation_reward()
+RewardFn = Callable[[list[str], list[str]], torch.Tensor]
+
+
+def create_reward_fn(task: str) -> RewardFn:
+    if task in {"LaMP-1", "LaMP-2"}:
+        return _classification_reward_fn
+    elif task in {"LaMP-3"}:
+        return _create_regression_reward_fn(LABELS[task])
+    elif task in {
+        "LaMP-4", "LaMP-5", "LaMP-7", "LongLaMP-2", "LongLaMP-3", "LongLaMP-4"
+    }:
+        return _create_generation_reward_fn()
     else:
-        raise ValueError(f'Invalid task: {task}')
+        raise ValueError(f"Invalid task: {task}")
 
 
-def _classification_reward(predictions: list[str], targets: list[str]) -> torch.Tensor:
-    rewards = []
+def _classification_reward_fn(
+    predictions: list[str],
+    references: list[str]
+) -> torch.Tensor:
+    rewards = [
+        float(p.strip() == r.strip())
+        for p, r in zip(predictions, references, strict=True)
+    ]
+    return torch.tensor(rewards, dtype=torch.float32)
 
-    for prediction, target in zip(predictions, targets):
-        reward = float(prediction.strip() == target.strip())
-        rewards.append(reward)
 
-    return torch.tensor(rewards, dtype=torch.float)
+def _create_regression_reward_fn(labels: tuple[str, ...]) -> RewardFn:
+    min_value = min(float(l) for l in labels)
+    max_value = max(float(l) for l in labels)
 
-
-def _regression_reward(predictions: list[str], targets: list[str]) -> torch.Tensor:
-    rewards = []
-
-    for prediction, target in zip(predictions, targets):
-        target_float = float(target)
-
+    def to_float(prediction: str, reference: str) -> float:
         try:
-            prediction_float = float(prediction)
+            return float(prediction)
         except ValueError:
-            if abs(1 - target_float) > abs(5 - target_float):
-                prediction_float = 1.
+            reference = float(reference)
+
+            # Map to the most distant label value
+            if abs(reference - min_value) > abs(reference - max_value):
+                return min_value
             else:
-                prediction_float = 5.
+                return max_value
 
-        reward = -abs(prediction_float - target_float)
-        rewards.append(reward)
+    def _regression_reward_fn(
+        predictions: list[str],
+        references: list[str]
+    ) -> torch.Tensor:
+        rewards = [
+            -abs(to_float(p, r) - float(r))
+            for p, r in zip(predictions, references, strict=True)
+        ]
+        return torch.tensor(rewards, dtype=torch.float32)
 
-    return torch.tensor(rewards, dtype=torch.float)
+    return _regression_reward_fn
 
 
-def _create_generation_reward() -> Reward:
-    rouge_metric = evaluate.load('rouge')
+def _create_generation_reward_fn() -> RewardFn:
+    rouge_metric = evaluate.load("rouge")
 
-    def generation_reward(predictions: list[str], targets: list[str]) -> torch.Tensor:
+    def generation_reward_fn(
+        predictions: list[str],
+        references: list[str]
+    ) -> torch.Tensor:
+        predictions = [p.strip() for p in predictions]
+        references = [[r.strip()] for r in references]
+
         rouge_results = rouge_metric.compute(
-            predictions=[prediction.strip() for prediction in predictions],
-            references=[[target.strip()] for target in targets],
-            rouge_types=['rouge1'],
+            predictions=predictions,
+            references=references,
+            rouge_types=["rouge1"],
             use_aggregator=False
         )
-        return torch.tensor(rouge_results['rouge1'], dtype=torch.float)
+        return torch.tensor(rouge_results["rouge1"], dtype=torch.float32)
 
-    return generation_reward
+    return generation_reward_fn

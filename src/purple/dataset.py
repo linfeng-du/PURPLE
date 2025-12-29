@@ -1,45 +1,63 @@
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
-
-from datasets import Dataset, load_from_disk
-from datasets.formatting.formatting import LazyBatch
-from rank_bm25 import BM25Okapi
-
-import torch
-from transformers import PreTrainedTokenizerBase
+from typing import TypedDict
 
 from tqdm import tqdm
 
-from lamp import load_lamp_dataset
-from lamp.retrievers import Contriever
-from .data_types import Batch, Collator, Example
+from datasets import Dataset, load_from_disk
+from datasets.formatting.formatting import LazyBatch
+
+import torch
+from transformers import BatchEncoding, PreTrainedTokenizerBase
+
+from lamp import create_retrieval_fn, load_lamp_dataset
 
 
-def load_retrieved_lamp_dataset(task: str, split: str, retriever: str, num_candidates: int) -> Dataset:
-    dataset_dir = Path('./dataset') / task / f'{retriever}-{num_candidates}' / split
+class LaMPExample(TypedDict):
+    source: str
+    profile: list[dict[str, str]]
+    target: str
+    query_inputs: dict[str, list[int]]
+    corpus_inputs: list[dict[str, list[int]]]
+
+
+class LaMPBatch(TypedDict):
+    source: list[str]
+    profile: list[list[dict[str, str]]]
+    target: list[str]
+    query_inputs: BatchEncoding
+    corpus_inputs: list[list[BatchEncoding]]
+    record_mask: torch.Tensor
+
+
+CollateFn = Callable[[list[LaMPExample]], LaMPBatch]
+
+
+def load_retrieved_lamp_dataset(
+    task: str,
+    split: str,
+    candidate_retriever: str,
+    num_candidates: int
+) -> Dataset:
+    dataset_dir = (
+        Path("data") / task / f"{candidate_retriever}-{num_candidates}" / split
+    )
 
     if not dataset_dir.exists():
-        if retriever == 'contriever':
-            contriever = Contriever()
-
-        examples = []
         dataset = load_lamp_dataset(task, split)
+        retrieval_fn = create_retrieval_fn(candidate_retriever)
+        examples = []
 
-        for example in tqdm(dataset, desc='Retrieving'):
-            query = example['query']
-            corpus = example['corpus']
-            profiles = example['profiles']
+        for example in tqdm(dataset, desc="Retrieving"):
+            query = example["query"]
+            corpus = example["corpus"]
+            profile = example["profile"]
 
-            if retriever == 'bm25':
-                bm25 = BM25Okapi([document.split() for document in corpus])
-                retrieved_indices = bm25.get_top_n(query.split(), range(len(corpus)), n=num_candidates)
-            elif retriever == 'contriever':
-                retrieved_indices = contriever(query, corpus, range(len(corpus)), num_candidates)
-            else:
-                raise ValueError(f'Invalid retriever: {retriever}')
-
-            example['corpus'] = [corpus[index] for index in retrieved_indices]
-            example['profiles'] = [profiles[index] for index in retrieved_indices]
+            retrieved_indices = retrieval_fn(
+                query, corpus, list(range(len(corpus))), num_candidates
+            )
+            example["corpus"] = [corpus[i] for i in retrieved_indices]
+            example["profile"] = [profile[i] for i in retrieved_indices]
             examples.append(example)
 
         Dataset.from_list(examples).save_to_disk(dataset_dir)
@@ -47,78 +65,84 @@ def load_retrieved_lamp_dataset(task: str, split: str, retriever: str, num_candi
     return load_from_disk(dataset_dir)
 
 
-def create_preprocessor(
-    max_num_profiles: int,
+def create_preprocess_fn(
     max_query_length: int,
     max_document_length: int,
     tokenizer: PreTrainedTokenizerBase
 ) -> Callable[[LazyBatch], LazyBatch]:
-    def preprocessor(batch: LazyBatch) -> LazyBatch:
-        if max_num_profiles > 0:
-            batch['profiles'] = [profiles[:max_num_profiles] for profiles in batch['profiles']]
-            batch['corpus'] = [corpus[:max_num_profiles] for corpus in batch['corpus']]
+    def preprocess_fn(batch: LazyBatch) -> LazyBatch:
+        queries = batch["query"]
+        corpora = batch["corpus"]
 
-        query_inputs = tokenizer(batch['query'], truncation=True, max_length=max_query_length)
-        batch['query_inputs'] = [
-            {key: value[index] for key, value in query_inputs.items()}
-            for index in range(len(batch['query']))
+        query_inputs = tokenizer(
+            queries, truncation=True, max_length=max_query_length
+        )
+        batch["query_inputs"] = [
+            {k: v[i] for k, v in query_inputs.items()}
+            for i in range(len(queries))
         ]
 
-        batch['corpus_inputs'] = []
+        batch["corpus_inputs"] = []
 
-        for corpus in batch['corpus']:
-            corpus_inputs = tokenizer(corpus, truncation=True, max_length=max_document_length)
-            corpus_inputs = [
-                {key: value[index] for key, value in corpus_inputs.items()}
-                for index in range(len(corpus))
-            ]
-            batch['corpus_inputs'].append(corpus_inputs)
+        for corpus in corpora:
+            corpus_inputs = tokenizer(
+                corpus, truncation=True, max_length=max_document_length
+            )
+            batch["corpus_inputs"].append([
+                {k: v[i] for k, v in corpus_inputs.items()}
+                for i in range(len(corpus))
+            ])
 
         return batch
 
-    return preprocessor
+    return preprocess_fn
 
 
-def create_collator(tokenizer: PreTrainedTokenizerBase) -> Collator:
-    def collator(examples: list[Example]) -> Batch:
-        sources = [example['source'] for example in examples]
-        profiles = [example['profiles'] for example in examples]
-        targets = [example['target'] for example in examples]
-        query_inputs = [example['query_inputs'] for example in examples]
-        corpus_inputs = [example['corpus_inputs'] for example in examples]
+def create_collate_fn(tokenizer: PreTrainedTokenizerBase) -> CollateFn:
+    def collate_fn(examples: list[LaMPExample]) -> LaMPBatch:
+        sources = [e["source"] for e in examples]
+        profiles = [e["profile"] for e in examples]
+        targets = [e["target"] for e in examples]
+        query_inputs = [e["query_inputs"] for e in examples]
+        corpus_inputs_batch = [e["corpus_inputs"] for e in examples]
 
-        # Create profile mask
-        max_num_profiles = max([len(profile) for profile in profiles])
-        profile_mask = torch.ones(len(profiles), max_num_profiles, dtype=torch.bool)
-
-        for index, example_profiles in enumerate(profiles):
-            profile_mask[index, len(example_profiles):] = 0
-
-        # Pad query inputs
-        query_inputs = tokenizer.pad(query_inputs, return_tensors='pt')
-
-        # Split corpus into batches of 128 documents to save memory
-        subbatched_corpus_inputs = []
-
-        for example_corpus_inputs in corpus_inputs:
-            document_subbatches = []
-
-            for document_inputs in [
-                example_corpus_inputs[i:i+128]
-                for i in range(0, len(example_corpus_inputs), 128)
-            ]:
-                document_inputs = tokenizer.pad(document_inputs, return_tensors='pt')
-                document_subbatches.append(document_inputs)
-
-            subbatched_corpus_inputs.append(document_subbatches)
-
-        return Batch(
-            source=sources,
-            profiles=profiles,
-            target=targets,
-            query_inputs=query_inputs,
-            corpus_inputs=subbatched_corpus_inputs,
-            profile_mask=profile_mask
+        # Create record mask to indicate non-padding records
+        max_num_records = max(len(p) for p in profiles)
+        record_mask = torch.zeros(
+            len(profiles), max_num_records, dtype=torch.bool
         )
 
-    return collator
+        for index, profile in enumerate(profiles):
+            record_mask[index, :len(profile)] = 1
+
+        # Pad `query_inputs` without truncation (done in `preprocess_fn`)
+        query_inputs = tokenizer.pad(query_inputs, return_tensors="pt")
+
+        # Split each corpus in `corpus_inputs_batch`
+        # into batches of 128 documents to save memory
+        batched_corpus_inputs = []
+
+        for corpus_inputs in corpus_inputs_batch:
+            document_batches = []
+
+            for document_inputs in [
+                corpus_inputs[i : i + 128]
+                for i in range(0, len(corpus_inputs), 128)
+            ]:
+                document_inputs = tokenizer.pad(
+                    document_inputs, return_tensors="pt"
+                )
+                document_batches.append(document_inputs)
+
+            batched_corpus_inputs.append(document_batches)
+
+        return LaMPBatch(
+            source=sources,
+            profile=profiles,
+            target=targets,
+            query_inputs=query_inputs,
+            corpus_inputs=batched_corpus_inputs,
+            record_mask=record_mask
+        )
+
+    return collate_fn
