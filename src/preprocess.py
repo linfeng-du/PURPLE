@@ -10,7 +10,7 @@ def preprocess(
     num_candidates: int
 ) -> None:
     train_split = "train"
-    test_split = ("dev" if task.startswith("LaMP-") else "test")
+    test_split = "dev" if task.startswith("LaMP-") else "test"
 
     train_dataset = load_retrieved_lamp_dataset(
         task, train_split, candidate_retriever, num_candidates
