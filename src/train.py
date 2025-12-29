@@ -1,52 +1,52 @@
 import logging
 import os
 import random
+from pathlib import Path
+
+logging.getLogger("absl").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("openai._base_client").setLevel(logging.WARNING)
+
+import hydra
+from omegaconf import DictConfig, OmegaConf
 
 import nltk
 import numpy as np
+
+if os.getenv("HF_EVALUATE_OFFLINE") == "1":
+    nltk.download = lambda *args, **kwargs: None
 
 import torch
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
-import hydra
-from omegaconf import DictConfig, OmegaConf
-
+from lamp import create_metric_fn, create_prompt_fn
+from llm import LLM
 from purple import (
     ScoreModel,
     Trainer,
-    create_collator,
-    create_preprocessor,
-    create_reward,
+    create_collate_fn,
+    create_preprocess_fn,
+    create_reward_fn,
     load_retrieved_lamp_dataset
 )
-from lamp import create_metric, create_prompt_generator
-from llm import LLM
 
 
-if os.getenv('HF_EVALUATE_OFFLINE') == '1':
-    nltk.download = lambda *args, **kwargs: None
-
-
-logging.getLogger('absl').setLevel(logging.WARNING)
-logging.getLogger('httpx').setLevel(logging.WARNING)
-logging.getLogger('openai._base_client').setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 
-@hydra.main(config_path='../conf', config_name='purple', version_base=None)
+@hydra.main(config_path="../conf", config_name="purple", version_base=None)
 def main(cfg: DictConfig) -> None:
-    # Check for missing keys
+    # Check config validity
     missing_keys = OmegaConf.missing_keys(cfg)
 
     if missing_keys:
-        raise ValueError(f'Missing keys in config:\n{missing_keys}')
+        raise ValueError(f"Missing keys in config:\n{missing_keys}")
 
-    # Check config validity
     effective_batch_size = cfg.batch_size * cfg.gradient_accumulation_steps
 
     if cfg.eval_every % effective_batch_size != 0:
-        raise ValueError(f'eval_every must be divisible by effective batch size')
+        raise ValueError(f"`eval_every` not divisible by effective batch size")
 
     # Seed everything for reproducibility
     random.seed(cfg.seed)
@@ -54,36 +54,51 @@ def main(cfg: DictConfig) -> None:
     torch.manual_seed(cfg.seed)
     torch.cuda.manual_seed_all(cfg.seed)
 
-    # Prepare models
+    # Prepare score model and LLM
     score_model = ScoreModel(**cfg.score_model)
 
-    if cfg.from_pretrained:
-        score_model.from_pretrained(f'./models/{cfg.exp_name}')
-        logger.info(f'Loaded model from {f"./models/{cfg.exp_name}"}')
+    if cfg.resume:
+        model_dir = Path(cfg.run_dir).parent / "model"
+        score_model.from_pretrained(model_dir)
+        logger.info(f"Loaded model from {model_dir}")
 
     llm = LLM(cfg.task, **cfg.llm)
 
-    # Prepare datasets
-    test_split = ('dev' if cfg.task.startswith('LaMP') else 'test')
-    train_dataset = load_retrieved_lamp_dataset(cfg.task, 'train', cfg.retriever, cfg.num_candidates)
-    test_dataset = load_retrieved_lamp_dataset(cfg.task, test_split, cfg.retriever, cfg.num_candidates)
+    # Prepare dataset
+    train_split = "train"
+    test_split = "dev" if cfg.task.startswith("LaMP-") else "test"
+
+    train_dataset = load_retrieved_lamp_dataset(
+        cfg.task, train_split, cfg.candidate_retriever, cfg.num_candidates
+    )
+    test_dataset = load_retrieved_lamp_dataset(
+        cfg.task, test_split, cfg.candidate_retriever, cfg.num_candidates
+    )
 
     tokenizer = AutoTokenizer.from_pretrained(cfg.score_model.encoder_model)
-    preprocessor = create_preprocessor(tokenizer=tokenizer, **cfg.preprocessor)
+    preprocess_fn = create_preprocess_fn(
+        tokenizer=tokenizer, **cfg.preprocess_fn
+    )
     train_dataset = train_dataset.map(
-        preprocessor, batched=True,
-        remove_columns=['query', 'corpus'], num_proc=16
+        preprocess_fn,
+        batched=True,
+        remove_columns=["query", "corpus"],
+        num_proc=4
     )
 
-    # Re-initialize tokenizer to ensure consistent hashing
+    # Re-create tokenizer to keep the `.map()` fingerprint deterministic
     tokenizer = AutoTokenizer.from_pretrained(cfg.score_model.encoder_model)
-    preprocessor = create_preprocessor(tokenizer=tokenizer, **cfg.preprocessor)
+    preprocess_fn = create_preprocess_fn(
+        tokenizer=tokenizer, **cfg.preprocess_fn
+    )
     test_dataset = test_dataset.map(
-        preprocessor, batched=True,
-        remove_columns=['query', 'corpus'], num_proc=16
+        preprocess_fn,
+        batched=True,
+        remove_columns=["query", "corpus"],
+        num_proc=4
     )
 
-    collate_fn = create_collator(tokenizer)
+    collate_fn = create_collate_fn(tokenizer)
     train_loader = DataLoader(
         train_dataset,
         batch_size=cfg.batch_size,
@@ -91,26 +106,33 @@ def main(cfg: DictConfig) -> None:
         collate_fn=collate_fn,
         drop_last=True
     )
-    test_loader = DataLoader(test_dataset, batch_size=cfg.eval_batch_size, collate_fn=collate_fn)
+    test_loader = DataLoader(
+        test_dataset, batch_size=cfg.eval_batch_size, collate_fn=collate_fn
+    )
 
     # Prepare LaMP components
-    prompt_generator = create_prompt_generator(
-        cfg.task, 'first_k', cfg.num_rerank,
-        cfg.prompt_generator.max_length, AutoTokenizer.from_pretrained(cfg.llm.model)
+    prompt_fn = create_prompt_fn(
+        retriever="first_k",
+        tokenizer=AutoTokenizer.from_pretrained(cfg.llm.model),
+        **cfg.prompt_fn
     )
-    reward_fn = create_reward(cfg.task)
-    metric_fn = create_metric(cfg.task)
+    reward_fn = create_reward_fn(cfg.task)
+    metric_fn = create_metric_fn(cfg.task)
 
-    # Initialize trainer and start training
+    # Create trainer and start training
     trainer = Trainer(
         cfg,
-        score_model, llm,
-        train_loader, test_loader,
-        prompt_generator, reward_fn, metric_fn,
-        cfg.from_pretrained
+        score_model,
+        llm,
+        train_loader,
+        test_loader,
+        prompt_fn,
+        reward_fn,
+        metric_fn,
+        cfg.resume
     )
     trainer.train()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
