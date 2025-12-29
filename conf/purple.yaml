@@ -15,8 +15,10 @@ score_model:
   num_transformer_layers: 12
   decoder_hidden_size: 256
 
-reinforce:
-  num_samples: 32
+grpo:
+  num_rollouts: 32
+  batch_size: 8
+  epsilon: 0.2
   reward: logp
 
 num_epochs: 10
