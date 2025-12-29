@@ -4,8 +4,9 @@ sbatch_time='6:00:00'
 tasks="LaMP-1,LaMP-2,LaMP-3,LaMP-4,LaMP-5,LaMP-7,\
 LongLaMP-2,LongLaMP-3,LongLaMP-4"
 candidate_retrievers='bm25,contriever'
+num_candidates=20
 
-LONGOPTIONS='time:,tasks:,candidate_retrievers:'
+LONGOPTIONS='time:,tasks:,candidate_retrievers:,num_candidates:'
 TEMP=$(getopt --options '' --longoptions "${LONGOPTIONS}" --name "$0" -- "$@")
 eval set -- "${TEMP}"
 
@@ -14,6 +15,7 @@ while true; do
     --time) sbatch_time="$2"; shift 2 ;;
     --tasks) tasks="$2"; shift 2 ;;
     --candidate_retrievers) candidate_retrievers="$2"; shift 2 ;;
+    --num_candidates) num_candidates="$2"; shift 2 ;;
     --) shift; break ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
@@ -31,8 +33,9 @@ for candidate_retriever in "${candidate_retrievers[@]}"; do
       'source ~/.bashrc;'
       'activate purple;'
       'python src/preprocess.py'
-      "task=${task}"
-      "candidate_retriever=${candidate_retriever}"
+      "--task ${task}"
+      "--candidate_retriever ${candidate_retriever}"
+      "--num_candidates ${num_candidates}"
     )
     wrap_cmd="${wrap_cmds[*]}"
 
