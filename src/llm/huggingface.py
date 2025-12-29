@@ -15,7 +15,6 @@ from .utils import (
 
 
 class HuggingFaceLLM:
-
     def __init__(self, model: str, generation_kwargs: dict[str, Any]) -> None:
         self.generation_kwargs = generation_kwargs
 
@@ -111,7 +110,6 @@ class HuggingFaceLLM:
 
 
 class _ChatDataset(Dataset):
-
     def __init__(self, prompts: list[ChatType]) -> None:
         # Wrap in Chat objects for pipeline compatibility
         self.chats = [Chat(p) for p in prompts]

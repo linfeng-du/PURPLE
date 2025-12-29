@@ -20,7 +20,6 @@ logger = logging.getLogger(__name__)
 
 
 class VLLMClient:
-
     def __init__(
         self,
         model: str,

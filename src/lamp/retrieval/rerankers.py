@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 
 # Adapted from: https://github.com/sunnweiwei/RankGPT/blob/main/rank_gpt.py
 class RankGPT:
-
     def __init__(
         self,
         model: str,
@@ -183,7 +182,6 @@ def _parse_completion(completion: str, num_passages: int) -> list[int]:
 
 
 class ICR:
-
     def __init__(
         self,
         sliding_window_size: int = 10,

@@ -42,7 +42,6 @@ def bm25_retriever(
 
 # Adapted from: https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/prompts/contriever_retriever.py
 class Contriever:
-
     def __init__(self) -> None:
         self.tokenizer = AutoTokenizer.from_pretrained("facebook/contriever")
         self.contriever = AutoModel.from_pretrained("facebook/contriever")

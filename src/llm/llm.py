@@ -10,7 +10,6 @@ from .vllm import VLLMClient
 
 
 class LLM:
-
     def __init__(
         self,
         task: str,
