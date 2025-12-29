@@ -32,7 +32,7 @@ def preprocess(
         num_proc=4
     )
 
-    # Re-initialize the tokenizer to ensure consistent hashing
+    # Re-create tokenizer to keep the `.map()` fingerprint deterministic
     tokenizer = AutoTokenizer.from_pretrained("facebook/contriever")
     preprocess_fn = create_preprocess_fn(
         max_query_length=512,
