@@ -68,7 +68,7 @@ class HuggingFaceLLM:
             ),
             desc="Generating completions",
             total=len(dataset),
-            disable=(not verbose)
+            disable=not verbose
         ):
             responses.append([o["generated_text"] for o in outputs])
 

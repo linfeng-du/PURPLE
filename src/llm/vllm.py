@@ -69,7 +69,7 @@ class VLLMClient:
             with tqdm(
                 total=len(new_prompts),
                 desc="Requesting completions",
-                disable=(not verbose)
+                disable=not verbose
             ) as pbar:
                 tasks = [
                     self._request_completions(p, i, semaphore, pbar)
@@ -89,7 +89,7 @@ class VLLMClient:
         completions = None
         num_retries = 0
 
-        continue_final_message = (prompt[-1]["role"] == "assistant")
+        continue_final_message = prompt[-1]["role"] == "assistant"
         extra_body = {
             "add_generation_prompt": (not continue_final_message),
             "continue_final_message": continue_final_message,

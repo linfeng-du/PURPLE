@@ -70,10 +70,10 @@ def encode_prompt_and_completion(
         prompt, max_completion_length, chat_template_length, tokenizer
     )
 
-    continue_final_message = (new_prompt[-1]["role"] == "assistant")
+    continue_final_message = new_prompt[-1]["role"] == "assistant"
     prompt_ids = tokenizer.apply_chat_template(
         new_prompt,
-        add_generation_prompt=(not continue_final_message),
+        add_generation_prompt=not continue_final_message,
         continue_final_message=continue_final_message,
         return_tensors="pt"
     )
@@ -96,7 +96,7 @@ def encode_prompt_and_completion(
     prompt_completion_ids = tokenizer.apply_chat_template(
         prompt_completion,
         continue_final_message=True,
-        truncation=(model_max_length is not None),
+        truncation=model_max_length is not None,
         max_length=model_max_length,
         return_tensors="pt"
     )

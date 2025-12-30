@@ -49,7 +49,7 @@ class ScoreModel(nn.Module):
                 nn.TransformerEncoderLayer(
                     self.encoder_hidden_size,
                     self.encoder.config.num_attention_heads,
-                    dim_feedforward=(4 * self.encoder_hidden_size),
+                    dim_feedforward=4 * self.encoder_hidden_size,
                     batch_first=True
                 ),
                 self.num_transformer_layers,
