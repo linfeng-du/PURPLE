@@ -103,26 +103,16 @@ def create_collate_fn(tokenizer: PreTrainedTokenizerBase) -> CollateFn:
         sources = [e["source"] for e in examples]
         profiles = [e["profile"] for e in examples]
         targets = [e["target"] for e in examples]
-        query_inputs = [e["query_inputs"] for e in examples]
-        corpus_inputs_batch = [e["corpus_inputs"] for e in examples]
-
-        # Create record mask to indicate non-padding records
-        max_num_records = max(len(p) for p in profiles)
-        record_mask = torch.zeros(
-            len(profiles), max_num_records, dtype=torch.bool
-        )
-
-        for index, profile in enumerate(profiles):
-            record_mask[index, :len(profile)] = 1
 
         # Pad `query_inputs` without truncation (done in `preprocess_fn`)
-        query_inputs = tokenizer.pad(query_inputs, return_tensors="pt")
+        query_inputs = tokenizer.pad(
+            [e["query_inputs"] for e in examples], return_tensors="pt"
+        )
 
-        # Split each corpus in `corpus_inputs_batch`
-        # into batches of 128 documents to save memory
+        # Split each corpus into batches of 128 documents to save memory
         batched_corpus_inputs = []
 
-        for corpus_inputs in corpus_inputs_batch:
+        for corpus_inputs in [e["corpus_inputs"] for e in examples]:
             document_batches = []
 
             for document_inputs in [
@@ -135,6 +125,15 @@ def create_collate_fn(tokenizer: PreTrainedTokenizerBase) -> CollateFn:
                 document_batches.append(document_inputs)
 
             batched_corpus_inputs.append(document_batches)
+
+        # Create record mask to indicate non-padding records
+        max_num_records = max(len(p) for p in profiles)
+        record_mask = torch.zeros(
+            len(profiles), max_num_records, dtype=torch.bool
+        )
+
+        for index, profile in enumerate(profiles):
+            record_mask[index, :len(profile)] = 1
 
         return LaMPBatch(
             source=sources,
