@@ -43,10 +43,8 @@ def main(cfg: DictConfig) -> None:
     if missing_keys:
         raise ValueError(f"Missing keys in config:\n{missing_keys}")
 
-    effective_batch_size = cfg.batch_size * cfg.gradient_accumulation_steps
-
-    if cfg.eval_every % effective_batch_size != 0:
-        raise ValueError(f"`eval_every` not divisible by effective batch size")
+    if cfg.eval_every % cfg.batch_size != 0:
+        raise ValueError(f"`eval_every` not divisible by `batch_size`")
 
     # Seed everything for reproducibility
     random.seed(cfg.seed)

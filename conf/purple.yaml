@@ -23,7 +23,6 @@ grpo:
 
 num_epochs: 10
 batch_size: 16
-gradient_accumulation_steps: 1
 max_grad_norm: 1.0
 lr: 1e-4
 
