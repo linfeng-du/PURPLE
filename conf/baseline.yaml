@@ -4,12 +4,11 @@ defaults:
 
 hydra:
   run:
-    dir: ${run_dir}
+    dir: outputs/logs/${run_dir}/${now:%Y-%m-%d_%H-%M-%S_%f}
 
 run_name: >-
   ${hydra:runtime.choices.llm}/
   ${candidate_retriever}-${num_candidates}/${retriever}-${num_retrieve}/${task}
-run_dir: ./outputs/${run_name}/${now:%Y-%m-%d_%H-%M-%S_%f}
 
 task: ???
 retriever: ???

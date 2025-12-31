@@ -246,7 +246,7 @@ class Trainer:
         return self.metric_fn(predictions, references)
 
     def _load_states(self) -> None:
-        model_dir = Path(self.cfg.run_dir).parent / "model"
+        model_dir = Path("outputs") / "models" / self.cfg.run_name
 
         self.score_model.from_pretrained(model_dir)
         logger.info(f"Loaded model weights from {model_dir}")
@@ -264,7 +264,7 @@ class Trainer:
         logger.info(f"Loaded trainer states from {model_dir}")
 
     def _save_states(self) -> None:
-        model_dir = Path(self.cfg.run_dir).parent / "model"
+        model_dir = Path("outputs") / "models" / self.cfg.run_name
         model_dir.mkdir(parents=True, exist_ok=True)
 
         self.score_model.save_pretrained(model_dir)
