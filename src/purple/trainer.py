@@ -45,6 +45,9 @@ class Trainer:
         self.reward_fn = reward_fn
         self.metric_fn = metric_fn
 
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.score_model.to(self.device)
+
         # Trainer states
         self.epoch = 0
         self.examples_seen = 0
@@ -60,9 +63,6 @@ class Trainer:
 
         if resume:
             self._load_states()
-
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.score_model.to(self.device)
 
         self.wandb = wandb.init(
             dir="./outputs",
