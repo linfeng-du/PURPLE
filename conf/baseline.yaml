@@ -4,7 +4,7 @@ defaults:
 
 hydra:
   run:
-    dir: outputs/logs/${run_dir}/${now:%Y-%m-%d_%H-%M-%S_%f}
+    dir: outputs/logs/${run_name}/${now:%Y-%m-%d_%H-%M-%S_%f}
 
 run_name: >-
   ${hydra:runtime.choices.llm}/
