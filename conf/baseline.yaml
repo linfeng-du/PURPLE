@@ -16,7 +16,6 @@ num_retrieve: 5
 
 prompt_fn:
   task: ${task}
-  num_retrieve: ${num_retrieve}
   max_prompt_length: 2048
 
 candidate_retriever: contriever

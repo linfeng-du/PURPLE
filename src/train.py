@@ -1,7 +1,6 @@
 import logging
 import os
 import random
-from pathlib import Path
 
 logging.getLogger("absl").setLevel(logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -105,6 +104,7 @@ def main(cfg: DictConfig) -> None:
     # Prepare LaMP components
     prompt_fn = create_prompt_fn(
         retriever="first_k",
+        num_retrieve=cfg.num_retrieve,
         tokenizer=AutoTokenizer.from_pretrained(cfg.llm.model),
         **cfg.prompt_fn
     )
