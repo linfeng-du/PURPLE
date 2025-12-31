@@ -34,6 +34,10 @@ class HuggingFaceLLM:
         if self.tokenizer.pad_token_id is None:
             self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
 
+        if model == "microsoft/Phi-4-mini-instruct":
+            # SDPA bug occurs when sequence length exceeds 4096
+            self.tokenizer.model_max_length = 4096
+
         self.chat_template_length = compute_chat_template_length(
             self.tokenizer
         )
