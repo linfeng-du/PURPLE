@@ -54,12 +54,6 @@ def main(cfg: DictConfig) -> None:
 
     # Prepare score model and LLM
     score_model = ScoreModel(**cfg.score_model)
-
-    if cfg.resume:
-        model_dir = Path(cfg.run_dir).parent / "model"
-        score_model.from_pretrained(model_dir)
-        logger.info(f"Loaded model from {model_dir}")
-
     llm = LLM(cfg.task, **cfg.llm)
 
     # Prepare dataset
