@@ -27,9 +27,6 @@ class HuggingFaceLLM:
 
         self.tokenizer = self.pipeline.tokenizer
         self.tokenizer.padding_side = "left"
-        # The user instruction is often on the right;
-        # keep it via left truncation
-        self.tokenizer.truncation_side = "left"
 
         if self.tokenizer.pad_token_id is None:
             self.tokenizer.pad_token_id = self.tokenizer.eos_token_id

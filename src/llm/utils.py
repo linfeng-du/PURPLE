@@ -45,12 +45,20 @@ def truncate_user_prompt(
     )
     assert max_user_length > 0
 
+    # The user instruction is often on the right; keep it via left truncation
+    truncation_side = tokenizer.truncation_side
+    tokenizer.truncation_side = "left"
+
     user_prompt_ids = tokenizer.encode(
         user_prompt,
         add_special_tokens=False,
         truncation=True,
         max_length=max_user_length
     )
+
+    # Restore truncation side
+    tokenizer.truncation_side = truncation_side
+
     new_user_prompt = tokenizer.decode(
         user_prompt_ids, skip_special_tokens=True
     )
@@ -91,6 +99,10 @@ def encode_prompt_and_completion(
     if model_max_length >= 10 ** 30:
         model_max_length = None
 
+    # Truncate completion on the right to keep the prompt intact
+    truncation_side = tokenizer.truncation_side
+    tokenizer.truncation_side = "right"
+
     # Set `continue_final_message=True` to avoid the EOS token,
     # since some models assign it a very low probability
     prompt_completion_ids = tokenizer.apply_chat_template(
@@ -100,6 +112,9 @@ def encode_prompt_and_completion(
         max_length=model_max_length,
         return_tensors="pt"
     )
+
+    # Restore truncation side
+    tokenizer.truncation_side = truncation_side
 
     assert torch.equal(prompt_completion_ids[0, :prompt_length], prompt_ids[0])
     return prompt_completion_ids, prompt_length
