@@ -6,9 +6,9 @@ hydra:
   run:
     dir: outputs/logs/${run_name}/${now:%Y-%m-%d_%H-%M-%S_%f}
 
-run_name: >-
-  ${hydra:runtime.choices.llm}/
-  ${candidate_retriever}-${num_candidates}/${retriever}-${num_retrieve}/${task}
+run_name: "${hydra:runtime.choices.llm}/\
+  ${candidate_retriever}-${num_candidates}/\
+  ${retriever}-${num_retrieve}/${task}"
 
 task: ???
 retriever: ???
