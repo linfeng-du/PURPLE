@@ -33,7 +33,7 @@ def truncate_user_prompt(
     system_prompt = prompt[0]["content"]
     user_prompt = prompt[1]["content"]
 
-    # Truncate only user prompt; keep system prompt intact
+    # Truncate only the user prompt; keep the system prompt intact
     system_length = len(
         tokenizer.encode(system_prompt, add_special_tokens=False)
     )
@@ -42,6 +42,8 @@ def truncate_user_prompt(
         - max_completion_length
         - chat_template_length
         - system_length
+        # Make space for edge cases
+        - 10
     )
     assert max_user_length > 0
 
@@ -99,7 +101,7 @@ def encode_prompt_and_completion(
     if model_max_length >= 10 ** 30:
         model_max_length = None
 
-    # Truncate completion on the right to keep the prompt intact
+    # Truncate the completion on the right to keep the prompt intact
     truncation_side = tokenizer.truncation_side
     tokenizer.truncation_side = "right"
 

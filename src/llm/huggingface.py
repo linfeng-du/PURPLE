@@ -4,7 +4,7 @@ from tqdm import tqdm
 
 import torch
 from torch.utils.data import Dataset
-from transformers import pipeline
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 from transformers.pipelines.text_generation import Chat, ChatType
 
 from .utils import (
@@ -18,31 +18,27 @@ class HuggingFaceLLM:
     def __init__(self, model: str, generation_kwargs: dict[str, Any]) -> None:
         self.generation_kwargs = generation_kwargs
 
-        self.pipeline = pipeline(
-            task="text-generation",
-            model=model,
+        self.model = AutoModelForCausalLM.from_pretrained(
+            model,
+            torch_dtype="bfloat16",
             device_map="auto",
-            torch_dtype="bfloat16"
+            attn_implementation="flash_attention_2"
         )
 
-        self.tokenizer = self.pipeline.tokenizer
+        self.tokenizer = AutoTokenizer.from_pretrained(model)
         self.tokenizer.padding_side = "left"
 
         if self.tokenizer.pad_token_id is None:
             self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
 
-        if model == "microsoft/Phi-4-mini-instruct":
-            # SDPA bug occurs when sequence length exceeds 4096
-            self.tokenizer.model_max_length = 4096
-
+        self.pipeline = pipeline(
+            task="text-generation",
+            model=self.model,
+            tokenizer=self.tokenizer
+        )
         self.chat_template_length = compute_chat_template_length(
             self.tokenizer
         )
-
-        if self.pipeline.model.generation_config.pad_token_id is None:
-            self.pipeline.model.generation_config.pad_token_id = (
-                self.tokenizer.pad_token_id
-            )
 
     def generate(
         self,
