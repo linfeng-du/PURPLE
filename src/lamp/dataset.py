@@ -194,7 +194,7 @@ def _generation_topic_query_corpus_fn(
     source: str,
     profile: list[dict[str, str]]
 ) -> tuple[str, list[str]]:
-    corpus = [f"{rec['content']} {rec['summary']}" for rec in profile]
+    corpus = [f"{rec['summary']} {rec['content']}" for rec in profile]
     return source, corpus
 
 

@@ -321,8 +321,8 @@ def _generation_topic_prompt_fn(
     prompts = []
 
     for record in profile:
-        summary, _ = _truncate_text(record["summary"], max_length, tokenizer)
-        prompts.append(f'"{record["content"]}" is a summary for "{summary}" ')
+        content, _ = _truncate_text(record["content"], max_length, tokenizer)
+        prompts.append(f'"{record["summary"]}" is a summary for "{content}" ')
 
     return f"{', and '.join(prompts)}. Following the given patterns, {source}"
 
