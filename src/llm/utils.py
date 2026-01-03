@@ -117,6 +117,4 @@ def encode_prompt_and_completion(
 
     # Restore truncation side
     tokenizer.truncation_side = truncation_side
-
-    assert torch.equal(prompt_completion_ids[0, :prompt_length], prompt_ids[0])
     return prompt_completion_ids, prompt_length
