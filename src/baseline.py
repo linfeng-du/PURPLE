@@ -24,7 +24,6 @@ import torch
 from transformers import AutoTokenizer
 
 from lamp import (
-    PromptFn,
     create_metric_fn,
     create_prompt_fn,
     create_retrieval_fn
@@ -116,8 +115,14 @@ def icralm(
     llm_kwargs = OmegaConf.to_container(cfg.llm, resolve=True)
 
     if "max_new_tokens" in llm_kwargs["generation_kwargs"]:
+        max_completion_length = (
+            llm_kwargs["generation_kwargs"]["max_new_tokens"]
+        )
         llm_kwargs["generation_kwargs"]["max_new_tokens"] = 1
     elif "max_completion_tokens" in llm_kwargs["generation_kwargs"]:
+        max_completion_length = (
+            llm_kwargs["generation_kwargs"]["max_completion_tokens"]
+        )
         llm_kwargs["generation_kwargs"]["max_completion_tokens"] = 1
 
     llm = LLM(cfg.task, **llm_kwargs)
@@ -139,45 +144,44 @@ def icralm(
         cur_prompt = prompts[0]
         completion_tokens = []
 
-        # prompts_ids = llm.apply_chat_template(prompts)
-        # cur_prompt_ids = prompts_ids[0]
-        # response_ids = []
+        for _ in range(max_completion_length):
+            if (
+                len(completion_tokens) > retrieve_length
+                and len(completion_tokens) % retrieve_stride == 0
+            ):
+                completions = [
+                    ''.join(completion_tokens[-retrieve_length:])
+                    for _ in range(len(prompts))
+                ]
+                assistant_prompts = [
+                    ''.join(completion_tokens[:-retrieve_length])
+                    for _ in range(len(prompts))
+                ]
+                logps = llm.compute_completion_logps(
+                    prompts, completions, assistant_prompts=assistant_prompts
+                )
+                cur_prompt = prompts[logps.argmax()]
 
-        # TODO: end tokens should be read from pipeline.model.generation_config.eos_token_id
-        # TODO: check vLLM case
-        while (
-            (not response_ids)
-            or (len(response_ids) < max_new_tokens and response_ids[-1] not in llm.end_token_ids)
-        ):
-            if response_ids and len(response_ids) % rerank_stride == 0:
-                concats_ids = [prompt_ids + response_ids for prompt_ids in prompts_ids]
-                prefixes_ids = [concat_ids[:-rerank_length] for concat_ids in concats_ids]
-                suffixes_ids = [concat_ids[-rerank_length:] for concat_ids in concats_ids]
+            if completion_tokens:
+                assistant_prompts = [''.join(completion_tokens)]
+            else:
+                assistant_prompts = None
 
-                prefixes = llm.tokenizer.batch_decode(prefixes_ids, skip_special_tokens=False)
-                suffixes = llm.tokenizer.batch_decode(suffixes_ids, skip_special_tokens=False)
+            completion = (
+                llm
+                .generate([cur_prompt], assistant_prompts=assistant_prompts)[0]
+            )
 
-                logps = llm.compute_target_logps(prefixes, suffixes, apply_template=False)
-                best_index = logps.argmax().item()
-                cur_prompt_ids = prompts_ids[best_index]
-
-            cur_input_ids = cur_prompt_ids + response_ids
-            cur_inputs = llm.tokenizer.batch_decode([cur_input_ids], skip_special_tokens=False)
-
-            outputs = llm.generate(cur_inputs, apply_template=False)
-
-            if outputs[0] == "":
-                # The API returns an empty string when the EOS token is reached
+            if completion == "":
                 break
 
-            response_id = llm.tokenizer.encode(outputs[0], add_special_tokens=False)[0]
-            response_ids.append(response_id)
+            completion_tokens.append(completion)
 
-        prediction = llm.tokenizer.decode(response_ids, skip_special_tokens=True)
-        predictions.append(prediction)
-        targets.append(example["target"])
+        print(''.join(completion_tokens))
+        predictions.append(''.join(completion_tokens))
+        references.append(example["target"])
 
-    return predictions, targets
+    return predictions, references
 
 
 def replug(cfg: DictConfig, dataset: Dataset) -> (
