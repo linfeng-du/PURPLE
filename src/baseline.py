@@ -1,4 +1,3 @@
-import itertools
 import json
 import logging
 import os
@@ -114,12 +113,12 @@ def icralm(
 
     llm_kwargs = OmegaConf.to_container(cfg.llm, resolve=True)
 
-    if "max_new_tokens" in llm_kwargs["generation_kwargs"]:
+    if llm_kwargs["backend"] == "hf":
         max_completion_length = (
             llm_kwargs["generation_kwargs"]["max_new_tokens"]
         )
         llm_kwargs["generation_kwargs"]["max_new_tokens"] = 1
-    elif "max_completion_tokens" in llm_kwargs["generation_kwargs"]:
+    elif llm_kwargs["backend"] == "vllm":
         max_completion_length = (
             llm_kwargs["generation_kwargs"]["max_completion_tokens"]
         )
@@ -177,63 +176,70 @@ def icralm(
 
             completion_tokens.append(completion)
 
-        print(''.join(completion_tokens))
-        predictions.append(''.join(completion_tokens))
-        references.append(example["target"])
+        prediction = "".join(completion_tokens)
+        reference = example["target"]
+        predictions.append(prediction)
+        references.append(reference)
 
     return predictions, references
 
 
-def replug(cfg: DictConfig, dataset: Dataset) -> (
-    tuple[list[str], list[str]]
-):
-    contriever = Contriever()
+def replug(cfg: DictConfig, dataset: Dataset) -> tuple[list[str], list[str]]:
+    prompt_fn = create_prompt_fn(
+        retriever="first_k",
+        num_retrieve=1,
+        tokenizer=AutoTokenizer.from_pretrained(cfg.llm.model),
+        **cfg.prompt_fn
+    )
+    contriever = create_retrieval_fn(retriever="contriever")
 
-    if cfg.llm.provider == "local":
-        OmegaConf.set_struct(cfg.llm.generate_config, False)
-        cfg.llm.generate_config.update({
-            "batch_size": 1,
-            "do_sample": False,
-            "num_beams": 4,
-            "temperature": None,
-            "top_p": None,
-            "num_return_sequences": 4
-        })
-        OmegaConf.set_struct(cfg.llm.generate_config, True)
-    elif cfg.llm.provider == "vllm":
-        # Use sampling instead of beam search
-        OmegaConf.set_struct(cfg.llm.generate_config, False)
-        cfg.llm.generate_config.update({"n": 4})
-        OmegaConf.set_struct(cfg.llm.generate_config, True)
+    llm_kwargs = OmegaConf.to_container(cfg.llm, resolve=True)
 
-    llm = LLM(cfg.task, **cfg.llm)
+    if llm_kwargs["backend"] == "hf":
+        llm_kwargs["generation_kwargs"].update({"num_return_sequences": 4})
+    elif llm_kwargs["backend"] == "vllm":
+        llm_kwargs["generation_kwargs"].update({"n": 4})
+
+    llm = LLM(cfg.task, **llm_kwargs)
 
     predictions = []
-    targets = []
+    references = []
 
-    for example in tqdm(dataset, desc="Generating responses"):
-        profiles, retriever_logps = contriever(
-            example["query"], example["corpus"], example["profiles"], cfg.num_rerank,
-            return_logps=True
+    for example in tqdm(dataset, desc="Generating completions"):
+        profile, retriever_logps = contriever.retrieve_with_logps(
+            example["query"],
+            example["corpus"],
+            example["profile"],
+            cfg.num_retrieve
         )
-        sources = [prompt_generator(example["source"], [profile]) for profile in profiles]
-        all_predictions = llm.generate(sources)
-        all_predictions = list(itertools.chain.from_iterable(all_predictions))
+        prompts = [
+            prompt_fn(example["source"], [rec], None, None) for rec in profile
+        ]
+        completions = [
+            c for completions in llm.generate(prompts) for c in completions
+        ]
 
-        expanded_sources = [source for _ in range(len(all_predictions)) for source in sources]
-        expanded_predictions = [prediction for prediction in all_predictions for _ in range(len(sources))]
-        llm_logps = llm.compute_target_logps(expanded_sources, expanded_predictions)
-        llm_logps = llm_logps.to(retriever_logps.device).view(len(all_predictions), len(sources))
+        all_prompts = [
+            p for _ in range(len(completions)) for p in prompts
+        ]
+        all_completions = [
+            c for c in completions for _ in range(len(prompts))
+        ]
+        llm_logps = llm.compute_completion_logps(all_prompts, all_completions)
+        llm_logps = (
+            llm_logps.to(retriever_logps.device)
+            .view(len(completions), len(prompts))
+        )
 
         logps = llm_logps + retriever_logps
-        marginal_logps = torch.logsumexp(logps, dim=1)
-        best_index = marginal_logps.argmax().item()
-        prediction = all_predictions[best_index]
+        marginal_logps = torch.logsumexp(logps, dim=-1)
 
+        prediction = completions[marginal_logps.argmax()]
+        reference = example["target"]
         predictions.append(prediction)
-        targets.append(example["target"])
+        references.append(reference)
 
-    return predictions, targets
+    return predictions, references
 
 
 if __name__ == "__main__":
