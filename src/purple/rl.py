@@ -11,7 +11,7 @@ class RolloutGroup(TypedDict):
     record_mask: torch.Tensor
     rollout_indices: torch.Tensor
     rollout_logps: torch.Tensor
-    advantages: torch.Tensor
+    rewards: torch.Tensor
 
 
 class RolloutGroupBatch(TypedDict):
@@ -20,7 +20,7 @@ class RolloutGroupBatch(TypedDict):
     record_mask: torch.Tensor
     rollout_indices: torch.Tensor
     rollout_logps: torch.Tensor
-    advantages: torch.Tensor
+    rewards: torch.Tensor
 
 
 class RolloutDataset(Dataset):
@@ -31,7 +31,7 @@ class RolloutDataset(Dataset):
         record_mask: torch.Tensor,
         rollout_indices: torch.Tensor,
         rollout_logps: torch.Tensor,
-        advantages: torch.Tensor
+        rewards: torch.Tensor
     ) -> None:
         self.examples = []
 
@@ -45,7 +45,7 @@ class RolloutDataset(Dataset):
                     record_mask=record_mask[index],
                     rollout_indices=rollout_indices[index],
                     rollout_logps=rollout_logps[index],
-                    advantages=advantages[index]
+                    rewards=rewards[index]
                 )
             )
 
@@ -122,7 +122,7 @@ def compute_rollout_logps(
     return rollout_logps
 
 
-def collate_fn(examples: list[RolloutGroup]) -> RolloutGroupBatch:
+def rollout_collate_fn(examples: list[RolloutGroup]) -> RolloutGroupBatch:
     query_inputs = {}
 
     for key in examples[0]["query_inputs"].keys():
@@ -135,7 +135,7 @@ def collate_fn(examples: list[RolloutGroup]) -> RolloutGroupBatch:
     record_mask = torch.stack([e["record_mask"] for e in examples])
     rollout_indices = torch.stack([e["rollout_indices"] for e in examples])
     rollout_logps = torch.stack([e["rollout_logps"] for e in examples])
-    advantages = torch.stack([e["advantages"] for e in examples])
+    rewards = torch.stack([e["rewards"] for e in examples])
 
     return RolloutGroupBatch(
         query_inputs=query_inputs,
@@ -143,21 +143,36 @@ def collate_fn(examples: list[RolloutGroup]) -> RolloutGroupBatch:
         record_mask=record_mask,
         rollout_indices=rollout_indices,
         rollout_logps=rollout_logps,
-        advantages=advantages
+        rewards=rewards
     )
 
 
-def compute_loss(
+def compute_reinforce_loss(
+    rollout_logps: torch.Tensor,
+    rewards: torch.Tensor
+) -> torch.Tensor:
+    advantages = (
+        (rewards - rewards.mean(dim=-1, keepdim=True))
+        / (rewards.std(dim=-1, keepdim=True) + 1e-8)
+    )
+    return -(rollout_logps * advantages).mean()
+
+
+def compute_grpo_loss(
     rollout_logps: torch.Tensor,
     rollout_batch: RolloutGroupBatch,
     epsilon: float
 ) -> torch.Tensor:
     old_rollout_logps = rollout_batch["rollout_logps"]
-    advantages = rollout_batch["advantages"]
+    rewards = rollout_batch["rewards"]
+
+    advantages = (
+        (rewards - rewards.mean(dim=-1, keepdim=True))
+        / (rewards.std(dim=-1, keepdim=True) + 1e-8)
+    )
 
     ratio = (rollout_logps - old_rollout_logps).exp()
     surrogate_1 = ratio * advantages
     surrogate_2 = ratio.clamp(min=1 - epsilon, max=1 + epsilon) * advantages
 
-    loss = -torch.min(surrogate_1, surrogate_2)
-    return loss.mean()
+    return -torch.min(surrogate_1, surrogate_2).mean()

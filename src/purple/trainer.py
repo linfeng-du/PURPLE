@@ -14,7 +14,7 @@ from transformers import BatchEncoding
 from lamp import MetricFn, PromptFn
 from llm import LLM
 
-from . import grpo
+from . import rl
 from .dataset import LaMPBatch
 from .reward import RewardFn
 from .score_model import ScoreModel
@@ -75,31 +75,16 @@ class Trainer:
 
         for _ in range(self.cfg.num_epochs):
             for batch in tqdm(self.train_loader, desc=f"Epoch {self.epoch}"):
-                rollout_loader = self._sample_rollouts(batch)
-                self.score_model.train()
+                batch = move_to_device(batch, self.device)
 
-                for rollout_batch in rollout_loader:
-                    likelihoods = self.score_model(
-                        rollout_batch["query_inputs"],
-                        rollout_batch["corpus_inputs"],
-                        rollout_batch["record_mask"]
+                if self.cfg.rl.algorithm == "reinforce":
+                    self._train_reinforce(batch)
+                elif self.cfg.rl.algorithm == "grpo":
+                    self._train_grpo(batch)
+                else:
+                    raise ValueError(
+                        f"Invalid RL algorithm: {self.cfg.rl.algorithm}"
                     )
-                    rollout_logps = grpo.compute_rollout_logps(
-                        likelihoods,
-                        rollout_batch["rollout_indices"]
-                    )
-                    loss = grpo.compute_loss(
-                        rollout_logps, rollout_batch, self.cfg.grpo.epsilon
-                    )
-
-                    loss.backward()
-                    nn.utils.clip_grad_norm_(
-                        self.score_model.parameters(), self.cfg.max_grad_norm
-                    )
-                    self.optimizer.step()
-                    self.optimizer.zero_grad()
-
-                    self.wandb.log({"train/loss": loss.item()})
 
                 self.examples_seen += len(batch["source"])
 
@@ -141,20 +126,80 @@ class Trainer:
 
         self.wandb.finish()
 
-    @torch.no_grad()
-    def _sample_rollouts(self, batch: LaMPBatch) -> DataLoader:
-        self.score_model.eval()
-        batch = move_to_device(batch, self.device)
+    def _train_reinforce(self, batch: LaMPBatch) -> None:
+        _, rollout_logps, rewards = self._sample_rollouts(batch)
+        loss = rl.compute_reinforce_loss(rollout_logps, rewards)
+        self.wandb.log({"train/loss": loss.item()})
 
+        loss.backward()
+        nn.utils.clip_grad_norm_(
+            self.score_model.parameters(), self.cfg.max_grad_norm
+        )
+        self.optimizer.step()
+        self.optimizer.zero_grad()
+
+    def _train_grpo(self, batch: LaMPBatch) -> None:
+        self.score_model.eval()
+
+        with torch.no_grad():
+            rollout_indices, rollout_logps, rewards = (
+                self._sample_rollouts(batch)
+            )
+
+        # Prepare rollout dataset
+        dataset = rl.RolloutDataset(
+            batch["query_inputs"],
+            batch["corpus_inputs"],
+            batch["record_mask"],
+            rollout_indices,
+            rollout_logps,
+            rewards
+        )
+        rollout_loader = DataLoader(
+            dataset,
+            batch_size=self.cfg.rl.batch_size,
+            shuffle=True,
+            collate_fn=rl.rollout_collate_fn,
+            drop_last=True
+        )
+
+        self.score_model.train()
+
+        for rollout_batch in rollout_loader:
+            likelihoods = self.score_model(
+                rollout_batch["query_inputs"],
+                rollout_batch["corpus_inputs"],
+                rollout_batch["record_mask"]
+            )
+            rollout_logps = rl.compute_rollout_logps(
+                likelihoods,
+                rollout_batch["rollout_indices"]
+            )
+            loss = rl.compute_grpo_loss(
+                rollout_logps, rollout_batch, self.cfg.rl.epsilon
+            )
+            self.wandb.log({"train/loss": loss.item()})
+
+            loss.backward()
+            nn.utils.clip_grad_norm_(
+                self.score_model.parameters(), self.cfg.max_grad_norm
+            )
+            self.optimizer.step()
+            self.optimizer.zero_grad()
+
+    def _sample_rollouts(
+        self,
+        batch: LaMPBatch
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         # Sample rollouts for each query
         likelihoods = self.score_model(
             batch["query_inputs"],
             batch["corpus_inputs"],
             batch["record_mask"]
         )
-        rollout_indices, rollout_logps = grpo.sample_rollouts(
+        rollout_indices, rollout_logps = rl.sample_rollouts(
             likelihoods,
-            self.cfg.grpo.num_rollouts,
+            self.cfg.rl.num_rollouts,
             self.cfg.num_retrieve
         )
 
@@ -174,41 +219,18 @@ class Trainer:
                 references.append(reference)
 
         # Compute reward for each rollout
-        if self.cfg.grpo.reward == "metric":
+        if self.cfg.reward == "metric":
             predictions = self.llm.generate(prompts)
             rewards = self.reward_fn(predictions, references)
-        elif self.cfg.grpo.reward == "logp":
-            rewards = self.llm.compute_completion_logps(
-                prompts, references
-            )
+        elif self.cfg.reward == "logp":
+            rewards = self.llm.compute_completion_logps(prompts, references)
         else:
-            raise ValueError(f"Invalid reward: {self.cfg.grpo.reward}")
+            raise ValueError(f"Invalid reward: {self.cfg.reward}")
 
         rewards = rewards.to(self.device).view_as(rollout_logps)
         self.wandb.log({"train/reward": rewards.mean().item()})
 
-        # Compute advantage for each rollout
-        advantages = (
-            (rewards - rewards.mean(dim=-1, keepdim=True))
-            / (rewards.std(dim=-1, keepdim=True) + 1e-8)
-        )
-
-        # Prepare rollout dataset
-        dataset = grpo.RolloutDataset(
-            batch["query_inputs"],
-            batch["corpus_inputs"],
-            batch["record_mask"],
-            rollout_indices,
-            rollout_logps,
-            advantages
-        )
-        return DataLoader(
-            dataset,
-            batch_size=self.cfg.grpo.batch_size,
-            shuffle=True,
-            collate_fn=grpo.collate_fn,
-            drop_last=True
-        )
+        return rollout_indices, rollout_logps, rewards
 
     @torch.no_grad()
     def evaluate(self) -> dict[str, float]:

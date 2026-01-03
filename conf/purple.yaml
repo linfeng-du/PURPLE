@@ -1,8 +1,14 @@
 defaults:
   - baseline
+  - rl: reinforce
   - _self_
 
+run_name: "${hydra:runtime.choices.llm}/\
+  ${candidate_retriever}-${num_candidates}/\
+  ${retriever}-${num_retrieve}/${hydra:runtime.choices.rl}-${reward}/${task}"
+
 retriever: purple
+reward: logp
 resume: false
 
 preprocess_fn:
@@ -14,12 +20,6 @@ score_model:
   fuse_mode: cross_attn
   num_transformer_layers: 12
   decoder_hidden_size: 256
-
-grpo:
-  num_rollouts: 32
-  batch_size: 8
-  epsilon: 0.2
-  reward: logp
 
 num_epochs: 10
 batch_size: 16
