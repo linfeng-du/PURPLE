@@ -3,7 +3,7 @@
 sbatch_time='24:00:00'
 tasks="LaMP-1,LaMP-2,LaMP-3,LaMP-4,LaMP-5,LaMP-7,\
 LongLaMP-2,LongLaMP-3,LongLaMP-4"
-retrievers='bm25,contriever,icralm,rank_gpt-llama3,rank_gpt-gpt5,replug,icr'
+retrievers='bm25,contriever,icralm,replug,rank_gpt-llama3,rank_gpt-gpt5,icr'
 llms='phi4-mini-instruct,llama3-8b-instruct'
 authority='null'
 
