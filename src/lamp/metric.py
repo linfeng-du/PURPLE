@@ -2,6 +2,7 @@
 #   https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/data/datasets.py
 #   https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/metrics/classification_metrics.py
 #   https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/metrics/generation_metrics.py
+import re
 from collections.abc import Callable
 from types import MappingProxyType
 
@@ -141,6 +142,9 @@ def _create_generation_metric_fn(aggregate: bool) -> MetricFn:
     rouge_metric = evaluate.load("rouge")
     meteor_metric = evaluate.load("meteor")
 
+    # METEOR crashes on tokens with too many trailing "y"s
+    invalid_pattern = r"[yY]{100,}"
+
     def to_float(
         result: float | np.float64 | list[float] | list[np.float64]
     ) -> float | list[float]:
@@ -153,7 +157,10 @@ def _create_generation_metric_fn(aggregate: bool) -> MetricFn:
         predictions: list[str],
         references: list[str]
     ) -> dict[str, float | list[float]]:
-        predictions = [p.strip() for p in predictions]
+        predictions = [
+            "" if re.search(invalid_pattern, p) else p.strip()
+            for p in predictions
+        ]
         references = [[r.strip()] for r in references]
 
         rouge_results = rouge_metric.compute(
