@@ -232,8 +232,8 @@ class Trainer:
                     self.prompt_fn(
                         batch["source"][index],
                         [batch["profile"][index][i] for i in record_indices],
-                        batch["query"][index],
-                        [batch["corpus"][index][i] for i in record_indices]
+                        None,
+                        None
                     )
                 )
                 chat_prompts.append(chat_prompt)
@@ -284,8 +284,8 @@ class Trainer:
                     self.prompt_fn(
                         batch["source"][index],
                         [batch["profile"][index][i] for i in record_indices],
-                        batch["query"][index],
-                        [batch["corpus"][index][i] for i in record_indices]
+                        None,
+                        None
                     )
                 )
                 chat_prompts.append(chat_prompt)

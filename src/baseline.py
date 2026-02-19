@@ -123,10 +123,7 @@ def icralm(
             cfg.num_retrieve
         )
         prompts = [
-            prompt_fn(
-                example["source"], [rec], example["query"], example["corpus"]
-            )
-            for rec in profile
+            prompt_fn(example["source"], [rec], None, None) for rec in profile
         ]
 
         cur_prompt = prompts[0]
@@ -207,14 +204,7 @@ def replug(cfg: DictConfig, dataset: Dataset) -> tuple[list[str], list[str]]:
             cfg.num_retrieve
         )
         chat_prompts = [
-            chat_prompt_fn(
-                prompt_fn(
-                    example["source"],
-                    [rec],
-                    example["query"],
-                    example["corpus"]
-                )
-            )
+            chat_prompt_fn(prompt_fn(example["source"], [rec], None, None))
             for rec in profile
         ]
         completions = [
