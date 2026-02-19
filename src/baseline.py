@@ -70,7 +70,9 @@ def main(cfg: DictConfig) -> None:
             references.append(example["target"])
 
         llm = create_llm(**cfg.llm)
-        predictions = llm.generate(chat_prompts, verbose=True)
+        predictions = [
+            comps[0] for comps in llm.generate(chat_prompts, verbose=True)
+        ]
 
     elapsed_time = time.perf_counter() - start_time
 
@@ -154,11 +156,11 @@ def icralm(
                 cur_prompt = prompts[logprobs.argmax()]
 
             if completion_tokens:
-                completion_prefixes = [''.join(completion_tokens)]
+                completion_prefix = ''.join(completion_tokens)
             else:
-                completion_prefixes = None
+                completion_prefix = None
 
-            chat_prompts = [chat_prompt_fn(cur_prompt)]
+            chat_prompts = [chat_prompt_fn(cur_prompt, completion_prefix)]
             completion = llm.generate(chat_prompts)[0][0]
 
             if completion == "":

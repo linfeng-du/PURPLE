@@ -391,13 +391,13 @@ SYSTEM_PROMPTS = {
         "in a style similar to the given examples without any additional text."
     ),
     "longlamp3": (
-        "You are a personalized topic generation chatbot "
-        "who generates a topic "
+        "You are a personalized product review generation chatbot "
+        "who generates a product review "
         "in a style similar to the given examples without any additional text."
     ),
     "longlamp4": (
-        "You are a personalized product review generation chatbot "
-        "who generates a product review "
+        "You are a personalized topic generation chatbot "
+        "who generates a topic "
         "in a style similar to the given examples without any additional text."
     )
 }

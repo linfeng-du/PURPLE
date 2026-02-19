@@ -241,7 +241,9 @@ class Trainer:
 
         # Compute reward for each rollout
         if self.args.reward_type == "metric":
-            predictions = self.llm.generate(chat_prompts)
+            predictions = [
+                comps[0] for comps in self.llm.generate(chat_prompts)
+            ]
             rewards = self.reward_fn(predictions, references)
         elif self.args.reward_type == "logprob":
             rewards = self.llm.compute_completion_logprobs(
@@ -289,7 +291,9 @@ class Trainer:
                 chat_prompts.append(chat_prompt)
                 references.append(batch["target"][index])
 
-        predictions = self.llm.generate(chat_prompts, verbose=True)
+        predictions = [
+            comps[0] for comps in self.llm.generate(chat_prompts, verbose=True)
+        ]
         return self.metric_fn(predictions, references)
 
     def _load_states(self) -> None:
