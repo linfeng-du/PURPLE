@@ -15,7 +15,6 @@ import numpy as np
 from datasets import Dataset
 
 import torch
-from transformers import AutoTokenizer
 
 from lamp import (
     create_chat_prompt_fn,
