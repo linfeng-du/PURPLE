@@ -6,16 +6,18 @@ import wandb
 from omegaconf import DictConfig
 from tqdm import tqdm
 
+from datasets import Dataset
+
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from transformers import BatchEncoding
 
-from lamp import MetricFn, PromptFn
-from llm import LLM
+from lamp import ChatPromptFn, MetricFn, PromptFn
+from llm import HFLLM, VLLMClient
 
 from . import rl
-from .dataset import LaMPBatch
+from .dataset import CollateFn, LaMPBatch
 from .reward import RewardFn
 from .score_model import ScoreModel
 
@@ -26,24 +28,41 @@ logger = logging.getLogger(__name__)
 class Trainer:
     def __init__(
         self,
-        cfg: DictConfig,
         score_model: ScoreModel,
-        llm: LLM,
-        train_loader: DataLoader,
-        test_loader: DataLoader,
+        llm: HFLLM | VLLMClient,
+        args: DictConfig,
+        collate_fn: CollateFn,
+        train_dataset: Dataset,
+        test_dataset: Dataset,
         prompt_fn: PromptFn,
+        chat_prompt_fn: ChatPromptFn,
         reward_fn: RewardFn,
-        metric_fn: MetricFn,
-        resume: bool
+        metric_fn: MetricFn
     ) -> None:
-        self.cfg = cfg
+        if args.eval_every % args.batch_size != 0:
+            raise ValueError(f"`eval_every` not divisible by `batch_size`")
+
+        self.args = args
         self.score_model = score_model
         self.llm = llm
-        self.train_loader = train_loader
-        self.test_loader = test_loader
+
         self.prompt_fn = prompt_fn
+        self.chat_prompt_fn = chat_prompt_fn
         self.reward_fn = reward_fn
         self.metric_fn = metric_fn
+
+        self.train_loader = DataLoader(
+            train_dataset,
+            batch_size=args.batch_size,
+            shuffle=True,
+            collate_fn=collate_fn,
+            drop_last=True
+        )
+        self.test_loader = DataLoader(
+            test_dataset,
+            batch_size=args.eval_batch_size,
+            collate_fn=collate_fn
+        )
 
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.score_model.to(self.device)
@@ -58,37 +77,37 @@ class Trainer:
                 for param in self.score_model.parameters()
                 if param.requires_grad
             ],
-            lr=self.cfg.lr
+            lr=self.args.learning_rate
         )
 
-        if resume:
+        if self.args.resume:
             self._load_states()
 
         self.wandb = wandb.init(
-            dir="./outputs",
             project="PURPLE",
-            name=f"{self.cfg.run_name}"
+            dir="outputs",
+            name=self.args.run_name
         )
 
     def train(self) -> None:
         self.score_model.train()
 
-        for _ in range(self.cfg.num_epochs):
+        for _ in range(self.args.num_train_epochs):
             for batch in tqdm(self.train_loader, desc=f"Epoch {self.epoch}"):
                 batch = move_to_device(batch, self.device)
 
-                if self.cfg.rl.algorithm == "reinforce":
+                if self.args.loss_type == "reinforce":
                     self._train_reinforce(batch)
-                elif self.cfg.rl.algorithm == "grpo":
+                elif self.args.loss_type == "grpo":
                     self._train_grpo(batch)
                 else:
                     raise ValueError(
-                        f"Invalid RL algorithm: {self.cfg.rl.algorithm}"
+                        f"Invalid loss type: {self.args.loss_type}"
                     )
 
                 self.examples_seen += len(batch["source"])
 
-                if self.examples_seen % self.cfg.eval_every == 0:
+                if self.examples_seen % self.args.eval_every == 0:
                     eval_results = self.evaluate()
                     self.score_model.train()
 
@@ -127,13 +146,13 @@ class Trainer:
         self.wandb.finish()
 
     def _train_reinforce(self, batch: LaMPBatch) -> None:
-        _, rollout_logps, rewards = self._sample_rollouts(batch)
-        loss = rl.compute_reinforce_loss(rollout_logps, rewards)
+        _, rollout_logprobs, rewards = self._sample_rollouts(batch)
+        loss = rl.compute_reinforce_loss(rollout_logprobs, rewards)
         self.wandb.log({"train/loss": loss.item()})
 
         loss.backward()
         nn.utils.clip_grad_norm_(
-            self.score_model.parameters(), self.cfg.max_grad_norm
+            self.score_model.parameters(), self.args.max_grad_norm
         )
         self.optimizer.step()
         self.optimizer.zero_grad()
@@ -142,7 +161,7 @@ class Trainer:
         self.score_model.eval()
 
         with torch.no_grad():
-            rollout_indices, rollout_logps, rewards = (
+            rollout_indices, rollout_logprobs, rewards = (
                 self._sample_rollouts(batch)
             )
 
@@ -152,12 +171,12 @@ class Trainer:
             batch["corpus_inputs"],
             batch["record_mask"],
             rollout_indices,
-            rollout_logps,
+            rollout_logprobs,
             rewards
         )
         rollout_loader = DataLoader(
             dataset,
-            batch_size=self.cfg.rl.batch_size,
+            batch_size=self.args.mini_batch_size,
             shuffle=True,
             collate_fn=rl.rollout_collate_fn,
             drop_last=True
@@ -171,18 +190,18 @@ class Trainer:
                 rollout_batch["corpus_inputs"],
                 rollout_batch["record_mask"]
             )
-            rollout_logps = rl.compute_rollout_logps(
+            rollout_logprobs = rl.compute_rollout_logprobs(
                 likelihoods,
                 rollout_batch["rollout_indices"]
             )
             loss = rl.compute_grpo_loss(
-                rollout_logps, rollout_batch, self.cfg.rl.epsilon
+                rollout_logprobs, rollout_batch, self.args.epsilon
             )
             self.wandb.log({"train/loss": loss.item()})
 
             loss.backward()
             nn.utils.clip_grad_norm_(
-                self.score_model.parameters(), self.cfg.max_grad_norm
+                self.score_model.parameters(), self.args.max_grad_norm
             )
             self.optimizer.step()
             self.optimizer.zero_grad()
@@ -197,10 +216,10 @@ class Trainer:
             batch["corpus_inputs"],
             batch["record_mask"]
         )
-        rollout_indices, rollout_logps = rl.sample_rollouts(
+        rollout_indices, rollout_logprobs = rl.sample_rollouts(
             likelihoods,
-            self.cfg.rl.num_rollouts,
-            self.cfg.num_retrieve
+            self.args.num_rollouts,
+            self.args.num_retrieve
         )
 
         # Gather prompt and reference for each rollout
@@ -219,18 +238,18 @@ class Trainer:
                 references.append(reference)
 
         # Compute reward for each rollout
-        if self.cfg.reward == "metric":
+        if self.args.reward_type == "metric":
             predictions = self.llm.generate(prompts)
             rewards = self.reward_fn(predictions, references)
-        elif self.cfg.reward == "logp":
-            rewards = self.llm.compute_completion_logps(prompts, references)
+        elif self.args.reward_type == "logp":
+            rewards = self.llm.compute_completion_logprobs(prompts, references)
         else:
-            raise ValueError(f"Invalid reward: {self.cfg.reward}")
+            raise ValueError(f"Invalid reward type: {self.args.reward_type}")
 
-        rewards = rewards.to(self.device).view_as(rollout_logps)
+        rewards = rewards.to(self.device).view_as(rollout_logprobs)
         self.wandb.log({"train/reward": rewards.mean().item()})
 
-        return rollout_indices, rollout_logps, rewards
+        return rollout_indices, rollout_logprobs, rewards
 
     @torch.no_grad()
     def evaluate(self) -> dict[str, float]:
@@ -247,7 +266,7 @@ class Trainer:
                 batch["record_mask"]
             )
             max_num_retrieve = batch["record_mask"].sum(dim=-1).min().item()
-            num_retrieve = min(self.cfg.num_retrieve, max_num_retrieve)
+            num_retrieve = min(self.args.num_retrieve, max_num_retrieve)
             _, retrieved_indices = likelihoods.topk(num_retrieve)
 
             for index, query_retrieved_indices in enumerate(retrieved_indices):

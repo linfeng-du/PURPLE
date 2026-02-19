@@ -8,7 +8,7 @@ from datasets import Dataset, load_from_disk
 from datasets.formatting.formatting import LazyBatch
 
 import torch
-from transformers import BatchEncoding, PreTrainedTokenizerBase
+from transformers import AutoTokenizer, BatchEncoding
 
 from lamp import create_retrieval_fn, load_lamp_dataset
 
@@ -65,11 +65,13 @@ def load_retrieved_lamp_dataset(
     return load_from_disk(dataset_dir)
 
 
-def create_preprocess_fn(
+def create_pretokenize_fn(
+    encoder_model: str,
     max_query_length: int,
-    max_document_length: int,
-    tokenizer: PreTrainedTokenizerBase
+    max_document_length: int
 ) -> Callable[[LazyBatch], LazyBatch]:
+    tokenizer = AutoTokenizer.from_pretrained(encoder_model)
+
     def preprocess_fn(batch: LazyBatch) -> LazyBatch:
         queries = batch["query"]
         corpora = batch["corpus"]
@@ -98,7 +100,9 @@ def create_preprocess_fn(
     return preprocess_fn
 
 
-def create_collate_fn(tokenizer: PreTrainedTokenizerBase) -> CollateFn:
+def create_collate_fn(encoder_model: str) -> CollateFn:
+    tokenizer = AutoTokenizer.from_pretrained(encoder_model)
+
     def collate_fn(examples: list[LaMPExample]) -> LaMPBatch:
         sources = [e["source"] for e in examples]
         profiles = [e["profile"] for e in examples]

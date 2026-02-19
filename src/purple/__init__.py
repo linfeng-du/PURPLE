@@ -3,7 +3,7 @@ from .dataset import (
     LaMPBatch,
     LaMPExample,
     create_collate_fn,
-    create_preprocess_fn,
+    create_pretokenize_fn,
     load_retrieved_lamp_dataset
 )
 from .reward import RewardFn, create_reward_fn

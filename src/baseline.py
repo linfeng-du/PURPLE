@@ -6,18 +6,14 @@ import time
 
 logging.getLogger("absl").setLevel(logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.WARNING)
-logging.getLogger("openai._base_client").setLevel(logging.WARNING)
+logging.getLogger("openai").setLevel(logging.WARNING)
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
 
-import nltk
 import numpy as np
 from datasets import Dataset
-
-if os.getenv("HF_EVALUATE_OFFLINE") == "1":
-    nltk.download = lambda *args, **kwargs: None
 
 import torch
 from transformers import AutoTokenizer
@@ -36,12 +32,6 @@ logger = logging.getLogger(__name__)
 
 @hydra.main(config_path="../conf", config_name="baseline", version_base=None)
 def main(cfg: DictConfig) -> None:
-    # Check config validity
-    missing_keys = OmegaConf.missing_keys(cfg)
-
-    if missing_keys:
-        raise ValueError(f"Missing keys in config:\n{missing_keys}")
-
     # Seed everything for reproducibility
     random.seed(cfg.seed)
     np.random.seed(cfg.seed)
@@ -49,7 +39,7 @@ def main(cfg: DictConfig) -> None:
     torch.cuda.manual_seed(cfg.seed)
 
     # Prepare dataset
-    test_split = "dev" if cfg.task.startswith("LaMP-") else "test"
+    test_split = "dev" if cfg.task.startswith("lamp") else "test"
     test_dataset = load_retrieved_lamp_dataset(
         cfg.task, test_split, cfg.candidate_retriever, cfg.num_candidates
     )
@@ -156,10 +146,10 @@ def icralm(
                     ''.join(completion_tokens[:-retrieve_length])
                     for _ in range(len(prompts))
                 ]
-                logps = llm.compute_completion_logps(
+                logprobs = llm.compute_completion_logprobs(
                     prompts, completions, assistant_prompts=assistant_prompts
                 )
-                cur_prompt = prompts[logps.argmax()]
+                cur_prompt = prompts[logprobs.argmax()]
 
             if completion_tokens:
                 assistant_prompts = [''.join(completion_tokens)]
@@ -206,7 +196,7 @@ def replug(cfg: DictConfig, dataset: Dataset) -> tuple[list[str], list[str]]:
     references = []
 
     for example in tqdm(dataset, desc="Generating completions"):
-        profile, retriever_logps = contriever.retrieve_with_logps(
+        profile, retriever_logprobs = contriever.retrieve_with_logprobs(
             example["query"],
             example["corpus"],
             example["profile"],
@@ -225,16 +215,18 @@ def replug(cfg: DictConfig, dataset: Dataset) -> tuple[list[str], list[str]]:
         all_completions = [
             c for c in completions for _ in range(len(prompts))
         ]
-        llm_logps = llm.compute_completion_logps(all_prompts, all_completions)
-        llm_logps = (
-            llm_logps.to(retriever_logps.device)
+        llm_logprobs = llm.compute_completion_logprobs(
+            all_prompts, all_completions
+        )
+        llm_logprobs = (
+            llm_logprobs.to(retriever_logprobs.device)
             .view(len(completions), len(prompts))
         )
 
-        logps = llm_logps + retriever_logps
-        marginal_logps = torch.logsumexp(logps, dim=-1)
+        logprobs = llm_logprobs + retriever_logprobs
+        marginal_logprobs = torch.logsumexp(logprobs, dim=-1)
 
-        prediction = completions[marginal_logps.argmax()]
+        prediction = completions[marginal_logprobs.argmax()]
         reference = example["target"]
         predictions.append(prediction)
         references.append(reference)

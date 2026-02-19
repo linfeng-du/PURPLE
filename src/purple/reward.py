@@ -10,12 +10,12 @@ RewardFn = Callable[[list[str], list[str]], torch.Tensor]
 
 
 def create_reward_fn(task: str) -> RewardFn:
-    if task in {"LaMP-1", "LaMP-2"}:
+    if task in {"lamp1", "lamp2"}:
         return _classification_reward_fn
-    elif task in {"LaMP-3"}:
+    elif task in {"lamp3"}:
         return _create_regression_reward_fn(LABELS[task])
     elif task in {
-        "LaMP-4", "LaMP-5", "LaMP-7", "LongLaMP-2", "LongLaMP-3", "LongLaMP-4"
+        "lamp4", "lamp5", "lamp7", "longlamp2", "longlamp3", "longlamp4"
     }:
         return _create_generation_reward_fn()
     else:
@@ -49,7 +49,7 @@ def _create_regression_reward_fn(labels: tuple[str, ...]) -> RewardFn:
             else:
                 return max_value
 
-    def _regression_reward_fn(
+    def reward_fn(
         predictions: list[str],
         references: list[str]
     ) -> torch.Tensor:
@@ -59,13 +59,13 @@ def _create_regression_reward_fn(labels: tuple[str, ...]) -> RewardFn:
         ]
         return torch.tensor(rewards, dtype=torch.float32)
 
-    return _regression_reward_fn
+    return reward_fn
 
 
 def _create_generation_reward_fn() -> RewardFn:
     rouge_metric = evaluate.load("rouge")
 
-    def generation_reward_fn(
+    def reward_fn(
         predictions: list[str],
         references: list[str]
     ) -> torch.Tensor:
@@ -80,4 +80,4 @@ def _create_generation_reward_fn() -> RewardFn:
         )
         return torch.tensor(rouge_results["rouge1"], dtype=torch.float32)
 
-    return generation_reward_fn
+    return reward_fn

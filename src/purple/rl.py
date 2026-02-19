@@ -10,7 +10,7 @@ class RolloutGroup(TypedDict):
     corpus_inputs: list[BatchEncoding]
     record_mask: torch.Tensor
     rollout_indices: torch.Tensor
-    rollout_logps: torch.Tensor
+    rollout_logprobs: torch.Tensor
     rewards: torch.Tensor
 
 
@@ -19,7 +19,7 @@ class RolloutGroupBatch(TypedDict):
     corpus_inputs: list[list[BatchEncoding]]
     record_mask: torch.Tensor
     rollout_indices: torch.Tensor
-    rollout_logps: torch.Tensor
+    rollout_logprobs: torch.Tensor
     rewards: torch.Tensor
 
 
@@ -30,7 +30,7 @@ class RolloutDataset(Dataset):
         corpus_inputs: list[list[BatchEncoding]],
         record_mask: torch.Tensor,
         rollout_indices: torch.Tensor,
-        rollout_logps: torch.Tensor,
+        rollout_logprobs: torch.Tensor,
         rewards: torch.Tensor
     ) -> None:
         self.examples = []
@@ -44,7 +44,7 @@ class RolloutDataset(Dataset):
                     corpus_inputs=corpus_inputs[index],
                     record_mask=record_mask[index],
                     rollout_indices=rollout_indices[index],
-                    rollout_logps=rollout_logps[index],
+                    rollout_logprobs=rollout_logprobs[index],
                     rewards=rewards[index]
                 )
             )
@@ -65,13 +65,13 @@ def sample_rollouts(
     num_retrieve = min(num_retrieve, max_num_retrieve)
 
     rollout_indices = []
-    rollout_logps = []
+    rollout_logprobs = []
 
     for _ in range(num_rollouts):
         indices = torch.full_like(
             likelihoods[:, :num_retrieve], fill_value=-1, dtype=torch.long
         )
-        logps = torch.zeros_like(likelihoods[:, :num_retrieve])
+        logprobs = torch.zeros_like(likelihoods[:, :num_retrieve])
 
         likelihoods_ = likelihoods
 
@@ -81,27 +81,27 @@ def sample_rollouts(
             chosen_probs = probs.gather(dim=-1, index=chosen_indices)
 
             indices[:, index] = chosen_indices.squeeze(dim=-1)
-            logps[:, index] = chosen_probs.log().squeeze(dim=-1)
+            logprobs[:, index] = chosen_probs.log().squeeze(dim=-1)
 
             likelihoods_ = likelihoods_.scatter(
                 dim=-1, index=chosen_indices, value=0.0
             )
 
         rollout_indices.append(indices)
-        rollout_logps.append(logps.sum(dim=-1))
+        rollout_logprobs.append(logprobs.sum(dim=-1))
 
     rollout_indices = torch.stack(rollout_indices, dim=1)
-    rollout_logps = torch.stack(rollout_logps, dim=1)
-    return rollout_indices, rollout_logps
+    rollout_logprobs = torch.stack(rollout_logprobs, dim=1)
+    return rollout_indices, rollout_logprobs
 
 
-def compute_rollout_logps(
+def compute_rollout_logprobs(
     likelihoods: torch.Tensor,
     rollout_indices: torch.Tensor
 ) -> torch.Tensor:
     _, num_rollouts, num_retrieve = rollout_indices.shape
 
-    rollout_logps = torch.zeros_like(
+    rollout_logprobs = torch.zeros_like(
         rollout_indices[:, :, 0], dtype=torch.float32
     )
     likelihoods = likelihoods.unsqueeze(dim=1).expand(-1, num_rollouts, -1)
@@ -112,14 +112,14 @@ def compute_rollout_logps(
             likelihoods.gather(dim=-1, index=chosen_indices).squeeze(dim=-1)
         )
 
-        rollout_logps += (
+        rollout_logprobs += (
             chosen_likelihoods.log() - likelihoods.sum(dim=-1).log()
         )
         likelihoods = likelihoods.scatter(
             dim=-1, index=chosen_indices, value=0.0
         )
 
-    return rollout_logps
+    return rollout_logprobs
 
 
 def rollout_collate_fn(examples: list[RolloutGroup]) -> RolloutGroupBatch:
@@ -134,7 +134,7 @@ def rollout_collate_fn(examples: list[RolloutGroup]) -> RolloutGroupBatch:
     corpus_inputs = [e["corpus_inputs"] for e in examples]
     record_mask = torch.stack([e["record_mask"] for e in examples])
     rollout_indices = torch.stack([e["rollout_indices"] for e in examples])
-    rollout_logps = torch.stack([e["rollout_logps"] for e in examples])
+    rollout_logprobs = torch.stack([e["rollout_logprobs"] for e in examples])
     rewards = torch.stack([e["rewards"] for e in examples])
 
     return RolloutGroupBatch(
@@ -142,28 +142,28 @@ def rollout_collate_fn(examples: list[RolloutGroup]) -> RolloutGroupBatch:
         corpus_inputs=corpus_inputs,
         record_mask=record_mask,
         rollout_indices=rollout_indices,
-        rollout_logps=rollout_logps,
+        rollout_logprobs=rollout_logprobs,
         rewards=rewards
     )
 
 
 def compute_reinforce_loss(
-    rollout_logps: torch.Tensor,
+    rollout_logprobs: torch.Tensor,
     rewards: torch.Tensor
 ) -> torch.Tensor:
     advantages = (
         (rewards - rewards.mean(dim=-1, keepdim=True))
         / (rewards.std(dim=-1, keepdim=True) + 1e-8)
     )
-    return -(rollout_logps * advantages).mean()
+    return -(rollout_logprobs * advantages).mean()
 
 
 def compute_grpo_loss(
-    rollout_logps: torch.Tensor,
+    rollout_logprobs: torch.Tensor,
     rollout_batch: RolloutGroupBatch,
     epsilon: float
 ) -> torch.Tensor:
-    old_rollout_logps = rollout_batch["rollout_logps"]
+    old_rollout_logprobs = rollout_batch["rollout_logprobs"]
     rewards = rollout_batch["rewards"]
 
     advantages = (
@@ -171,7 +171,7 @@ def compute_grpo_loss(
         / (rewards.std(dim=-1, keepdim=True) + 1e-8)
     )
 
-    ratio = (rollout_logps - old_rollout_logps).exp()
+    ratio = (rollout_logprobs - old_rollout_logprobs).exp()
     surrogate_1 = ratio * advantages
     surrogate_2 = ratio.clamp(min=1 - epsilon, max=1 + epsilon) * advantages
 

@@ -11,7 +11,7 @@ run_prefix: "${hydra:runtime.choices.llm}/\
 
 run_name: "${run_prefix}/${task}/s${seed}"
 
-load_or_create_retrieved_lamp_dataset:
+load_retrieved_lamp_dataset:
   task: ${task}
   candidate_retriever: contriever
   num_candidates: 20
