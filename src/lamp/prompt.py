@@ -12,7 +12,7 @@ from .retrieval import create_retrieval_fn
 
 logger = logging.getLogger(__name__)
 PromptFn = Callable[[str, list[dict[str, str]], str, list[str]], str]
-ChatPromptFn = Callable[[list[str], list[str] | None], list[ChatType]]
+ChatPromptFn = Callable[[str, str | None], ChatType]
 
 
 def create_prompt_fn(

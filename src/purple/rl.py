@@ -60,7 +60,7 @@ def sample_rollouts(
     likelihoods: torch.Tensor,
     num_rollouts: int,
     num_retrieve: int
-) -> torch.Tensor:
+) -> tuple[torch.Tensor, torch.Tensor]:
     max_num_retrieve = (likelihoods > 0).sum(dim=-1).min().item()
     num_retrieve = min(num_retrieve, max_num_retrieve)
 
