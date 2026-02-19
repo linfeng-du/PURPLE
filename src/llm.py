@@ -36,6 +36,7 @@ class HFLLM:
         self.model = AutoModelForCausalLM.from_pretrained(
             model,
             dtype="bfloat16",
+            device_map="auto",
             attn_implementation="flash_attention_2"
         )
 
