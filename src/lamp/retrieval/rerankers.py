@@ -12,7 +12,7 @@ from .in_context_reranker.in_context_reranker import InContextReranker
 logger = logging.getLogger(__name__)
 
 
-# Adapted from: https://github.com/sunnweiwei/RankGPT/blob/main/rank_gpt.py
+# https://github.com/sunnweiwei/RankGPT/blob/main/rank_gpt.py
 class RankGPT:
     def __init__(
         self,
@@ -34,15 +34,17 @@ class RankGPT:
                 task="text-generation",
                 model=self.model,
                 device_map="auto",
-                torch_dtype="bfloat16"
+                dtype="bfloat16"
             )
 
             if self.pipeline.model.generation_config.pad_token_id is None:
                 self.pipeline.model.generation_config.pad_token_id = (
                     self.pipeline.tokenizer.eos_token_id
                 )
+
         elif self.backend == "openai":
             self.client = OpenAI()
+
         else:
             raise ValueError(f"Invalid backend: {self.backend}")
 
@@ -67,19 +69,18 @@ class RankGPT:
             )
 
             if self.backend == "hf":
-                completion = self._generate_hf(prompt)
+                completion = self._hf_generate(prompt)
             elif self.backend == "openai":
-                completion = self._generate_openai(prompt)
+                completion = self._openai_generate(prompt)
 
             ordering = _parse_completion(completion, end - start)
             corpus[start:end] = [corpus[start:end][idx] for idx in ordering]
             ranking[start:end] = [ranking[start:end][idx] for idx in ordering]
-
             end -= self.sliding_window_stride
 
         return [profile[idx] for idx in ranking[:num_retrieve]]
 
-    def _generate_hf(self, prompt: ChatType) -> str:
+    def _hf_generate(self, prompt: ChatType) -> str:
         outputs = self.pipeline(
             prompt,
             return_full_text=False,
@@ -90,16 +91,16 @@ class RankGPT:
         )
         return outputs[0]["generated_text"]
 
-    def _generate_openai(self, prompt: ChatType) -> str:
+    def _openai_generate(self, prompt: ChatType) -> str:
         completion = None
         num_retries = 0
 
         while completion is None:
             try:
-                outputs = self.client.chat.completions.create(
+                chat_completion = self.client.chat.completions.create(
                     messages=prompt, model=self.model
                 )
-                completion = outputs.choices[0].message.content
+                completion = chat_completion.choices[0].message.content
 
             except OpenAIError as err:
                 num_retries += 1
@@ -129,6 +130,7 @@ def _build_prompt(
 
     prompt.extend(_build_prompt_suffix(query, len(corpus)))
     return prompt
+
 
 def _build_prompt_prefix(query: str, num_passages: int) -> ChatType:
     return [
@@ -188,7 +190,7 @@ class ICR:
         sliding_window_stride: int = 5
     ) -> None:
         self.icr = InContextReranker(
-            "meta-llama/Meta-Llama-3-8B-Instruct",
+            base_llm_name="meta-llama/Meta-Llama-3-8B-Instruct",
             scoring_strategy="masked_NA_calibration",
             retrieval_type="IE",
             sliding_window_size=sliding_window_size,

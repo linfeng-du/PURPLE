@@ -1,30 +1,31 @@
-# Adapted from:
-#   https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/prompts/prompts.py
-#   https://github.com/LongLaMP-benchmark/LongLaMP-Benchmark/blob/main/longLaMP/prompts/prompts.py
+# https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/prompts/prompts.py
+# https://github.com/LongLaMP-benchmark/LongLaMP-Benchmark/blob/main/longLaMP/prompts/prompts.py
 import logging
 from collections.abc import Callable
 
-from transformers import PreTrainedTokenizerBase
+from transformers import AutoTokenizer, PreTrainedTokenizerBase
+from transformers.pipelines.text_generation import ChatType
 
+from .metric import LABELS
 from .retrieval import create_retrieval_fn
 
 
 logger = logging.getLogger(__name__)
-
-
 PromptFn = Callable[[str, list[dict[str, str]], str, list[str]], str]
+ChatPromptFn = Callable[[list[str], list[str] | None], list[ChatType]]
 
 
 def create_prompt_fn(
     task: str,
     retriever: str,
     num_retrieve: int,
+    llm_model: str,
     max_prompt_length: int,
-    tokenizer: PreTrainedTokenizerBase,
     factor: float = 0.6
 ) -> PromptFn:
-    retrieval_fn = create_retrieval_fn(retriever)
     prompt_fn = PROMPT_FNS[task]
+    retrieval_fn = create_retrieval_fn(retriever)
+    tokenizer = AutoTokenizer.from_pretrained(llm_model)
 
     def retrieval_augmented_prompt_fn(
         source: str,
@@ -340,13 +341,92 @@ def _truncate_text(
 
 
 PROMPT_FNS = {
-    "LaMP-1": _classification_citation_prompt_fn,
-    "LaMP-2": _classification_movie_prompt_fn,
-    "LaMP-3": _regression_rating_prompt_fn,
-    "LaMP-4": _generation_news_prompt_fn,
-    "LaMP-5": _generation_scholar_prompt_fn,
-    "LaMP-7": _generation_tweet_prompt_fn,
-    "LongLaMP-2": _generation_abstract_prompt_fn,
-    "LongLaMP-3": _generation_review_prompt_fn,
-    "LongLaMP-4": _generation_topic_prompt_fn
+    "lamp1": _classification_citation_prompt_fn,
+    "lamp2": _classification_movie_prompt_fn,
+    "lamp3": _regression_rating_prompt_fn,
+    "lamp4": _generation_news_prompt_fn,
+    "lamp5": _generation_scholar_prompt_fn,
+    "lamp7": _generation_tweet_prompt_fn,
+    "longlamp2": _generation_abstract_prompt_fn,
+    "longlamp3": _generation_review_prompt_fn,
+    "longlamp4": _generation_topic_prompt_fn
 }
+
+
+SYSTEM_PROMPTS = {
+    "lamp1": (
+        "You are a personalized citation identification chatbot "
+        f"who responds with one of the following: {LABELS['lamp1']} "
+        "based on the given examples without any additional text."
+    ),
+    "lamp2": (
+        "You are a personalized movie tagging chatbot "
+        f"who responds with one of the following: {LABELS['lamp2']} "
+        "based on the given examples without any additional text."
+    ),
+    "lamp3": (
+        "You are a personalized product rating chatbot "
+        f"who responds with one of the following: {LABELS['lamp3']} "
+        "based on the given examples without any additional text."
+    ),
+    "lamp4": (
+        "You are a personalized news headline generation chatbot "
+        "who generates a news headline "
+        "in a style similar to the given examples without any additional text."
+    ),
+    "lamp5": (
+        "You are a personalized scholarly title generation chatbot "
+        "who generates a scholarly title "
+        "in a style similar to the given examples without any additional text."
+    ),
+    "lamp7": (
+        "You are a personalized tweet paraphrasing chatbot "
+        "who paraphrases a tweet "
+        "in a style similar to the given examples without any additional text."
+    ),
+    "longlamp2": (
+        "You are a personalized abstract generation chatbot "
+        "who generates an abstract "
+        "in a style similar to the given examples without any additional text."
+    ),
+    "longlamp3": (
+        "You are a personalized topic generation chatbot "
+        "who generates a topic "
+        "in a style similar to the given examples without any additional text."
+    ),
+    "longlamp4": (
+        "You are a personalized product review generation chatbot "
+        "who generates a product review "
+        "in a style similar to the given examples without any additional text."
+    )
+}
+
+
+def create_chat_prompt_fn(task: str) -> ChatPromptFn:
+    def chat_prompt_fn(
+        prompts: list[str],
+        completion_prefixes: list[str] | None = None
+    ) -> list[ChatType]:
+        if completion_prefixes is None:
+            completion_prefixes = [None] * len(prompts)
+
+        chat_prompts = []
+
+        for prompt, completion_prefix in zip(
+            prompts, completion_prefixes, strict=True
+        ):
+            chat_prompt = [
+                {"role": "system", "content": SYSTEM_PROMPTS[task]},
+                {"role": "user", "content": prompt},
+            ]
+
+            if completion_prefix is not None:
+                chat_prompt.append(
+                    {"role": "assistant", "content": completion_prefix}
+                )
+
+            chat_prompts.append(chat_prompt)
+
+        return chat_prompts
+
+    return chat_prompt_fn

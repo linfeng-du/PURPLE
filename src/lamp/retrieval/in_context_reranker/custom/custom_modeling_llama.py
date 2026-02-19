@@ -1,4 +1,4 @@
-# Source: https://github.com/OSU-NLP-Group/In-Context-Reranking/blob/main/src/custom/custom_modeling_llama.py
+# https://github.com/OSU-NLP-Group/In-Context-Reranking/blob/main/src/custom/custom_modeling_llama.py
 # coding=utf-8
 # Copyright 2022 EleutherAI and the HuggingFace Inc. team. All rights reserved.
 #

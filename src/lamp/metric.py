@@ -1,10 +1,15 @@
-# Adapted from:
-#   https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/data/datasets.py
-#   https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/metrics/classification_metrics.py
-#   https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/metrics/generation_metrics.py
+# https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/data/datasets.py
+# https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/metrics/classification_metrics.py
+# https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/metrics/generation_metrics.py
+import os
 import re
 from collections.abc import Callable
 from types import MappingProxyType
+
+import nltk
+
+if os.getenv("HF_EVALUATE_OFFLINE") == "1":
+    nltk.download = lambda *args, **kwargs: None
 
 import evaluate
 import numpy as np
@@ -14,8 +19,8 @@ MetricFn = Callable[[list[str], list[str]], dict[str, float | list[float]]]
 
 
 LABELS = MappingProxyType({
-    "LaMP-1": ("[1]", "[2]"),
-    "LaMP-2": (
+    "lamp1": ("[1]", "[2]"),
+    "lamp2": (
         "sci-fi",
         "based on a book",
         "comedy",
@@ -32,17 +37,17 @@ LABELS = MappingProxyType({
         "violence",
         "true story"
     ),
-    "LaMP-3": ("1", "2", "3", "4", "5")
+    "lamp3": ("1", "2", "3", "4", "5")
 })
 
 
 def create_metric_fn(task: str, aggregate: bool = True) -> MetricFn:
-    if task in {"LaMP-1", "LaMP-2"}:
+    if task in {"lamp1", "lamp2"}:
         return _create_classification_metric_fn(LABELS[task], aggregate)
-    elif task in {"LaMP-3"}:
+    elif task in {"lamp3"}:
         return _create_regression_metric_fn(LABELS[task], aggregate)
     elif task in {
-        "LaMP-4", "LaMP-5", "LaMP-7", "LongLaMP-2", "LongLaMP-3", "LongLaMP-4"
+        "lamp4", "lamp5", "lamp7", "longlamp2", "longlamp3", "longlamp4"
     }:
         return _create_generation_metric_fn(aggregate)
     else:
@@ -57,7 +62,7 @@ def _create_classification_metric_fn(
     f1_metric = evaluate.load("f1")
     label_to_index = {l: i for i, l in enumerate(labels)}
 
-    def classification_metric_fn(
+    def metric_fn(
         predictions: list[str],
         references: list[str]
     ) -> dict[str, float | list[float]]:
@@ -85,7 +90,7 @@ def _create_classification_metric_fn(
             ]
             return {"correctness": correctness}
 
-    return classification_metric_fn
+    return metric_fn
 
 
 def _create_regression_metric_fn(
@@ -110,7 +115,7 @@ def _create_regression_metric_fn(
             else:
                 return max_value
 
-    def regression_metric_fn(
+    def metric_fn(
         predictions: list[str],
         references: list[str]
     ) -> dict[str, float | list[float]]:
@@ -135,7 +140,7 @@ def _create_regression_metric_fn(
             ]
             return {"error": error}
 
-    return regression_metric_fn
+    return metric_fn
 
 
 def _create_generation_metric_fn(aggregate: bool) -> MetricFn:
@@ -153,7 +158,7 @@ def _create_generation_metric_fn(aggregate: bool) -> MetricFn:
 
         return float(result)
 
-    def generation_metric_fn(
+    def metric_fn(
         predictions: list[str],
         references: list[str]
     ) -> dict[str, float | list[float]]:
@@ -188,4 +193,4 @@ def _create_generation_metric_fn(aggregate: bool) -> MetricFn:
             "meteor": to_float(meteor_results["meteor"])
         }
 
-    return generation_metric_fn
+    return metric_fn

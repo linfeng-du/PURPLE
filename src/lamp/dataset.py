@@ -1,7 +1,6 @@
-# Adapted from:
-#   https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/data/datasets.py
-#   https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/prompts/prompts.py
-#   https://github.com/LongLaMP-benchmark/LongLaMP-Benchmark/blob/main/longLaMP/prompts/prompts.py
+# https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/data/datasets.py
+# https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/prompts/prompts.py
+# https://github.com/LongLaMP-benchmark/LongLaMP-Benchmark/blob/main/longLaMP/prompts/prompts.py
 import json
 from pathlib import Path
 
@@ -12,11 +11,9 @@ def load_lamp_dataset(task: str, split: str) -> Dataset:
     dataset_dir = Path("data") / task / split
 
     if not dataset_dir.exists():
-        if task in {
-            "LaMP-1", "LaMP-2", "LaMP-3", "LaMP-4", "LaMP-5", "LaMP-7"
-        }:
+        if task in {"lamp1", "lamp2", "lamp3", "lamp4", "lamp5", "lamp7"}:
             _prepare_lamp_dataset(task, split, dataset_dir)
-        elif task in {"LongLaMP-2", "LongLaMP-3", "LongLaMP-4"}:
+        elif task in {"longlamp2", "longlamp3", "longlamp4"}:
             _prepare_longlamp_dataset(task, split, dataset_dir)
         else:
             raise ValueError(f"Invalid task: {task}")
@@ -55,9 +52,9 @@ def _prepare_lamp_dataset(task: str, split: str, dataset_dir: Path) -> None:
 
 
 LONGLAMP_USER_SUBSETS = {
-    "LongLaMP-2": "abstract_generation_user",
-    "LongLaMP-3": "product_review_user",
-    "LongLaMP-4": "topic_writing_user"
+    "longlamp2": "abstract_generation_user",
+    "longlamp3": "product_review_user",
+    "longlamp4": "topic_writing_user"
 }
 
 
@@ -205,13 +202,13 @@ def _extract_after(source: str, delimiter: str) -> str:
 
 
 QUERY_CORPUS_FNS = {
-    "LaMP-1": _classification_citation_query_corpus_fn,
-    "LaMP-2": _classification_movie_query_corpus_fn,
-    "LaMP-3": _regression_rating_query_corpus_fn,
-    "LaMP-4": _generation_news_query_corpus_fn,
-    "LaMP-5": _generation_scholar_query_corpus_fn,
-    "LaMP-7": _generation_tweet_query_corpus_fn,
-    "LongLaMP-2": _generation_abstract_query_corpus_fn,
-    "LongLaMP-3": _generation_review_query_corpus_fn,
-    "LongLaMP-4": _generation_topic_query_corpus_fn
+    "lamp1": _classification_citation_query_corpus_fn,
+    "lamp2": _classification_movie_query_corpus_fn,
+    "lamp3": _regression_rating_query_corpus_fn,
+    "lamp4": _generation_news_query_corpus_fn,
+    "lamp5": _generation_scholar_query_corpus_fn,
+    "lamp7": _generation_tweet_query_corpus_fn,
+    "longlamp2": _generation_abstract_query_corpus_fn,
+    "longlamp3": _generation_review_query_corpus_fn,
+    "longlamp4": _generation_topic_query_corpus_fn
 }

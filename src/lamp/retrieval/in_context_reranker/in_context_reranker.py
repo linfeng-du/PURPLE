@@ -1,4 +1,4 @@
-# Source: https://github.com/OSU-NLP-Group/In-Context-Reranking/blob/main/src/in_context_reranker.py
+# https://github.com/OSU-NLP-Group/In-Context-Reranking/blob/main/src/in_context_reranker.py
 import math
 
 import transformers

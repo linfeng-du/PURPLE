@@ -1,5 +1,3 @@
-import random
-
 from rank_bm25 import BM25Okapi
 
 import torch
@@ -17,17 +15,6 @@ def first_k_retriever(
     return profile[:num_retrieve]
 
 
-def random_retriever(
-    _query: str,
-    _corpus: list[str],
-    profile: list[dict[str, str]],
-    num_retrieve: int
-) -> list[dict[str, str]]:
-    assert profile
-    num_retrieve = min(num_retrieve, len(profile))
-    return random.sample(profile, num_retrieve)
-
-
 def bm25_retriever(
     query: str,
     corpus: list[str],
@@ -40,7 +27,7 @@ def bm25_retriever(
     return bm25.get_top_n(query.split(), profile, n=num_retrieve)
 
 
-# Adapted from: https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/prompts/contriever_retriever.py
+# https://github.com/LaMP-Benchmark/LaMP/blob/main/LaMP/prompts/contriever_retriever.py
 class Contriever:
     def __init__(self) -> None:
         self.tokenizer = AutoTokenizer.from_pretrained("facebook/contriever")
@@ -55,13 +42,13 @@ class Contriever:
         profile: list[dict[str, str]],
         num_retrieve: int
     ) -> list[dict[str, str]]:
-        retrieved_profile, _ = self.retrieve_with_logps(
+        retrieved_profile, _ = self.retrieve_with_logprobs(
             query, corpus, profile, num_retrieve
         )
         return retrieved_profile
 
     @torch.no_grad()
-    def retrieve_with_logps(
+    def retrieve_with_logprobs(
         self,
         query: str,
         corpus: list[str],
@@ -71,8 +58,8 @@ class Contriever:
         assert len(corpus) == len(profile) > 0
         num_retrieve = min(num_retrieve, len(profile))
 
-        query_emb = self._compute_sentence_embeddings([query])
         scores = []
+        query_emb = self._compute_sentence_embeddings([query])
 
         for corpus_batch in [
             corpus[i : i + 128] for i in range(0, len(corpus), 128)
@@ -84,9 +71,9 @@ class Contriever:
         scores = torch.cat(scores)
         logits, indices = scores.topk(num_retrieve)
 
-        logps = logits.log_softmax(dim=-1)
+        logprobs = logits.log_softmax(dim=-1)
         retrieved_profile = [profile[i] for i in indices]
-        return retrieved_profile, logps
+        return retrieved_profile, logprobs
 
     def _compute_sentence_embeddings(
         self,
