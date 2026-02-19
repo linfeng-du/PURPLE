@@ -1,4 +1,0 @@
-algorithm: grpo
-num_rollouts: 32
-batch_size: 8
-epsilon: 0.2

@@ -1,30 +1,40 @@
 defaults:
   - baseline
-  - rl: reinforce
   - _self_
 
-run_name: "${hydra:runtime.choices.llm}/\
-  ${candidate_retriever}-${num_candidates}/\
-  ${retriever}-${num_retrieve}/${hydra:runtime.choices.rl}-${reward}/${task}"
+run_name: "${run_prefix}/\
+  ${reward_type}_${loss_type}_${fuse_mode}/${task}/s${seed}"
 
 retriever: purple
-reward: logp
-resume: false
 
-preprocess_fn:
+create_prompt_fn:
+  retriever: first_k
+
+create_pretokenize_fn:
+  encoder_model: ${score_model.encoder_model}
   max_query_length: 512
   max_document_length: 512
 
 score_model:
   encoder_model: facebook/contriever
-  fuse_mode: cross_attn
+  fuse_mode: ${fuse_mode}
   num_transformer_layers: 12
   decoder_hidden_size: 256
 
-num_epochs: 10
-batch_size: 16
-max_grad_norm: 1.0
-lr: 1e-4
+trainer_args:
+  train_batch_size: 16
+  num_train_epochs: 10
+  learning_rate: 1e-4
+  max_grad_norm: 1.0
+  eval_steps: 1024
+  eval_batch_size: 32
+  resume_from_checkpoint: false
+  num_rollouts: 32
+  mini_batch_size: 8
+  epsilon: 0.2
+  reward_type: ${reward_type}
+  loss_type: ${loss_type}
 
-eval_every: 1024
-eval_batch_size: 32
+reward_type: logprob
+loss_type: reinforce
+fuse_mode: cross_attn

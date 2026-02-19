@@ -4,21 +4,28 @@ defaults:
 
 hydra:
   run:
-    dir: outputs/logs/${run_name}/${now:%Y-%m-%d_%H-%M-%S_%f}
+    dir: outputs/${run_name}
 
-run_name: "${hydra:runtime.choices.llm}/\
-  ${candidate_retriever}-${num_candidates}/\
-  ${retriever}-${num_retrieve}/${task}"
+run_prefix: "${hydra:runtime.choices.llm}/\
+  ${candidate_retriever}_nc${num_candidates}/${retriever}_nr${num_retrieve}"
 
-task: ???
-retriever: ???
-num_retrieve: 5
+run_name: "${run_prefix}/${task}/s${seed}"
 
-prompt_fn:
+load_or_create_retrieved_lamp_dataset:
   task: ${task}
+  candidate_retriever: ${candidate_retriever}
+  num_candidates: ${num_candidates}
+
+create_prompt_fn:
+  task: ${task}
+  retriever: ${retriever}
+  num_retrieve: ${num_retrieve}
+  llm_model: ${llm.model}
   max_prompt_length: 2048
 
+task: lamp1
 candidate_retriever: contriever
 num_candidates: 20
-
+retriever: icr
+num_retrieve: 5
 seed: 42
