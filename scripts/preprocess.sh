@@ -1,51 +1,42 @@
 #!/bin/bash
 
-sbatch_time='6:00:00'
-tasks="LaMP-1,LaMP-2,LaMP-3,LaMP-4,LaMP-5,LaMP-7,\
-LongLaMP-2,LongLaMP-3,LongLaMP-4"
-candidate_retrievers='bm25,contriever'
-num_candidates='20'
+time='00-06'
+tasks='lamp1,lamp2,lamp3,lamp4,lamp5,lamp7,longlamp2,longlamp3,longlamp4'
 
-LONGOPTIONS='time:,tasks:,candidate_retrievers:,num_candidates:'
+LONGOPTIONS='time:,tasks:'
 TEMP=$(getopt --options '' --longoptions "${LONGOPTIONS}" --name "$0" -- "$@")
 eval set -- "${TEMP}"
 
 while true; do
   case "$1" in
-    --time) sbatch_time="$2"; shift 2 ;;
+    --time) time="$2"; shift 2 ;;
     --tasks) tasks="$2"; shift 2 ;;
-    --candidate_retrievers) candidate_retrievers="$2"; shift 2 ;;
-    --num_candidates) num_candidates="$2"; shift 2 ;;
     --) shift; break ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
 
-IFS=',' read -r -a tasks <<< "${tasks}"
-IFS=',' read -r -a candidate_retrievers <<< "${candidate_retrievers}"
+IFS=',' read -ra tasks <<< "${tasks}"
 
-for candidate_retriever in "${candidate_retrievers[@]}"; do
-  for task in "${tasks[@]}"; do
-    job_name="preprocess/${candidate_retriever}-${num_candidates}/${task}"
-    log_dir="outputs/slurm/${job_name}"
+for task in "${tasks[@]}"; do
+  job_name="preprocess/${task}"
+  log_dir="outputs/slurm/${job_name}"
 
-    wrap_cmds=(
-      'source ~/.bashrc;'
-      'activate purple;'
-      'python src/preprocess.py'
-      "--task=${task}"
-      "--candidate_retriever=${candidate_retriever}"
-      "--num_candidates=${num_candidates}"
-    )
-    wrap_cmd="${wrap_cmds[*]}"
+  wrap_cmds=(
+    'source ~/.bashrc;'
+    'activate purple;'
+    'PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True'
+    'python src/preprocess.py'
+    "task=${task}"
+  )
+  wrap_cmd="${wrap_cmds[*]}"
 
-    mkdir -p "${log_dir}"
-    sbatch \
-      --job-name="${job_name}" \
-      --time="${sbatch_time}" \
-      --gpus-per-node=1 \
-      --output="${log_dir}/%j.out" \
-      --error="${log_dir}/%j.err" \
-      --wrap="${wrap_cmd}"
-  done
+  mkdir -p "${log_dir}"
+  sbatch \
+    --job-name="${job_name}" \
+    --time="${time}" \
+    --gpus-per-node='1' \
+    --output="${log_dir}/%j.out" \
+    --error="${log_dir}/%j.err" \
+    --wrap="${wrap_cmd}"
 done
