@@ -40,7 +40,8 @@ def load_retrieved_lamp_dataset(
     num_candidates: int
 ) -> Dataset:
     dataset_dir = (
-        Path("data") / task / f"{candidate_retriever}-{num_candidates}" / split
+        Path("data") / task / split /
+        f"{candidate_retriever}_nc{num_candidates}"
     )
 
     if not dataset_dir.exists():
