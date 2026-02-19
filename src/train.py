@@ -25,6 +25,8 @@ from purple import (
 
 @hydra.main(config_path="../conf", config_name="purple", version_base=None)
 def main(cfg: DictConfig) -> None:
+    cfg.create_prompt_fn.retriever = "first_k"
+
     # Seed everything for reproducibility
     random.seed(cfg.seed)
     np.random.seed(cfg.seed)
@@ -59,7 +61,6 @@ def main(cfg: DictConfig) -> None:
     )
 
     # Create trainer and start training
-    cfg.create_prompt_fn.retriever = "first_k"
     trainer = Trainer(
         score_model,
         llm,

@@ -24,7 +24,7 @@ from lamp import (
     create_retrieval_fn
 )
 from llm import create_llm
-from purple import load_retrieved_lamp_dataset
+from purple import ScoreModel, load_retrieved_lamp_dataset
 
 
 logger = logging.getLogger(__name__)
@@ -50,6 +50,10 @@ def main(cfg: DictConfig) -> None:
         predictions, references = icralm(cfg, test_dataset)
     elif cfg.retriever == "replug":
         predictions, references = replug(cfg, test_dataset)
+    elif cfg.retriever == "purple":
+        questions, profiles, predictions, references = purple(
+            cfg, test_dataset
+        )
     else:
         prompt_fn = create_prompt_fn(**cfg.create_prompt_fn)
         chat_prompt_fn = create_chat_prompt_fn(cfg.task)
@@ -251,6 +255,47 @@ def replug(cfg: DictConfig, dataset: Dataset) -> tuple[list[str], list[str]]:
         references.append(example["target"])
 
     return predictions, references
+
+
+def purple(
+    cfg: DictConfig,
+    dataset: Dataset
+) -> tuple[list[str], list[list[dict[str, str]]], list[str], list[str]]:
+    cfg.create_prompt_fn.retriever = "first_k"
+
+    model_files = list(Path(cfg.output_dir).glob("*/model.pt"))
+    assert len(model_files) == 1
+    score_model = ScoreModel.from_pretrained(model_files[0].parent)
+
+    prompt_fn = create_prompt_fn(**cfg.create_prompt_fn)
+    chat_prompt_fn = create_chat_prompt_fn(cfg.task)
+
+    questions = []
+    profiles = []
+    chat_prompts = []
+    references = []
+
+    for example in tqdm(dataset, desc="Generating Prompts"):
+        profile = score_model.retrieve(
+            example["query"],
+            example["corpus"],
+            example["profile"],
+            cfg.num_retrieve
+        )
+        chat_prompt = chat_prompt_fn(
+            prompt_fn(example["source"], profile, None, None)
+        )
+
+        questions.append(example["source"])
+        profiles.append(profile)
+        chat_prompts.append(chat_prompt)
+        references.append(example["target"])
+
+    llm = create_llm(**cfg.llm)
+    predictions = [
+        comps[0] for comps in llm.generate(chat_prompts, verbose=True)
+    ]
+    return questions, profiles, predictions, references
 
 
 if __name__ == "__main__":

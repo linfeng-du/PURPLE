@@ -67,6 +67,7 @@ class ScoreModel(nn.Module):
     def from_pretrained(cls, model_dir: str) -> "ScoreModel":
         config = json.loads((Path(model_dir) / "config.json").read_text())
         model = cls(**config)
+        model.to("cuda" if torch.cuda.is_available() else "cpu")
         model.load_pretrained(model_dir)
         return model
 

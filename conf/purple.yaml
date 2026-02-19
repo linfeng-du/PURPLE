@@ -2,8 +2,7 @@ defaults:
   - baseline
   - _self_
 
-run_name: "${run_prefix}/\
-  ${reward_type}_${loss_type}_${fuse_mode}/${task}/s${seed}"
+run_name: ${run_prefix}/${reward_type}_${loss_type}_${fuse_mode}
 
 retriever: purple
 
@@ -25,7 +24,7 @@ trainer_args:
   learning_rate: 1e-4
   max_grad_norm: 1.0
   run_name: ${run_name}
-  eval_steps: 1024
+  eval_every: 1024
   eval_batch_size: 32
   resume_from_checkpoint: false
   num_rollouts: 32

@@ -39,8 +39,8 @@ class Trainer:
         reward_fn: RewardFn,
         metric_fn: MetricFn
     ) -> None:
-        if args.eval_steps % args.train_batch_size != 0:
-            raise ValueError(f"eval_steps not divisible by train_batch_size")
+        if args.eval_every % args.train_batch_size != 0:
+            raise ValueError(f"eval_every not divisible by train_batch_size")
 
         self.args = args
         self.score_model = score_model
@@ -107,7 +107,7 @@ class Trainer:
 
                 self.examples_seen += len(batch["source"])
 
-                if self.examples_seen % self.args.eval_steps == 0:
+                if self.examples_seen % self.args.eval_every == 0:
                     eval_results = self.evaluate()
                     self.score_model.train()
 
