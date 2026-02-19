@@ -91,10 +91,10 @@ def icralm(
     retrieve_stride: int = 5,
     retrieve_length: int = 5
 ) -> tuple[list[str], list[str]]:
-    contriever = create_retrieval_fn(retriever="contriever")
+    cfg.create_prompt_fn.retriever = "first_k"
+    cfg.create_prompt_fn.num_retrieve = 1
 
-    cfg.retriever = "first_k"
-    cfg.num_retrieve = 1
+    contriever = create_retrieval_fn(retriever="contriever")
     prompt_fn = create_prompt_fn(**cfg.create_prompt_fn)
     chat_prompt_fn = create_chat_prompt_fn(cfg.task)
 
@@ -171,10 +171,10 @@ def icralm(
 
 
 def replug(cfg: DictConfig, dataset: Dataset) -> tuple[list[str], list[str]]:
-    contriever = create_retrieval_fn(retriever="contriever")
+    cfg.create_prompt_fn.retriever = "first_k"
+    cfg.create_prompt_fn.num_retrieve = 1
 
-    cfg.retriever = "first_k"
-    cfg.num_retrieve = 1
+    contriever = create_retrieval_fn(retriever="contriever")
     prompt_fn = create_prompt_fn(**cfg.create_prompt_fn)
     chat_prompt_fn = create_chat_prompt_fn(cfg.task)
 
