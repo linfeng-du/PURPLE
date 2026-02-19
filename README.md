@@ -1,12 +1,20 @@
 ## Environment setup
 
-Create a virtual environment.
+Create a virtual environment for PURPLE.
 Install packages from `requirements.txt` and `flash-attn`.
 
 ```bash
 virtualenv --no-download purple
 source purple/bin/activate
 pip install -r requirements.txt flash-attn==2.8.3
+```
+
+Create a separate virtual environment for `vllm`.
+
+```bash
+virtualenv --no-download vllm
+source vllm/bin/activate
+pip install vllm==0.15.1
 ```
 
 ## Download resources
