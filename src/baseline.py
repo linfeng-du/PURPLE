@@ -206,11 +206,8 @@ def replug(cfg: DictConfig, dataset: Dataset) -> tuple[list[str], list[str]]:
             chat_prompt_fn(prompt_fn(example["source"], [rec], None, None))
             for rec in profile
         ]
-        completions = [
-            c
-            for completions in llm.generate(chat_prompts)
-            for c in completions
-        ]
+        completions = [c for comps in llm.generate(chat_prompts) for c in comps
+]
 
         all_chat_prompts = [
             c for _ in range(len(completions)) for c in chat_prompts
