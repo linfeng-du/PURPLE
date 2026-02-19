@@ -24,6 +24,11 @@ create_prompt_fn:
   max_prompt_length: 2048
 
 task: lamp1
+
+candidate_retriever: contriever
+num_candidates: 20
+
 retriever: icr
 num_retrieve: 5
+
 seed: 42
