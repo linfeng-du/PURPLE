@@ -16,7 +16,7 @@ while true; do
     --num_retrieve) num_retrieve="$2"; shift 2 ;;
     --llms) llms="$2"; shift 2 ;;
     --vllm_server_host) vllm_server_host="$2"; shift 2 ;;
-    --resume) resume="true"; shift 2 ;;
+    --resume) resume="true"; shift ;;
     --) shift; break ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac

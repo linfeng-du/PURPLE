@@ -49,7 +49,7 @@ for llm in "${llms[@]}"; do
       mkdir -p "${log_dir}"
       sbatch \
         --job-name="${job_name}" \
-        --time="${sbatch_time}" \
+        --time="${time}" \
         --gpus-per-node='1' \
         --output="${log_dir}/%j.out" \
         --error="${log_dir}/%j.err" \
