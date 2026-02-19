@@ -14,7 +14,7 @@ Create a separate virtual environment for `vllm`.
 ```bash
 virtualenv --no-download vllm
 source vllm/bin/activate
-pip install vllm==0.15.1
+pip install vllm
 ```
 
 ## Download resources

@@ -34,7 +34,7 @@ class RankGPT:
                 task="text-generation",
                 model=self.model,
                 device_map="auto",
-                dtype="bfloat16"
+                torch_dtype="bfloat16"
             )
 
             if self.pipeline.model.generation_config.pad_token_id is None:
