@@ -22,6 +22,7 @@ score_model:
   decoder_hidden_size: 256
 
 trainer_args:
+  output_dir: outputs/${run_name}
   train_batch_size: 16
   num_train_epochs: 10
   learning_rate: 1e-4
@@ -29,8 +30,9 @@ trainer_args:
   run_name: ${run_name}
   eval_steps: 1024
   eval_batch_size: 32
-  resume: false
+  resume_from_checkpoint: false
   num_rollouts: 32
+  num_retrieve: ${num_retrieve}
   mini_batch_size: 8
   epsilon: 0.2
   reward_type: ${reward_type}

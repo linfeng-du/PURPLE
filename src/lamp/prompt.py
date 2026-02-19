@@ -404,29 +404,19 @@ SYSTEM_PROMPTS = {
 
 def create_chat_prompt_fn(task: str) -> ChatPromptFn:
     def chat_prompt_fn(
-        prompts: list[str],
-        completion_prefixes: list[str] | None = None
-    ) -> list[ChatType]:
-        if completion_prefixes is None:
-            completion_prefixes = [None] * len(prompts)
+        prompt: str,
+        completion_prefix: str | None = None
+    ) -> ChatType:
+        chat_prompt = [
+            {"role": "system", "content": SYSTEM_PROMPTS[task]},
+            {"role": "user", "content": prompt},
+        ]
 
-        chat_prompts = []
+        if completion_prefix is not None:
+            chat_prompt.append(
+                {"role": "assistant", "content": completion_prefix}
+            )
 
-        for prompt, completion_prefix in zip(
-            prompts, completion_prefixes, strict=True
-        ):
-            chat_prompt = [
-                {"role": "system", "content": SYSTEM_PROMPTS[task]},
-                {"role": "user", "content": prompt},
-            ]
-
-            if completion_prefix is not None:
-                chat_prompt.append(
-                    {"role": "assistant", "content": completion_prefix}
-                )
-
-            chat_prompts.append(chat_prompt)
-
-        return chat_prompts
+        return chat_prompt
 
     return chat_prompt_fn

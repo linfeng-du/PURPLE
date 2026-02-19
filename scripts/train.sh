@@ -5,7 +5,8 @@ tasks='lamp1,lamp2,lamp3,lamp4,lamp5,lamp7,longlamp2,longlamp3,longlamp4'
 num_retrieve='5'
 llms='phi4-mini-instruct,llama3-8b-instruct'
 
-LONGOPTIONS='time:,tasks:,num_retrieve:,llms:,vllm_server_host:,resume'
+LONGOPTIONS="time:,tasks:,num_retrieve:,\
+llms:,vllm_server_host:,resume_from_checkpoint"
 TEMP=$(getopt --options '' --longoptions "${LONGOPTIONS}" --name "$0" -- "$@")
 eval set -- "${TEMP}"
 
@@ -16,7 +17,7 @@ while true; do
     --num_retrieve) num_retrieve="$2"; shift 2 ;;
     --llms) llms="$2"; shift 2 ;;
     --vllm_server_host) vllm_server_host="$2"; shift 2 ;;
-    --resume) resume="true"; shift ;;
+    --resume_from_checkpoint) resume_from_checkpoint="true"; shift ;;
     --) shift; break ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
@@ -39,7 +40,7 @@ for llm in "${llms[@]}"; do
       "num_retrieve=${num_retrieve}"
       "llm=${llm}"
       ${vllm_server_host:+"llm.vllm_server_host=${vllm_server_host}"}
-      ${resume:+"trainer_args.resume=true"}
+      ${resume_from_checkpoint:+"trainer_args.resume_from_checkpoint=true"}
     )
     wrap_cmd="${wrap_cmds[*]}"
 

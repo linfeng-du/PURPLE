@@ -39,8 +39,8 @@ class Trainer:
         reward_fn: RewardFn,
         metric_fn: MetricFn
     ) -> None:
-        if args.eval_every % args.batch_size != 0:
-            raise ValueError(f"`eval_every` not divisible by `batch_size`")
+        if args.eval_steps % args.train_batch_size != 0:
+            raise ValueError(f"eval_steps not divisible by train_batch_size")
 
         self.args = args
         self.score_model = score_model
@@ -53,7 +53,7 @@ class Trainer:
 
         self.train_loader = DataLoader(
             train_dataset,
-            batch_size=args.batch_size,
+            batch_size=args.train_batch_size,
             shuffle=True,
             collate_fn=collate_fn,
             drop_last=True
@@ -80,7 +80,7 @@ class Trainer:
             lr=self.args.learning_rate
         )
 
-        if self.args.resume:
+        if self.args.resume_from_checkpoint:
             self._load_states()
 
         self.wandb = wandb.init(
@@ -107,7 +107,7 @@ class Trainer:
 
                 self.examples_seen += len(batch["source"])
 
-                if self.examples_seen % self.args.eval_every == 0:
+                if self.examples_seen % self.args.eval_steps == 0:
                     eval_results = self.evaluate()
                     self.score_model.train()
 
@@ -228,20 +228,20 @@ class Trainer:
 
         for index, query_rollout_indices in enumerate(rollout_indices):
             for record_indices in query_rollout_indices:
-                profile = [batch["profile"][index][i] for i in record_indices]
                 prompt = self.prompt_fn(
-                    batch["source"][index], profile, None, None
+                    batch["source"][index],
+                    [batch["profile"][index][i] for i in record_indices],
+                    batch["query"][index],
+                    [batch["corpus"][index][i] for i in record_indices]
                 )
-                reference = batch["target"][index]
-
-                prompts.append(prompt)
-                references.append(reference)
+                prompts.append(self.chat_prompt_fn(prompt))
+                references.append(batch["target"][index])
 
         # Compute reward for each rollout
         if self.args.reward_type == "metric":
             predictions = self.llm.generate(prompts)
             rewards = self.reward_fn(predictions, references)
-        elif self.args.reward_type == "logp":
+        elif self.args.reward_type == "logprob":
             rewards = self.llm.compute_completion_logprobs(prompts, references)
         else:
             raise ValueError(f"Invalid reward type: {self.args.reward_type}")
@@ -270,30 +270,30 @@ class Trainer:
             _, retrieved_indices = likelihoods.topk(num_retrieve)
 
             for index, query_retrieved_indices in enumerate(retrieved_indices):
-                retrieved_profile = [
-                    batch["profile"][index][i]
-                    for i in query_retrieved_indices
+                record_indices = [
+                    i for i in query_retrieved_indices
                     if batch["record_mask"][index][i]
                 ]
                 prompt = self.prompt_fn(
-                    batch["source"][index], retrieved_profile, None, None
+                    batch["source"][index],
+                    [batch["profile"][index][i] for i in record_indices],
+                    batch["query"][index],
+                    [batch["corpus"][index][i] for i in record_indices]
                 )
-                reference = batch["target"][index]
-
-                prompts.append(prompt)
-                references.append(reference)
+                prompts.append(self.chat_prompt_fn(prompt))
+                references.append(batch["target"][index])
 
         predictions = self.llm.generate(prompts, verbose=True)
         return self.metric_fn(predictions, references)
 
     def _load_states(self) -> None:
-        model_dir = Path("outputs") / "models" / self.cfg.run_name
+        output_dir = Path(self.args.output_dir)
 
-        self.score_model.from_pretrained(model_dir)
-        logger.info(f"Loaded model weights from {model_dir}")
+        self.score_model.load_pretrained(output_dir)
+        logger.info(f"Loaded model weights from {output_dir}")
 
         states = torch.load(
-            model_dir / "trainer.pt",
+            output_dir / "trainer.pt",
             map_location=self.device,
             weights_only=False
         )
@@ -302,13 +302,13 @@ class Trainer:
         self.examples_seen = states["examples_seen"]
         self.best_eval_result = states["best_eval_result"]
         self.optimizer.load_state_dict(states["optimizer_state_dict"])
-        logger.info(f"Loaded trainer states from {model_dir}")
+        logger.info(f"Loaded trainer states from {output_dir}")
 
     def _save_states(self) -> None:
-        model_dir = Path("outputs") / "models" / self.cfg.run_name
-        model_dir.mkdir(parents=True, exist_ok=True)
+        output_dir = Path(self.args.output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
 
-        self.score_model.save_pretrained(model_dir)
+        self.score_model.save_pretrained(output_dir)
         torch.save(
             {
                 "epoch": self.epoch,
@@ -316,7 +316,7 @@ class Trainer:
                 "best_eval_result": self.best_eval_result,
                 "optimizer_state_dict": self.optimizer.state_dict()
             },
-            model_dir / "trainer.pt"
+            output_dir / "trainer.pt"
         )
 
 

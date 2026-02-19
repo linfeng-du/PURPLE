@@ -1,13 +1,14 @@
 import hydra
 from omegaconf import DictConfig
 
-from purple import create_pretokenize_fn, load_or_create_retrieved_lamp_dataset
+from purple import create_pretokenize_fn, load_retrieved_lamp_dataset
 
 
 @hydra.main(config_path="../conf", config_name="purple", version_base=None)
 def preprocess(cfg: DictConfig) -> None:
-    train_dataset = load_or_create_retrieved_lamp_dataset(
-        split="train", **cfg.load_or_create_retrieved_lamp_dataset
+    train_split = "train"
+    train_dataset = load_retrieved_lamp_dataset(
+        cfg.task, train_split, cfg.candidate_retriever, cfg.num_candidates
     )
     train_dataset.map(
         create_pretokenize_fn(**cfg.create_pretokenize_fn),
@@ -16,9 +17,9 @@ def preprocess(cfg: DictConfig) -> None:
         num_proc=4
     )
 
-    test_dataset = load_or_create_retrieved_lamp_dataset(
-        split="dev" if cfg.task.startswith("lamp") else "test",
-        **cfg.load_or_create_retrieved_lamp_dataset
+    test_split = "dev" if cfg.task.startswith("lamp") else "test"
+    test_dataset = load_retrieved_lamp_dataset(
+        cfg.task, test_split, cfg.candidate_retriever, cfg.num_candidates
     )
     test_dataset.map(
         create_pretokenize_fn(**cfg.create_pretokenize_fn),

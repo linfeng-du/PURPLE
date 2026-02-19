@@ -23,16 +23,16 @@ def load_lamp_dataset(task: str, split: str) -> Dataset:
 
 def _prepare_lamp_dataset(task: str, split: str, dataset_dir: Path) -> None:
     questions_file = Path("data") / task / f"{split}_questions.json"
+    questions = json.loads(questions_file.read_text())
+
     outputs_file = Path("data") / task / f"{split}_outputs.json"
+    outputs = {
+        g["id"]: g["output"]
+        for g in json.loads(outputs_file.read_text())["golds"]
+    }
 
-    with questions_file.open() as f:
-        questions = json.load(f)
-
-    with outputs_file.open() as f:
-        outputs = {g["id"]: g["output"] for g in json.load(f)["golds"]}
-
-    query_corpus_fn = QUERY_CORPUS_FNS[task]
     examples = []
+    query_corpus_fn = QUERY_CORPUS_FNS[task]
 
     for question in questions:
         source = question["input"]
@@ -67,8 +67,8 @@ def _prepare_longlamp_dataset(
         "LongLaMP/LongLaMP", name=LONGLAMP_USER_SUBSETS[task], split=split
     )
 
-    query_corpus_fn = QUERY_CORPUS_FNS[task]
     examples = []
+    query_corpus_fn = QUERY_CORPUS_FNS[task]
 
     for row in dataset:
         source = row["input"]

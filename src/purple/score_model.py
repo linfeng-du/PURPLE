@@ -64,28 +64,31 @@ class ScoreModel(nn.Module):
         )
 
     @classmethod
-    def from_pretrained(cls, model_dir: Path) -> "ScoreModel":
-        with (model_dir / "config.json").open() as f:
-            config = json.load(f)
-
+    def from_pretrained(cls, model_dir: str) -> "ScoreModel":
+        config = json.loads((Path(model_dir) / "config.json").read_text())
         model = cls(**config)
-        state_dict = torch.load(
-            model_dir / "model.pt", map_location="cpu", weights_only=True
-        )
-        model.load_state_dict(state_dict, strict=False)
+        model.load_pretrained(model_dir)
         return model
 
-    def save_pretrained(self, model_dir: Path) -> None:
+    def load_pretrained(self, model_dir: str) -> None:
+        state_dict = torch.load(
+            Path(model_dir) / "model.pt",
+            map_location=next(self.parameters()).device,
+            weights_only=True
+        )
+        self.load_state_dict(state_dict, strict=False)
+
+    def save_pretrained(self, model_dir: str) -> None:
+        model_dir = Path(model_dir)
         model_dir.mkdir(parents=True, exist_ok=True)
 
-        with (model_dir / "config.json").open(mode="w") as f:
-            config = {
-                "encoder_model": self.encoder_model,
-                "fuse_mode": self.fuse_mode,
-                "num_transformer_layers": self.num_transformer_layers,
-                "decoder_hidden_size": self.decoder_hidden_size
-            }
-            json.dump(config, f, indent=2)
+        config = {
+            "encoder_model": self.encoder_model,
+            "fuse_mode": self.fuse_mode,
+            "num_transformer_layers": self.num_transformer_layers,
+            "decoder_hidden_size": self.decoder_hidden_size
+        }
+        (model_dir / "config.json").write_text(json.dumps(config, indent=2))
 
         state_dict = OrderedDict({
             k: v

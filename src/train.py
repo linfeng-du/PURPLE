@@ -36,10 +36,9 @@ def main(cfg: DictConfig) -> None:
     llm = create_llm(**cfg.llm)
 
     # Prepare datasets
+    train_split = "train"
     train_dataset = load_retrieved_lamp_dataset(
-        split="train", **cfg.load_retrieved_lamp_dataset
-    ).map(
-        
+        cfg.task, train_split, cfg.candidate_retriever, cfg.num_candidates
     )
     train_dataset = train_dataset.map(
         create_pretokenize_fn(**cfg.create_pretokenize_fn),
@@ -48,9 +47,9 @@ def main(cfg: DictConfig) -> None:
         num_proc=4
     )
 
+    test_split = "dev" if cfg.task.startswith("lamp") else "test"
     test_dataset = load_retrieved_lamp_dataset(
-        split="dev" if cfg.task.startswith("lamp") else "test",
-        **cfg.load_retrieved_lamp_dataset
+        cfg.task, test_split, cfg.candidate_retriever, cfg.num_candidates
     )
     test_dataset = test_dataset.map(
         create_pretokenize_fn(**cfg.create_pretokenize_fn),
@@ -64,7 +63,7 @@ def main(cfg: DictConfig) -> None:
         score_model,
         llm,
         cfg.trainer_args,
-        create_collate_fn(**cfg.create_data_collator_fn),
+        create_collate_fn(cfg.score_model.encoder_model),
         train_dataset,
         test_dataset,
         create_prompt_fn(**cfg.create_prompt_fn),

@@ -57,7 +57,7 @@ class HFLLM:
     def generate(
         self,
         prompts: list[ChatType],
-        verbose: bool
+        verbose: bool = False
     ) -> list[list[str]]:
         new_prompts = [
             _truncate_user_prompt(
@@ -161,13 +161,13 @@ class VLLMClient:
             self.tokenizer.model_max_length = 262144
 
         self.chat_template_length = _compute_chat_template_length(
-self.tokenizer
+            self.tokenizer
         )
 
     def generate(
         self,
         prompts: list[ChatType],
-        verbose: bool
+        verbose: bool = False
     ) -> list[list[str]]:
         new_prompts = [
             _truncate_user_prompt(

@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 import random
 import time
 
@@ -19,11 +18,12 @@ import torch
 from transformers import AutoTokenizer
 
 from lamp import (
+    create_chat_prompt_fn,
     create_metric_fn,
     create_prompt_fn,
     create_retrieval_fn
 )
-from llm import LLM
+from llm import create_llm
 from purple import load_retrieved_lamp_dataset
 
 
@@ -51,12 +51,8 @@ def main(cfg: DictConfig) -> None:
     elif cfg.retriever == "replug":
         predictions, references = replug(cfg, test_dataset)
     else:
-        prompt_fn = create_prompt_fn(
-            retriever=cfg.retriever,
-            num_retrieve=cfg.num_retrieve,
-            tokenizer=AutoTokenizer.from_pretrained(cfg.llm.model),
-            **cfg.prompt_fn
-        )
+        prompt_fn = create_prompt_fn(**cfg.create_prompt_fn)
+        chat_prompt_fn = create_chat_prompt_fn(cfg.task)
 
         prompts = []
         references = []
@@ -68,11 +64,10 @@ def main(cfg: DictConfig) -> None:
                 example["query"],
                 example["corpus"]
             )
-            reference = example["target"]
-            prompts.append(prompt)
-            references.append(reference)
+            prompts.append(chat_prompt_fn(prompt))
+            references.append(example["target"])
 
-        llm = LLM(cfg.task, **cfg.llm)
+        llm = create_llm(**cfg.llm)
         predictions = llm.generate(prompts, verbose=True)
 
     elapsed_time = time.perf_counter() - start_time
@@ -93,6 +88,9 @@ def icralm(
     retrieve_stride: int = 5,
     retrieve_length: int = 5
 ) -> tuple[list[str], list[str]]:
+    cfg.retriever = "first_k"
+    cfg.num_retrieve = 1
+
     prompt_fn = create_prompt_fn(
         retriever="first_k",
         num_retrieve=1,
@@ -114,7 +112,7 @@ def icralm(
         )
         llm_kwargs["generation_kwargs"]["max_completion_tokens"] = 1
 
-    llm = LLM(cfg.task, **llm_kwargs)
+    llm = create_llm(**llm_kwargs)
 
     predictions = []
     references = []
@@ -190,7 +188,7 @@ def replug(cfg: DictConfig, dataset: Dataset) -> tuple[list[str], list[str]]:
     elif llm_kwargs["backend"] == "vllm":
         llm_kwargs["generation_kwargs"].update({"n": 4})
 
-    llm = LLM(cfg.task, **llm_kwargs)
+    llm = create_llm(**llm_kwargs)
 
     predictions = []
     references = []
