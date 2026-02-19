@@ -268,7 +268,7 @@ class VLLMClient:
             return await asyncio.gather(*tasks)
 
         completion_logprobs = asyncio.run(compute_completion_logprobs_async())
-        return torch.tensor(completion_logprobs, dtype=torch.float32)
+        return torch.tensor(completion_logprobs)
 
     async def _request_completion_logp(
         self,

@@ -223,26 +223,30 @@ class Trainer:
         )
 
         # Gather prompt and reference for each rollout
-        prompts = []
+        chat_prompts = []
         references = []
 
         for index, query_rollout_indices in enumerate(rollout_indices):
             for record_indices in query_rollout_indices:
-                prompt = self.prompt_fn(
-                    batch["source"][index],
-                    [batch["profile"][index][i] for i in record_indices],
-                    batch["query"][index],
-                    [batch["corpus"][index][i] for i in record_indices]
+                chat_prompt = self.chat_prompt_fn(
+                    self.prompt_fn(
+                        batch["source"][index],
+                        [batch["profile"][index][i] for i in record_indices],
+                        batch["query"][index],
+                        [batch["corpus"][index][i] for i in record_indices]
+                    )
                 )
-                prompts.append(self.chat_prompt_fn(prompt))
+                chat_prompts.append(chat_prompt)
                 references.append(batch["target"][index])
 
         # Compute reward for each rollout
         if self.args.reward_type == "metric":
-            predictions = self.llm.generate(prompts)
+            predictions = self.llm.generate(chat_prompts)
             rewards = self.reward_fn(predictions, references)
         elif self.args.reward_type == "logprob":
-            rewards = self.llm.compute_completion_logprobs(prompts, references)
+            rewards = self.llm.compute_completion_logprobs(
+                chat_prompts, references
+            )
         else:
             raise ValueError(f"Invalid reward type: {self.args.reward_type}")
 
@@ -255,7 +259,7 @@ class Trainer:
     def evaluate(self) -> dict[str, float]:
         self.score_model.eval()
 
-        prompts = []
+        chat_prompts = []
         references = []
 
         for batch in tqdm(self.test_loader, desc="Evaluating"):
@@ -274,16 +278,18 @@ class Trainer:
                     i for i in query_retrieved_indices
                     if batch["record_mask"][index][i]
                 ]
-                prompt = self.prompt_fn(
-                    batch["source"][index],
-                    [batch["profile"][index][i] for i in record_indices],
-                    batch["query"][index],
-                    [batch["corpus"][index][i] for i in record_indices]
+                chat_prompt = self.chat_prompt_fn(
+                    self.prompt_fn(
+                        batch["source"][index],
+                        [batch["profile"][index][i] for i in record_indices],
+                        batch["query"][index],
+                        [batch["corpus"][index][i] for i in record_indices]
+                    )
                 )
-                prompts.append(self.chat_prompt_fn(prompt))
+                chat_prompts.append(chat_prompt)
                 references.append(batch["target"][index])
 
-        predictions = self.llm.generate(prompts, verbose=True)
+        predictions = self.llm.generate(chat_prompts, verbose=True)
         return self.metric_fn(predictions, references)
 
     def _load_states(self) -> None:

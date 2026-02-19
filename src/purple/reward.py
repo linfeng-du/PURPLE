@@ -30,7 +30,7 @@ def _classification_reward_fn(
         float(p.strip() == r.strip())
         for p, r in zip(predictions, references, strict=True)
     ]
-    return torch.tensor(rewards, dtype=torch.float32)
+    return torch.tensor(rewards)
 
 
 def _create_regression_reward_fn(labels: tuple[str, ...]) -> RewardFn:
@@ -58,7 +58,7 @@ def _create_regression_reward_fn(labels: tuple[str, ...]) -> RewardFn:
             -abs(to_float(p, r) - float(r))
             for p, r in zip(predictions, references, strict=True)
         ]
-        return torch.tensor(rewards, dtype=torch.float32)
+        return torch.tensor(rewards)
 
     return reward_fn
 
@@ -79,6 +79,6 @@ def _create_generation_reward_fn() -> RewardFn:
             rouge_types=["rouge1"],
             use_aggregator=False
         )
-        return torch.tensor(rouge_results["rouge1"], dtype=torch.float32)
+        return torch.tensor(rouge_results["rouge1"])
 
     return reward_fn

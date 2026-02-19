@@ -54,21 +54,23 @@ def main(cfg: DictConfig) -> None:
         prompt_fn = create_prompt_fn(**cfg.create_prompt_fn)
         chat_prompt_fn = create_chat_prompt_fn(cfg.task)
 
-        prompts = []
+        chat_prompts = []
         references = []
 
         for example in tqdm(test_dataset, desc="Generating Prompts"):
-            prompt = prompt_fn(
-                example["source"],
-                example["profile"],
-                example["query"],
-                example["corpus"]
+            chat_prompt = chat_prompt_fn(
+                prompt_fn(
+                    example["source"],
+                    example["profile"],
+                    example["query"],
+                    example["corpus"]
+                )
             )
-            prompts.append(chat_prompt_fn(prompt))
+            chat_prompts.append(chat_prompt)
             references.append(example["target"])
 
         llm = create_llm(**cfg.llm)
-        predictions = llm.generate(prompts, verbose=True)
+        predictions = llm.generate(chat_prompts, verbose=True)
 
     elapsed_time = time.perf_counter() - start_time
 
@@ -88,31 +90,25 @@ def icralm(
     retrieve_stride: int = 5,
     retrieve_length: int = 5
 ) -> tuple[list[str], list[str]]:
-    cfg.retriever = "first_k"
-    cfg.num_retrieve = 1
-
-    prompt_fn = create_prompt_fn(
-        retriever="first_k",
-        num_retrieve=1,
-        tokenizer=AutoTokenizer.from_pretrained(cfg.llm.model),
-        **cfg.prompt_fn
-    )
     contriever = create_retrieval_fn(retriever="contriever")
 
-    llm_kwargs = OmegaConf.to_container(cfg.llm, resolve=True)
+    cfg.retriever = "first_k"
+    cfg.num_retrieve = 1
+    prompt_fn = create_prompt_fn(**cfg.create_prompt_fn)
+    chat_prompt_fn = create_chat_prompt_fn(cfg.task)
 
-    if llm_kwargs["backend"] == "hf":
-        max_completion_length = (
-            llm_kwargs["generation_kwargs"]["max_new_tokens"]
+    if cfg.llm.backend == "hf":
+        max_completion_length = cfg.llm.generation_kwargs.max_new_tokens
+        OmegaConf.update(
+            cfg.llm.generation_kwargs, key="max_new_tokens", value=1
         )
-        llm_kwargs["generation_kwargs"]["max_new_tokens"] = 1
-    elif llm_kwargs["backend"] == "vllm":
-        max_completion_length = (
-            llm_kwargs["generation_kwargs"]["max_completion_tokens"]
+    elif cfg.llm.backend == "vllm":
+        max_completion_length = cfg.llm.generation_kwargs.max_completion_tokens
+        OmegaConf.update(
+            cfg.llm.generation_kwargs, key="max_completion_tokens", value=1
         )
-        llm_kwargs["generation_kwargs"]["max_completion_tokens"] = 1
 
-    llm = create_llm(**llm_kwargs)
+    llm = create_llm(**cfg.llm)
 
     predictions = []
     references = []
@@ -125,7 +121,10 @@ def icralm(
             cfg.num_retrieve
         )
         prompts = [
-            prompt_fn(example["source"], [rec], None, None) for rec in profile
+            prompt_fn(
+                example["source"], [rec], example["query"], example["corpus"]
+            )
+            for rec in profile
         ]
 
         cur_prompt = prompts[0]
@@ -136,59 +135,64 @@ def icralm(
                 len(completion_tokens) > retrieve_length
                 and len(completion_tokens) % retrieve_stride == 0
             ):
+                completion_prefixes = [
+                    ''.join(completion_tokens[:-retrieve_length])
+                    for _ in range(len(prompts))
+                ]
+                chat_prompts = [
+                    chat_prompt_fn(p, c)
+                    for p, c in zip(prompts, completion_prefixes, strict=True)
+                ]
                 completions = [
                     ''.join(completion_tokens[-retrieve_length:])
                     for _ in range(len(prompts))
                 ]
-                assistant_prompts = [
-                    ''.join(completion_tokens[:-retrieve_length])
-                    for _ in range(len(prompts))
-                ]
+
                 logprobs = llm.compute_completion_logprobs(
-                    prompts, completions, assistant_prompts=assistant_prompts
+                    chat_prompts, completions
                 )
                 cur_prompt = prompts[logprobs.argmax()]
 
             if completion_tokens:
-                assistant_prompts = [''.join(completion_tokens)]
+                completion_prefixes = [''.join(completion_tokens)]
             else:
-                assistant_prompts = None
+                completion_prefixes = None
 
-            completion = (
-                llm
-                .generate([cur_prompt], assistant_prompts=assistant_prompts)[0]
-            )
+            chat_prompts = [chat_prompt_fn(cur_prompt)]
+            completion = llm.generate(chat_prompts)[0][0]
 
             if completion == "":
                 break
 
             completion_tokens.append(completion)
 
-        prediction = "".join(completion_tokens)
-        reference = example["target"]
-        predictions.append(prediction)
-        references.append(reference)
+        predictions.append("".join(completion_tokens))
+        references.append(example["target"])
 
     return predictions, references
 
 
 def replug(cfg: DictConfig, dataset: Dataset) -> tuple[list[str], list[str]]:
-    prompt_fn = create_prompt_fn(
-        retriever="first_k",
-        num_retrieve=1,
-        tokenizer=AutoTokenizer.from_pretrained(cfg.llm.model),
-        **cfg.prompt_fn
-    )
     contriever = create_retrieval_fn(retriever="contriever")
 
-    llm_kwargs = OmegaConf.to_container(cfg.llm, resolve=True)
+    cfg.retriever = "first_k"
+    cfg.num_retrieve = 1
+    prompt_fn = create_prompt_fn(**cfg.create_prompt_fn)
+    chat_prompt_fn = create_chat_prompt_fn(cfg.task)
 
-    if llm_kwargs["backend"] == "hf":
-        llm_kwargs["generation_kwargs"].update({"num_return_sequences": 4})
-    elif llm_kwargs["backend"] == "vllm":
-        llm_kwargs["generation_kwargs"].update({"n": 4})
+    if cfg.llm.backend == "hf":
+        OmegaConf.update(
+            cfg.llm.generation_kwargs,
+            key="num_return_sequences",
+            value=4,
+            force_add=True
+        )
+    elif cfg.llm.backend == "vllm":
+        OmegaConf.update(
+            cfg.llm.generation_kwargs, key="n", value=4, force_add=True
+        )
 
-    llm = create_llm(**llm_kwargs)
+    llm = create_llm(**cfg.llm)
 
     predictions = []
     references = []
@@ -200,34 +204,42 @@ def replug(cfg: DictConfig, dataset: Dataset) -> tuple[list[str], list[str]]:
             example["profile"],
             cfg.num_retrieve
         )
-        prompts = [
-            prompt_fn(example["source"], [rec], None, None) for rec in profile
+        chat_prompts = [
+            chat_prompt_fn(
+                prompt_fn(
+                    example["source"],
+                    [rec],
+                    example["query"],
+                    example["corpus"]
+                )
+            )
+            for rec in profile
         ]
         completions = [
-            c for completions in llm.generate(prompts) for c in completions
+            c
+            for completions in llm.generate(chat_prompts)
+            for c in completions
         ]
 
-        all_prompts = [
-            p for _ in range(len(completions)) for p in prompts
+        all_chat_prompts = [
+            c for _ in range(len(completions)) for c in chat_prompts
         ]
         all_completions = [
-            c for c in completions for _ in range(len(prompts))
+            c for c in completions for _ in range(len(chat_prompts))
         ]
         llm_logprobs = llm.compute_completion_logprobs(
-            all_prompts, all_completions
+            all_chat_prompts, all_completions
         )
         llm_logprobs = (
             llm_logprobs.to(retriever_logprobs.device)
-            .view(len(completions), len(prompts))
+            .view(len(completions), len(chat_prompts))
         )
 
         logprobs = llm_logprobs + retriever_logprobs
         marginal_logprobs = torch.logsumexp(logprobs, dim=-1)
 
-        prediction = completions[marginal_logprobs.argmax()]
-        reference = example["target"]
-        predictions.append(prediction)
-        references.append(reference)
+        predictions.append(completions[marginal_logprobs.argmax()])
+        references.append(example["target"])
 
     return predictions, references
 
