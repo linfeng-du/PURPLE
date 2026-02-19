@@ -28,7 +28,7 @@ trainer_args:
   max_grad_norm: 1.0
   eval_steps: 1024
   eval_batch_size: 32
-  resume_from_checkpoint: false
+  resume: false
   num_rollouts: 32
   mini_batch_size: 8
   epsilon: 0.2
