@@ -1,19 +1,28 @@
-## Prepare datasets and pre-trained models
+## Environment setup
 
-Download the LaMP and LongLaMP datasets, pre-trained models, and evaluation metrics by running:
+Create a virtual environment.
+Install packages from `requirements.txt` and `flash-attn`.
+
+```bash
+virtualenv --no-download purple
+source purple/bin/activate
+pip install -r requirements.txt flash-attn==2.8.3
+```
+
+## Download resources
+
+Download LaMP and LongLaMP datasets, pre-trained models, and evaluation metrics.
 
 ```bash
 bash scripts/download.sh
 ```
 
-Correct the malformed example in `LaMP-2/dev_questions.json` by running:
+Correct the malformed example in `data/lamp2/dev_questions.json`.
 
 ```bash
 python <<'EOF'
 import json
-
-with open("data/LaMP-2/dev_questions.json", "r") as f:
-    examples = json.load(f)
+from pathlib import Path
 
 INPUT_110 = (
     "Which tag does this movie relate to among the following tags? "
@@ -31,55 +40,40 @@ INPUT_110 = (
     "but romance soon gets in the way."
 )
 
+file = Path("data/lamp2/dev_questions.json")
+examples = json.loads(file.read_text())
+
 for example in examples:
     if example["id"] == "110":
         example["input"] = INPUT_110
 
-with open("data/LaMP-2/dev_questions.json", "w") as f:
-    json.dump(examples, f)
+file.write_text(json.dumps(examples))
 EOF
-```
-
-## Environment
-Setup environment for PURPLE by running:
-
-```bash
-virtualenv --no-download purple
-source purple/bin/activate
-pip install -r requirements.txt
-```
-
-Setup environment for `vLLM` by running:
-
-```bash
-virtualenv --no-download vllm
-source vllm/bin/activate
-pip install vllm flashinfer-python
 ```
 
 ## Preprocess datasets
 
-Retrieve candidate records for each user, then tokenize the dataset.
-Supported tasks are `LaMP-{1,2,3,4,5,7}` and `LongLaMP-{2,3,4}`.
+Retrieve candidate records for each user, then pre-tokenize the dataset.
 
-Preprocess LaMP and LongLaMP datasets by running:
-
-```bash
-python src/preprocess.py --task=${TASK} --candidate_retriever=contriever --num_candidates=20
-```
-
-## Training
-For experiments with `phi4-mini-instruct` and `llama3-8b-instruct`, the LLM can run on a single H100 GPU.
-For experiments with `llama3-70b-instruct` and `qwen3next-80b-instruct`, serve the LLM on 4 H100 GPUs and provide the authority to the training script.
-Evaluation on the test split runs after training.
-
-Start training by running:
+Supported tasks: `lamp{1,2,3,4,5,7}` and `longlamp{2,3,4}`.
 
 ```bash
-vllm serve \
-    --model meta-llama/Meta-Llama-3-70B-Instruct \
-    --tensor_parallel_size 4 \
-    --host 0.0.0.0 \
-    --port 8000
-python src/train.py task=${TASK} llm=llama3-70b-instruct llm.authority=localhost:8000
+python src/preprocess.py task=${TASK}
 ```
+
+## Training PURPLE
+
+For experiments with `phi4-mini-instruct` and `llama3-8b-instruct`, training can be performed on a single H100 GPU.
+
+```bash
+python src/train.py task=${TASK} llm=${LLM}
+```
+
+For experiments with `llama3-70b-instruct`, serve the LLM on four H100 GPUs, then connect the training script to the inference endpoint.
+
+```bash
+vllm serve meta-llama/Meta-Llama-3-70B-Instruct --tensor-parallel-size 4
+python src/train.py task=${TASK} llm=llama3-70b-instruct llm.host=${HOST}
+```
+
+Testing is performed after training.
