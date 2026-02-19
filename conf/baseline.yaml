@@ -4,12 +4,13 @@ defaults:
 
 hydra:
   run:
-    dir: outputs/${run_name}
+    dir: ${output_dir}
 
 run_prefix: "${hydra:runtime.choices.llm}/\
   ${candidate_retriever}_nc${num_candidates}/${retriever}_nr${num_retrieve}"
 
 run_name: "${run_prefix}/${task}/s${seed}"
+output_dir: outputs/${run_name}
 
 create_prompt_fn:
   task: ${task}

@@ -59,6 +59,7 @@ def main(cfg: DictConfig) -> None:
     )
 
     # Create trainer and start training
+    cfg.create_prompt_fn.retriever = "first_k"
     trainer = Trainer(
         score_model,
         llm,

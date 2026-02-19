@@ -11,7 +11,10 @@ from .retrieval import create_retrieval_fn
 
 
 logger = logging.getLogger(__name__)
-PromptFn = Callable[[str, list[dict[str, str]], str, list[str]], str]
+PromptFn = Callable[
+    [str, list[dict[str, str]], str, list[str], bool],
+    str | tuple[str, list[dict[str, str]]]
+]
 ChatPromptFn = Callable[[str, str | None], ChatType]
 
 
@@ -31,8 +34,9 @@ def create_prompt_fn(
         source: str,
         profile: list[dict[str, str]],
         query: str,
-        corpus: list[str]
-    ) -> str:
+        corpus: list[str],
+        return_profile: bool = False
+    ) -> str | tuple[str, list[dict[str, str]]]:
         local_factor = factor
         retrieved_profile = retrieval_fn(query, corpus, profile, num_retrieve)
         source_length = len(tokenizer.encode(source))
@@ -43,9 +47,14 @@ def create_prompt_fn(
                     source_length, int(local_factor * max_prompt_length)
                 )
                 max_profile_length = max_prompt_length - reserved_length
-                return prompt_fn(
+                prompt = prompt_fn(
                     source, retrieved_profile, max_profile_length, tokenizer
                 )
+
+                if return_profile:
+                    return prompt, retrieved_profile
+
+                return prompt
 
             except OverflowError:
                 local_factor -= 0.1

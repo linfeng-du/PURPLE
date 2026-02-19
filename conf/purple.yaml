@@ -7,9 +7,6 @@ run_name: "${run_prefix}/\
 
 retriever: purple
 
-create_prompt_fn:
-  retriever: first_k
-
 create_pretokenize_fn:
   encoder_model: ${score_model.encoder_model}
   max_query_length: 512
@@ -22,7 +19,7 @@ score_model:
   decoder_hidden_size: 256
 
 trainer_args:
-  output_dir: outputs/${run_name}
+  output_dir: ${output_dir}
   train_batch_size: 16
   num_train_epochs: 10
   learning_rate: 1e-4

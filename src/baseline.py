@@ -2,6 +2,7 @@ import json
 import logging
 import random
 import time
+from pathlib import Path
 
 logging.getLogger("absl").setLevel(logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -53,19 +54,23 @@ def main(cfg: DictConfig) -> None:
         prompt_fn = create_prompt_fn(**cfg.create_prompt_fn)
         chat_prompt_fn = create_chat_prompt_fn(cfg.task)
 
+        questions = []
+        profiles = []
         chat_prompts = []
         references = []
 
         for example in tqdm(test_dataset, desc="Generating Prompts"):
-            chat_prompt = chat_prompt_fn(
-                prompt_fn(
-                    example["source"],
-                    example["profile"],
-                    example["query"],
-                    example["corpus"]
-                )
+            prompt, profile = prompt_fn(
+                example["source"],
+                example["profile"],
+                example["query"],
+                example["corpus"],
+                return_profile=True
             )
-            chat_prompts.append(chat_prompt)
+
+            questions.append(example["source"])
+            profiles.append(profile)
+            chat_prompts.append(chat_prompt_fn(prompt))
             references.append(example["target"])
 
         llm = create_llm(**cfg.llm)
@@ -74,6 +79,22 @@ def main(cfg: DictConfig) -> None:
         ]
 
     elapsed_time = time.perf_counter() - start_time
+
+    if cfg.retriever not in {"icralm", "replug"}:
+        output_file = Path(cfg.output_dir) / "output.jsonl"
+        output_file.write_text(data="")
+
+        with output_file.open(mode="a") as f:
+            for question, profile, prediction, reference in zip(
+                questions, profiles, predictions, references, strict=True
+            ):
+                row = {
+                    "question": question,
+                    "profile": profile,
+                    "prediction": prediction,
+                    "reference": reference,
+                }
+                f.write(f"{json.dumps(row)}\n")
 
     metric_fn = create_metric_fn(cfg.task)
     test_results = metric_fn(predictions, references)
