@@ -40,6 +40,7 @@ def _create_regression_reward_fn(labels: tuple[str, ...]) -> RewardFn:
     def to_float(prediction: str, reference: str) -> float:
         try:
             return float(prediction)
+
         except ValueError:
             reference = float(reference)
 

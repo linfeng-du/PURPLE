@@ -46,6 +46,7 @@ def create_prompt_fn(
                 return prompt_fn(
                     source, retrieved_profile, max_profile_length, tokenizer
                 )
+
             except OverflowError:
                 local_factor -= 0.1
 
